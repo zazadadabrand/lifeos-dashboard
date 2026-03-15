@@ -954,6 +954,215 @@ function AgentCard({ agent, laneColor, delay }: { agent: Agent; laneColor: strin
 }
 
 // ═══════════════════════════════════════════
+// SCOUTED ARTISTS DATA + REVIEW COMPONENT
+// ═══════════════════════════════════════════
+interface ScoutedArtist {
+  id: string;
+  name: string;
+  location: string;
+  medium: string;
+  score: number;
+  priceRange: string;
+  whyInteresting: string;
+  showsPress: string;
+  link: string;
+  batch: string;
+  dateScouted: string;
+  rating: "approved" | "declined" | "pending";
+}
+
+const SCOUTED_ARTISTS_DATA: ScoutedArtist[] = [
+  { id: "sa-1", name: "Napoles Marty", location: "Cuba / US", medium: "Sculptor, charred wood", score: 86, priceRange: "$5k–$15k", whyInteresting: "Charred wood guardians. Frieze LA Impact Prize 2026.", showsPress: "Frieze LA Impact Prize 2026, NXTHVN fellow", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-2", name: "Kristy Hughes", location: "US", medium: "Mixed media sculptor", score: 79, priceRange: "$5k–$12k", whyInteresting: "Hispanic/Indigenous mixed media sculptor. Solo at Aldrich Museum.", showsPress: "Aldrich Museum solo, NXTHVN, Rema Hort Mann Grant", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-3", name: "Frantz Patrick Henry", location: "Haiti / US", medium: "Sculptor, site-specific", score: 73, priceRange: "$5k–$15k", whyInteresting: "Haitian sculptor, site-specific installations. Yale MFA.", showsPress: "Yale MFA, NXTHVN, James Cohan group show", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-4", name: "Murjoni Merriweather", location: "US", medium: "Ceramic busts", score: 72, priceRange: "$5k–$7k", whyInteresting: "Ceramic busts celebrating Black culture. Christie's at $5K–$7K.", showsPress: "Christie's, Rubell Museum, BMA", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-5", name: "Kayla Mattes", location: "US", medium: "Handwoven tapestries", score: 66, priceRange: "$5k–$12k", whyInteresting: "Handwoven tapestries of memes and digital culture.", showsPress: "Broad Museum solo, Fountainhead residency", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-6", name: "Kimmah Dennis", location: "Liberia / US", medium: "Painter, displacement", score: 64, priceRange: "$5k–$10k", whyInteresting: "Liberian-Ivorian painter exploring Civil War displacement themes.", showsPress: "American Academy in Rome, Silver Art Projects", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-7", name: "Jaiquan Fayson", location: "US", medium: "Oil portraitist", score: 63, priceRange: "$3k–$8k", whyInteresting: "Formerly incarcerated, now art educator. Powerful oil portraits.", showsPress: "Silver Art Projects at WTC", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-8", name: "Dana-Marie Bullock", location: "Jamaica / US", medium: "Interdisciplinary, symbolic", score: 61, priceRange: "$3k–$8k", whyInteresting: "Jamaican interdisciplinary artist working with symbolic materials.", showsPress: "Silver Art Projects, Pratt MFA", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-9", name: "Delaina Doshi", location: "US", medium: "Tesserae quilts, porcelain", score: 60, priceRange: "$5k–$10k", whyInteresting: "Quilts from smashed porcelain. Fiberart International 2nd place.", showsPress: "Fiberart International 2025, Helen Frankenthaler Award", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+];
+
+function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
+  const radius = (size - 4) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+  const color = score >= 80 ? COLORS.green : score >= 65 ? COLORS.gold : COLORS.coral;
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={COLORS.border} strokeWidth={3} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={3} strokeDasharray={`${circumference}`} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.8s ease" }} />
+      </svg>
+      <span className="absolute text-[11px] font-bold tabular-nums" style={{ color }}>{score}</span>
+    </div>
+  );
+}
+
+function ScoutedArtistsReview() {
+  const [artists, setArtists] = useState<ScoutedArtist[]>(SCOUTED_ARTISTS_DATA);
+  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "declined">("all");
+  const [expanded, setExpanded] = useState(true);
+
+  const handleRating = (id: string, rating: "approved" | "declined") => {
+    setArtists(prev => prev.map(a => a.id === id ? { ...a, rating: a.rating === rating ? "pending" : rating } : a));
+  };
+
+  const filtered = filter === "all" ? artists : artists.filter(a => a.rating === filter);
+  const counts = {
+    all: artists.length,
+    pending: artists.filter(a => a.rating === "pending").length,
+    approved: artists.filter(a => a.rating === "approved").length,
+    declined: artists.filter(a => a.rating === "declined").length,
+  };
+
+  return (
+    <div className="mx-4 mb-3 rounded-lg border overflow-hidden" style={{ ...GLASS_ALT, borderColor: `${COLORS.teal}20` }}>
+      {/* Section header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-3 transition-colors hover:bg-white/[0.02]"
+      >
+        <div className="flex items-center gap-2.5">
+          <AgentIcon type="telescope" color={COLORS.teal} size={14} />
+          <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.teal }}>Scouted Artists</span>
+          <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.teal}15`, color: COLORS.teal }}>{artists.length}</span>
+          {counts.pending > 0 && (
+            <span className="text-[11px] px-1.5 py-px rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{counts.pending} to review</span>
+          )}
+        </div>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="transition-transform duration-200" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+          <path d="M3 5.5L7 9.5L11 5.5" stroke={COLORS.teal} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {/* Expandable content */}
+      <div className="overflow-hidden transition-all duration-300 ease-in-out" style={{ maxHeight: expanded ? "3000px" : "0px", opacity: expanded ? 1 : 0 }}>
+        {/* Filter tabs */}
+        <div className="flex items-center gap-1 px-4 pb-2">
+          {(["all", "pending", "approved", "declined"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors capitalize"
+              style={{
+                background: filter === f ? `${COLORS.teal}15` : "transparent",
+                color: filter === f ? COLORS.teal : COLORS.textFaint,
+              }}
+            >
+              {f} {counts[f] > 0 && <span className="tabular-nums ml-0.5">({counts[f]})</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Artist cards */}
+        <div className="px-4 pb-3 flex flex-col gap-1.5">
+          {filtered.map((artist) => (
+            <div
+              key={artist.id}
+              className="rounded-lg border p-3 flex gap-3 transition-all duration-200 group"
+              style={{
+                ...GLASS_ALT,
+                borderColor: artist.rating === "approved" ? `${COLORS.green}30` : artist.rating === "declined" ? `${COLORS.chartRed}20` : COLORS.borderSubtle,
+                opacity: artist.rating === "declined" ? 0.5 : 1,
+              }}
+            >
+              {/* Score ring */}
+              <div className="flex-shrink-0 pt-0.5">
+                <ScoreRing score={artist.score} size={40} />
+              </div>
+
+              {/* Artist info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-semibold" style={{ color: COLORS.textPrimary }}>{artist.name}</span>
+                  <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.location}</span>
+                  {artist.rating === "approved" && (
+                    <span className="text-[11px] font-medium px-1.5 py-px rounded" style={{ background: `${COLORS.green}15`, color: COLORS.green }}>Approved</span>
+                  )}
+                  {artist.rating === "declined" && (
+                    <span className="text-[11px] font-medium px-1.5 py-px rounded" style={{ background: `${COLORS.chartRed}15`, color: COLORS.chartRed }}>Declined</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-medium" style={{ color: COLORS.teal }}>{artist.medium}</span>
+                  <span className="text-[11px] tabular-nums" style={{ color: COLORS.gold }}>{artist.priceRange}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed mb-1" style={{ color: COLORS.textMuted }}>{artist.whyInteresting}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.showsPress}</span>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-col gap-1.5 flex-shrink-0 justify-center">
+                <button
+                  onClick={() => handleRating(artist.id, "approved")}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
+                  style={{
+                    background: artist.rating === "approved" ? `${COLORS.green}20` : "transparent",
+                    borderColor: artist.rating === "approved" ? COLORS.green : COLORS.borderSubtle,
+                  }}
+                  title="Approve"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 8.5L6 12.5L14 4.5" stroke={artist.rating === "approved" ? COLORS.green : COLORS.textFaint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => handleRating(artist.id, "declined")}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
+                  style={{
+                    background: artist.rating === "declined" ? `${COLORS.chartRed}20` : "transparent",
+                    borderColor: artist.rating === "declined" ? COLORS.chartRed : COLORS.borderSubtle,
+                  }}
+                  title="Decline"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 4L12 12M12 4L4 12" stroke={artist.rating === "declined" ? COLORS.chartRed : COLORS.textFaint} strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
+                {artist.link && (
+                  <a
+                    href={artist.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
+                    style={{ borderColor: COLORS.borderSubtle }}
+                    title="View portfolio"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M3.5 1.5H10.5V8.5M10.5 1.5L1.5 10.5" stroke={COLORS.textFaint} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* View on Google Sheets */}
+        <div className="px-4 pb-3">
+          <a
+            href="https://docs.google.com/spreadsheets/d/1LiCWtcIa5cUzUamwg3Q12lrCft9YbDnV89Gcs-dODY8/edit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.03]"
+            style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3.5 1.5H10.5V8.5M10.5 1.5L1.5 10.5" stroke={COLORS.textMuted} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            View full Art Scout Master Sheet
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
 // LANE GROUP (visual grouping of agents by lane)
 // ═══════════════════════════════════════════
 function LaneGroup({ lane, delay }: { lane: Lane; delay: number }) {
@@ -1005,6 +1214,9 @@ function LaneGroup({ lane, delay }: { lane: Lane; delay: number }) {
           <AgentCard key={agent.id} agent={agent} laneColor={lane.color} delay={delay + 100 + i * 60} />
         ))}
       </div>
+
+      {/* Scouted artists review — Art Advisory lane only */}
+      {lane.id === "art" && <ScoutedArtistsReview />}
 
       {/* Collapsible deliverables */}
       <DeliverablesList laneName={lane.name} laneColor={lane.color} />
