@@ -725,7 +725,7 @@ const LANES: Lane[] = [
 ];
 
 // ═══════════════════════════════════════════
-// CREDIT USAGE DATA
+// CREDIT USAGE DATA — last 24 hours
 // ═══════════════════════════════════════════
 interface CreditEntry {
   agentId: string;
@@ -734,30 +734,20 @@ interface CreditEntry {
   laneColor: string;
   laneName: string;
   creditsUsed: number;
-  runs7d: number;
-  avgPerRun: number;
-  trend: "up" | "down" | "flat";
 }
 
-const CREDIT_DATA: CreditEntry[] = [
-  { agentId: "interactive", agentName: "Interactive Sessions", icon: "hub", laneColor: COLORS.coral, laneName: "System", creditsUsed: 14200, runs7d: 45, avgPerRun: 316, trend: "up" },
-  { agentId: "dashboard-build", agentName: "Dashboard Build", icon: "signal", laneColor: COLORS.teal, laneName: "System", creditsUsed: 4800, runs7d: 12, avgPerRun: 400, trend: "flat" },
-  { agentId: "art-scout", agentName: "Art Scout", icon: "telescope", laneColor: COLORS.teal, laneName: "Art Advisory", creditsUsed: 1870, runs7d: 2, avgPerRun: 935, trend: "flat" },
-  { agentId: "morning", agentName: "Morning Brief", icon: "sunrise", laneColor: COLORS.purple, laneName: "Hub", creditsUsed: 1540, runs7d: 14, avgPerRun: 110, trend: "down" },
-  { agentId: "evening", agentName: "Evening Review", icon: "moon", laneColor: COLORS.purple, laneName: "Hub", creditsUsed: 1190, runs7d: 14, avgPerRun: 85, trend: "flat" },
-  { agentId: "midday", agentName: "Midday Pulse", icon: "bolt", laneColor: COLORS.purple, laneName: "Hub", creditsUsed: 630, runs7d: 14, avgPerRun: 45, trend: "down" },
-  { agentId: "design-critic", agentName: "Design Critic", icon: "telescope", laneColor: COLORS.teal, laneName: "System", creditsUsed: 450, runs7d: 1, avgPerRun: 450, trend: "flat" },
-  { agentId: "art-taste", agentName: "Taste Engine", icon: "target", laneColor: COLORS.teal, laneName: "Art Advisory", creditsUsed: 420, runs7d: 6, avgPerRun: 70, trend: "up" },
-  { agentId: "midnight-catalog", agentName: "Midnight Catalog", icon: "clipboard", laneColor: COLORS.teal, laneName: "System", creditsUsed: 350, runs7d: 14, avgPerRun: 25, trend: "flat" },
-  { agentId: "siyah", agentName: "Siyah Agent", icon: "person", laneColor: COLORS.gold, laneName: "Family & Life", creditsUsed: 280, runs7d: 4, avgPerRun: 70, trend: "flat" },
-  { agentId: "zoey", agentName: "Zoey Agent", icon: "person", laneColor: COLORS.gold, laneName: "Family & Life", creditsUsed: 240, runs7d: 10, avgPerRun: 24, trend: "flat" },
-  { agentId: "kelli", agentName: "Kel'li Agent", icon: "handshake", laneColor: COLORS.gold, laneName: "Family & Life", creditsUsed: 180, runs7d: 6, avgPerRun: 30, trend: "flat" },
-  { agentId: "wellness", agentName: "Wellness", icon: "pulse", laneColor: COLORS.gold, laneName: "Family & Life", creditsUsed: 120, runs7d: 4, avgPerRun: 30, trend: "flat" },
-  { agentId: "sheet-archiver", agentName: "Sheet Archiver", icon: "clipboard", laneColor: COLORS.teal, laneName: "System", creditsUsed: 80, runs7d: 2, avgPerRun: 40, trend: "flat" },
-];
+const CREDIT_DATA_24H: CreditEntry[] = [
+  { agentId: "interactive", agentName: "Interactive Sessions", icon: "hub", laneColor: COLORS.coral, laneName: "System", creditsUsed: 2840 },
+  { agentId: "dashboard-build", agentName: "Dashboard Build", icon: "signal", laneColor: COLORS.teal, laneName: "System", creditsUsed: 1200 },
+  { agentId: "art-scout", agentName: "Art Scout", icon: "telescope", laneColor: COLORS.teal, laneName: "Art Advisory", creditsUsed: 935 },
+  { agentId: "morning", agentName: "Morning Brief", icon: "sunrise", laneColor: COLORS.purple, laneName: "Hub", creditsUsed: 110 },
+  { agentId: "evening", agentName: "Evening Review", icon: "moon", laneColor: COLORS.purple, laneName: "Hub", creditsUsed: 85 },
+  { agentId: "midday", agentName: "Midday Pulse", icon: "bolt", laneColor: COLORS.purple, laneName: "Hub", creditsUsed: 45 },
+  { agentId: "design-critic", agentName: "Design Critic", icon: "telescope", laneColor: COLORS.teal, laneName: "System", creditsUsed: 0 },
+  { agentId: "midnight-catalog", agentName: "Midnight Catalog", icon: "clipboard", laneColor: COLORS.teal, laneName: "System", creditsUsed: 25 },
+].filter(c => c.creditsUsed > 0);
 
-const TOTAL_CREDITS_LIFETIME = CREDIT_DATA.reduce((sum, c) => sum + c.creditsUsed, 0);
-const TOTAL_CREDITS_7D = Math.round(TOTAL_CREDITS_LIFETIME * 0.35); // ~35% used this week
+const TOTAL_CREDITS_24H = CREDIT_DATA_24H.reduce((sum, c) => sum + c.creditsUsed, 0);
 
 // Hub agents (not lane-specific)
 const HUB_AGENTS: Agent[] = [
@@ -1500,12 +1490,13 @@ function MiniCalendar() {
 }
 
 // ═══════════════════════════════════════════
-// CREDIT USAGE CARD
+// CREDIT USAGE — LAST 24 HOURS
 // ═══════════════════════════════════════════
 function CreditUsageCard() {
-  const maxCredits = CREDIT_DATA[0].creditsUsed;
+  const maxCredits = CREDIT_DATA_24H[0]?.creditsUsed || 1;
 
-  const laneTotals = CREDIT_DATA.reduce((acc, c) => {
+  // Group by lane for the breakdown
+  const laneTotals = CREDIT_DATA_24H.reduce((acc, c) => {
     acc[c.laneName] = (acc[c.laneName] || 0) + c.creditsUsed;
     return acc;
   }, {} as Record<string, number>);
@@ -1517,122 +1508,86 @@ function CreditUsageCard() {
     "System": COLORS.coral,
   };
 
+  const sortedLanes = Object.entries(laneTotals).sort((a, b) => b[1] - a[1]);
+
   return (
     <div
       className="animate-fade-in-up rounded-xl border overflow-hidden"
       style={{ ...GLASS, animationDelay: "300ms" }}
       data-testid="credit-usage"
     >
-      <div className="p-5 pb-3">
-        <div className="flex items-center justify-between mb-1">
+      <div className="p-5">
+        {/* Header with 24h total */}
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${COLORS.chartRed}12` }}>
-              <AgentIcon type="bars" color={COLORS.chartRed} size={20} />
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${COLORS.textMuted}10` }}>
+              <AgentIcon type="bars" color={COLORS.textMuted} size={20} />
             </div>
             <div>
-              <h3 className="text-sm font-semibold" style={{ color: COLORS.textPrimary }}>Credit Usage</h3>
-              <p className="text-[11px]" style={{ color: COLORS.textMuted }}>Lifetime usage by category</p>
+              <h3 className="text-sm font-semibold" style={{ color: COLORS.textPrimary }}>Credits · Last 24h</h3>
+              <p className="text-[11px]" style={{ color: COLORS.textFaint }}>{CREDIT_DATA_24H.length} agents active</p>
             </div>
           </div>
           <div className="text-right">
-            <span className="text-lg font-bold tabular-nums" style={{ color: COLORS.chartRed }}>{TOTAL_CREDITS_LIFETIME.toLocaleString()}</span>
-            <span className="text-[11px] block" style={{ color: COLORS.textFaint }}>total credits used</span>
+            <span className="text-2xl font-bold tabular-nums" style={{ color: COLORS.textPrimary }}>{TOTAL_CREDITS_24H.toLocaleString()}</span>
+            <span className="text-[11px] block" style={{ color: COLORS.textFaint }}>credits used</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mt-3 mb-4 flex-wrap">
-          {Object.entries(laneTotals).sort((a, b) => b[1] - a[1]).map(([lane, total]) => (
-            <div key={lane} className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md" style={{ background: `${laneColors[lane] || COLORS.textFaint}12`, color: laneColors[lane] || COLORS.textMuted }}>
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: laneColors[lane] || COLORS.textFaint }} />
-              {lane}: <span className="font-semibold tabular-nums">{total.toLocaleString()}</span>
+        {/* Lane breakdown — stacked bar */}
+        <div className="h-2 rounded-full overflow-hidden flex mb-3" style={{ background: COLORS.border }}>
+          {sortedLanes.map(([lane, total]) => (
+            <div
+              key={lane}
+              className="h-full first:rounded-l-full last:rounded-r-full"
+              style={{
+                width: `${(total / TOTAL_CREDITS_24H) * 100}%`,
+                background: laneColors[lane] || COLORS.textFaint,
+                opacity: 0.85,
+              }}
+              title={`${lane}: ${total.toLocaleString()}`}
+            />
+          ))}
+        </div>
+
+        {/* Lane legend */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          {sortedLanes.map(([lane, total]) => (
+            <div key={lane} className="flex items-center gap-1.5 text-[11px]">
+              <div className="w-2 h-2 rounded-sm" style={{ background: laneColors[lane] || COLORS.textFaint }} />
+              <span style={{ color: COLORS.textMuted }}>{lane}</span>
+              <span className="font-semibold tabular-nums" style={{ color: COLORS.textPrimary }}>{total.toLocaleString()}</span>
+              <span style={{ color: COLORS.textFaint }}>({Math.round((total / TOTAL_CREDITS_24H) * 100)}%)</span>
             </div>
           ))}
         </div>
-      </div>
 
-      <div className="px-5 pb-5 flex flex-col gap-2">
-        {CREDIT_DATA.map((entry, i) => (
-          <div key={entry.agentId} className="group animate-fade-in-up" style={{ animationDelay: `${400 + i * 50}ms` }}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                <AgentIcon type={entry.icon} color={entry.laneColor} size={14} />
+        {/* Top spenders list */}
+        <div className="flex flex-col gap-1.5">
+          {CREDIT_DATA_24H.slice(0, 5).map((entry, i) => (
+            <div key={entry.agentId} className="flex items-center gap-2.5 animate-fade-in-up" style={{ animationDelay: `${350 + i * 40}ms` }}>
+              <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                <AgentIcon type={entry.icon} color={entry.laneColor} size={12} />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-medium" style={{ color: COLORS.textPrimary }}>{entry.agentName}</span>
-                    <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{entry.runs7d} runs</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {entry.trend === "up" && <span className="text-[11px]" style={{ color: COLORS.chartRed }}>&#9650;</span>}
-                    {entry.trend === "down" && <span className="text-[11px]" style={{ color: COLORS.green }}>&#9660;</span>}
-                    <span className="text-[11px] font-semibold tabular-nums" style={{ color: COLORS.textPrimary }}>{entry.creditsUsed.toLocaleString()}</span>
-                  </div>
-                </div>
-                <div className="h-[6px] rounded-full overflow-hidden" style={{ background: COLORS.border }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-700 ease-out"
-                    style={{
-                      width: `${(entry.creditsUsed / maxCredits) * 100}%`,
-                      background: `linear-gradient(90deg, ${entry.laneColor}90, ${entry.laneColor})`,
-                    }}
-                  />
-                </div>
+              <span className="text-[11px] font-medium flex-1 min-w-0 truncate" style={{ color: COLORS.textPrimary }}>{entry.agentName}</span>
+              <div className="w-24 h-[5px] rounded-full overflow-hidden flex-shrink-0" style={{ background: COLORS.border }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${(entry.creditsUsed / maxCredits) * 100}%`,
+                    background: entry.laneColor,
+                    opacity: 0.75,
+                  }}
+                />
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="px-5 py-3 border-t flex items-center justify-between" style={{ borderColor: COLORS.borderSubtle }}>
-        <span className="text-[11px]" style={{ color: COLORS.textFaint }}>
-          Top: Interactive Sessions ({CREDIT_DATA[0].creditsUsed.toLocaleString()}) · {CREDIT_DATA.length} categories tracked
-        </span>
-        <span className="text-[11px] font-medium" style={{ color: COLORS.textMuted }}>~{Math.round(TOTAL_CREDITS_7D / 7).toLocaleString()}/day avg</span>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════
-// CREDIT TREND + OPTIMIZATION SIDEBAR
-// ═══════════════════════════════════════════
-function CreditSidebar() {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="animate-fade-in-up rounded-xl border p-5 flex flex-col gap-3" style={{ ...GLASS, animationDelay: "350ms" }}>
-        <h3 className="text-sm font-semibold" style={{ color: COLORS.textPrimary }}>Credit Trend</h3>
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <Sparkline data={[2800, 3200, 3600, 4100, 3900, 4200, 4500]} color={COLORS.chartRed} width={200} height={40} />
-          </div>
-          <div className="text-right">
-            <span className="text-[11px] block" style={{ color: COLORS.textFaint }}>7-day trend</span>
-            <span className="text-[11px] font-medium" style={{ color: COLORS.chartRed }}>&#9650; 12% vs prior week</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 mt-1">
-          {[{ label: "Daily avg", value: `~${Math.round(TOTAL_CREDITS_7D / 7).toLocaleString()}`, color: COLORS.textPrimary }, { label: "Peak day", value: "Mon", color: COLORS.chartRed }, { label: "Lightest", value: "Sat", color: COLORS.green }].map(s => (
-            <div key={s.label} className="flex-1 rounded-lg p-2.5 text-center" style={{ ...GLASS_ALT }}>
-              <span className="text-[11px] block" style={{ color: COLORS.textFaint }}>{s.label}</span>
-              <span className="text-xs font-semibold tabular-nums" style={{ color: s.color }}>{s.value}</span>
+              <span className="text-[11px] font-semibold tabular-nums w-12 text-right" style={{ color: COLORS.textPrimary }}>{entry.creditsUsed.toLocaleString()}</span>
             </div>
           ))}
-        </div>
-      </div>
-      <div className="animate-fade-in-up rounded-xl border p-5" style={{ ...GLASS, animationDelay: "400ms" }}>
-        <h3 className="text-sm font-semibold mb-2" style={{ color: COLORS.textPrimary }}>Optimization Tips</h3>
-        <div className="flex flex-col gap-2">
-          {[
-            { tip: "Interactive sessions are your largest spend — batch similar tasks to reduce overhead", color: COLORS.coral },
-            { tip: "Midday Pulse stays silent when nothing moves — saving ~40% vs always-notify", color: COLORS.green },
-            { tip: "Dashboard builds are front-loaded — expect this category to drop as v1 stabilizes", color: COLORS.teal },
-          ].map((t, i) => (
-            <div key={i} className="flex items-start gap-2 text-[11px] leading-relaxed" style={{ color: COLORS.textMuted }}>
-              <div className="w-1 h-1 rounded-full mt-1.5 flex-shrink-0" style={{ background: t.color }} />
-              {t.tip}
+          {CREDIT_DATA_24H.length > 5 && (
+            <div className="text-[11px] pl-6 pt-0.5" style={{ color: COLORS.textFaint }}>
+              +{CREDIT_DATA_24H.length - 5} more ({CREDIT_DATA_24H.slice(5).reduce((s, c) => s + c.creditsUsed, 0).toLocaleString()} credits)
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
@@ -2373,9 +2328,9 @@ function TLDRDigest() {
   lines.push({
     icon: "bars",
     label: "Credits",
-    color: COLORS.chartRed,
-    status: `${TOTAL_CREDITS_LIFETIME.toLocaleString()} lifetime`,
-    detail: `~${Math.round(TOTAL_CREDITS_7D / 7).toLocaleString()}/day avg · Interactive sessions highest (${CREDIT_DATA[0].creditsUsed.toLocaleString()})`,
+    color: COLORS.textMuted,
+    status: `${TOTAL_CREDITS_24H.toLocaleString()} last 24h`,
+    detail: `Top: ${CREDIT_DATA_24H[0]?.agentName || ""} (${CREDIT_DATA_24H[0]?.creditsUsed.toLocaleString() || 0}) · ${CREDIT_DATA_24H.length} agents active`,
   });
 
   const [expandedLane, setExpandedLane] = useState<string | null>(null);
@@ -2660,13 +2615,8 @@ export default function Dashboard() {
         );
       case "credits":
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-            <div className="lg:col-span-3">
-              <CreditUsageCard />
-            </div>
-            <div className="lg:col-span-2">
-              <CreditSidebar />
-            </div>
+          <div className="max-w-2xl">
+            <CreditUsageCard />
           </div>
         );
       case "agents-active":
