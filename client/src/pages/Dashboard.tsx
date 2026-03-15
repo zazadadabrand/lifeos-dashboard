@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 import {
   DndContext,
@@ -1521,11 +1522,14 @@ function ScoutedArtistsReview() {
           </a>
         </div>
 
-        {/* Brief panel modal */}
-        {briefArtist && <BriefPanel artist={briefArtist} onClose={() => setBriefArtist(null)} />}
+        {/* Brief panel modal — portaled to body to escape overflow:hidden */}
+        {briefArtist && createPortal(
+          <BriefPanel artist={briefArtist} onClose={() => setBriefArtist(null)} />,
+          document.body
+        )}
 
-        {/* Archive modal */}
-        {showArchive && (
+        {/* Archive modal — portaled to body */}
+        {showArchive && createPortal(
           <ArchiveModal
             artists={artists}
             onClose={() => setShowArchive(false)}
@@ -1534,15 +1538,17 @@ function ScoutedArtistsReview() {
               setArchiveToast(true);
               setTimeout(() => setArchiveToast(false), 3000);
             }}
-          />
+          />,
+          document.body
         )}
 
-        {/* Archive toast */}
-        {archiveToast && (
+        {/* Archive toast — portaled to body */}
+        {archiveToast && createPortal(
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl border text-xs font-medium animate-fade-in-up"
             style={{ background: "rgba(20,20,30,0.95)", borderColor: `${COLORS.teal}30`, color: COLORS.teal, boxShadow: "0 10px 30px rgba(0,0,0,0.4)" }}>
             Week archived successfully. Decisions synced to Art Scout Master Sheet.
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>
