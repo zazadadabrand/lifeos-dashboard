@@ -19,6 +19,12 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 // ═══════════════════════════════════════════
+// API BASE — proxied through deploy, localhost for dev
+// ═══════════════════════════════════════════
+const _API_RAW = "__PORT_8000__";
+const API_BASE = _API_RAW.startsWith("__") ? "http://localhost:8000" : _API_RAW;
+
+// ═══════════════════════════════════════════
 // COLOR VARIANTS (8 environments)
 // ═══════════════════════════════════════════
 interface ColorBlob {
@@ -1003,6 +1009,8 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
 
 // Module-level rating store — survives React re-renders and component unmount/remount
 const _artistRatings: Record<string, "approved" | "declined" | "pending"> = {};
+let _ratingsInitialized = false;
+
 function getPersistedArtists(): ScoutedArtist[] {
   return SCOUTED_ARTISTS_DATA.map(a => ({
     ...a,
@@ -1010,10 +1018,50 @@ function getPersistedArtists(): ScoutedArtist[] {
   }));
 }
 
+// Sync a rating to the backend (fire-and-forget, non-blocking)
+function syncRatingToSheet(artistName: string, rating: string) {
+  fetch(`${API_BASE}/api/rate-artist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ artistName, rating }),
+  }).catch(() => { /* silent — sheet sync is best-effort */ });
+}
+
 function ScoutedArtistsReview() {
   const [artists, setArtists] = useState<ScoutedArtist[]>(getPersistedArtists);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "declined">("all");
   const [expanded, setExpanded] = useState(true);
+  const [syncing, setSyncing] = useState<string | null>(null);
+
+  // On mount, fetch saved ratings from backend (Google Sheets)
+  useEffect(() => {
+    if (_ratingsInitialized) return;
+    _ratingsInitialized = true;
+    fetch(`${API_BASE}/api/artist-ratings`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.ratings) {
+          const r = data.ratings as Record<string, string>;
+          let changed = false;
+          for (const [name, status] of Object.entries(r)) {
+            if (status === "approved" || status === "declined") {
+              // Find matching artist by name
+              const match = SCOUTED_ARTISTS_DATA.find(
+                a => a.name.toLowerCase() === name.toLowerCase()
+              );
+              if (match && !_artistRatings[match.id]) {
+                _artistRatings[match.id] = status as "approved" | "declined";
+                changed = true;
+              }
+            }
+          }
+          if (changed) {
+            setArtists(getPersistedArtists());
+          }
+        }
+      })
+      .catch(() => { /* silent */ });
+  }, []);
 
   const handleRating = (id: string, rating: "approved" | "declined") => {
     setArtists(prev => {
@@ -1021,6 +1069,10 @@ function ScoutedArtistsReview() {
         if (a.id !== id) return a;
         const newRating = a.rating === rating ? "pending" : rating;
         _artistRatings[id] = newRating;
+        // Sync to Google Sheets
+        setSyncing(id);
+        syncRatingToSheet(a.name, newRating);
+        setTimeout(() => setSyncing(null), 1500);
         return { ...a, rating: newRating };
       });
       return updated;
@@ -1101,6 +1153,9 @@ function ScoutedArtistsReview() {
                   )}
                   {artist.rating === "declined" && (
                     <span className="text-[11px] font-medium px-1.5 py-px rounded" style={{ background: `${COLORS.chartRed}15`, color: COLORS.chartRed }}>Declined</span>
+                  )}
+                  {syncing === artist.id && (
+                    <span className="text-[11px] font-medium px-1.5 py-px rounded animate-pulse" style={{ background: `${COLORS.teal}10`, color: COLORS.teal }}>syncing...</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mb-1">
