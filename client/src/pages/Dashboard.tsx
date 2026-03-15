@@ -1342,7 +1342,7 @@ function ScoutedArtistsReview() {
       </button>
 
       {/* Expandable content */}
-      <div className="overflow-hidden transition-all duration-300 ease-in-out" style={{ maxHeight: expanded ? "3000px" : "0px", opacity: expanded ? 1 : 0 }}>
+      <div className="overflow-hidden transition-all duration-300 ease-in-out" style={{ maxHeight: expanded ? "9999px" : "0px", opacity: expanded ? 1 : 0 }}>
         {/* Filter tabs */}
         <div className="flex items-center gap-1 px-4 pb-2">
           {(["all", "pending", "approved", "declined"] as const).map(f => (
@@ -1360,8 +1360,8 @@ function ScoutedArtistsReview() {
           ))}
         </div>
 
-        {/* Artist cards */}
-        <div className="px-4 pb-3 flex flex-col gap-1.5">
+        {/* Artist cards — scrollable */}
+        <div className="px-4 pb-3 flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: "520px", scrollbarWidth: "thin", scrollbarColor: `${COLORS.teal}30 transparent` }}>
           {filtered.map((artist) => (
             <div
               key={artist.id}
@@ -1435,7 +1435,7 @@ function ScoutedArtistsReview() {
                   )}
                   {artist.website && (
                     <a
-                      href={artist.website}
+                      href={artist.website.startsWith("http") ? artist.website : `https://${artist.website}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
