@@ -967,18 +967,70 @@ interface ScoutedArtist {
   batch: string;
   dateScouted: string;
   rating: "approved" | "declined" | "pending";
+  practice?: string;
+  education?: string;
+  residencies?: string;
+  repStatus?: string;
+  unrepresented?: boolean;
+}
+
+// Week tracking
+function getISOWeek(): string {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+function getWeekDateRange(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((day + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${fmt(monday)} — ${fmt(sunday)}`;
 }
 
 const SCOUTED_ARTISTS_DATA: ScoutedArtist[] = [
-  { id: "sa-1", name: "Napoles Marty", location: "Cuba / US", medium: "Sculptor, charred wood", score: 86, priceRange: "$5k–$15k", whyInteresting: "Charred wood guardians. Frieze LA Impact Prize 2026.", showsPress: "Frieze LA Impact Prize 2026, NXTHVN fellow", link: "", instagram: "https://www.instagram.com/napoles_marty/", website: "https://www.napolesmarty.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-2", name: "Kristy Hughes", location: "US", medium: "Mixed media sculptor", score: 79, priceRange: "$5k–$12k", whyInteresting: "Hispanic/Indigenous mixed media sculptor. Solo at Aldrich Museum.", showsPress: "Aldrich Museum solo, NXTHVN, Rema Hort Mann Grant", link: "", instagram: "", website: "https://www.kristyhughes.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-3", name: "Frantz Patrick Henry", location: "Haiti / US", medium: "Sculptor, site-specific", score: 73, priceRange: "$5k–$15k", whyInteresting: "Haitian sculptor, site-specific installations. Yale MFA.", showsPress: "Yale MFA, NXTHVN, James Cohan group show", link: "", instagram: "https://www.instagram.com/patrick_f._henry/", website: "https://frantzpatrickhenry.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-4", name: "Murjoni Merriweather", location: "US", medium: "Ceramic busts", score: 72, priceRange: "$5k–$7k", whyInteresting: "Ceramic busts celebrating Black culture. Christie's at $5K–$7K.", showsPress: "Christie's, Rubell Museum, BMA", link: "", instagram: "https://www.instagram.com/mvrjoni/", website: "https://www.mvrjoni.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-5", name: "Kayla Mattes", location: "US", medium: "Handwoven tapestries", score: 66, priceRange: "$5k–$12k", whyInteresting: "Handwoven tapestries of memes and digital culture.", showsPress: "Broad Museum solo, Fountainhead residency", link: "", instagram: "https://www.instagram.com/kaylamattes/", website: "https://kaylamattes.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-6", name: "Kimmah Dennis", location: "Liberia / US", medium: "Painter, displacement", score: 64, priceRange: "$5k–$10k", whyInteresting: "Liberian-Ivorian painter exploring Civil War displacement themes.", showsPress: "American Academy in Rome, Silver Art Projects", link: "", instagram: "https://www.instagram.com/kimmah_dennis/", website: "https://www.artsy.net/artist/kimmah-dennis", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-7", name: "Jaiquan Fayson", location: "US", medium: "Oil portraitist", score: 63, priceRange: "$3k–$8k", whyInteresting: "Formerly incarcerated, now art educator. Powerful oil portraits.", showsPress: "Silver Art Projects at WTC", link: "", instagram: "https://www.instagram.com/jaiquan_fayson/", website: "https://www.jaiquanfayson.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-8", name: "Dana-Marie Bullock", location: "Jamaica / US", medium: "Interdisciplinary, symbolic", score: 61, priceRange: "$3k–$8k", whyInteresting: "Jamaican interdisciplinary artist working with symbolic materials.", showsPress: "Silver Art Projects, Pratt MFA", link: "", instagram: "https://www.instagram.com/danamariebullock", website: "https://www.danamariebullock.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-9", name: "Delaina Doshi", location: "US", medium: "Tesserae quilts, porcelain", score: 60, priceRange: "$5k–$10k", whyInteresting: "Quilts from smashed porcelain. Fiberart International 2nd place.", showsPress: "Fiberart International 2025, Helen Frankenthaler Award", link: "", instagram: "https://www.instagram.com/delaina_doshi/", website: "https://www.delainadoshi.com/", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "b1-01", name: "Patrick Eugène", location: "Atlanta, GA", medium: "Oil on canvas", score: 82, priceRange: "$10K–$30K+", whyInteresting: "Dior collab signals brand/corporate appeal — directly relevant to Phase 1 buyer targets. Conviction over trends aligns with Taste Bible.", showsPress: "Where Do We Go From Here (Gallery 1957), 50 Pounds (Mariane Ibrahim), Dior Lady Art 2025", link: "", instagram: "https://www.instagram.com/patrickeugeneart/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Atlanta-based painter whose intuitive, ancestor-channeling process produces luminous figurative works. Haitian heritage and spiritual practice.", education: "Self-taught (began at 27 after banking career)", residencies: "", repStatus: "Mariane Ibrahim", unrepresented: false },
+  { id: "b1-02", name: "Darin Cooper", location: "Brooklyn, NY", medium: "Acrylic, collage, iron transfer, silkscreen on muslin", score: 79, priceRange: "Early market", whyInteresting: "Themes map directly onto brand/corporate storytelling for Phase 1 buyers.", showsPress: "AIN'T NO PLACE LIKE HOME (James Fuentes, 2023), Group shows at Bode, Grove Collective", link: "", instagram: "https://www.instagram.com/darincooperr/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Born in 2000, technique of dissolving acrylic on muslin is genuinely original. Themes of Black Southern culture, church, hip-hop, and cowboys.", education: "BFA, School of Visual Arts (SVA)", residencies: "", repStatus: "UTA / James Fuentes", unrepresented: false },
+  { id: "b1-03", name: "Chiderah Bosah", location: "Port Harcourt, Nigeria", medium: "Oil on canvas", score: 77, priceRange: "$5K–$15K", whyInteresting: "Price point is squarely in the sweet spot, work reads beautifully in corporate/commercial settings.", showsPress: "A Solemn Chronicle of Believers (Gallery 1957), 1-54 NY/Paris, Investec Cape Town", link: "", instagram: "https://www.instagram.com/chiderahbosah/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Nigerian painter whose muted, serene portraits capture quiet strength. Pale palette stands out.", education: "Self-taught", residencies: "", repStatus: "Gallery 1957, multi-gallery", unrepresented: false },
+  { id: "b1-04", name: "Kelechi Nwaneri", location: "Lagos, Nigeria", medium: "Mixed media (pencil, charcoal, acrylic, oil, watercolor, collage)", score: 76, priceRange: "$2K–$15K", whyInteresting: "Visual language is both deeply rooted and completely contemporary — the kind of conviction the Taste Bible prizes.", showsPress: "Red (Hjellegjerde Berlin), Finding Balance (Hjellegjerde London), 1-54, Art Dubai", link: "", instagram: "https://www.instagram.com/kaecyart/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Nigerian artist with unique fusion of West African symbolic traditions (Uli/Nsibidi/Adinkra) and contemporary surrealism.", education: "Self-taught (BA in Agricultural Extension)", residencies: "", repStatus: "Kristin Hjellegjerde, multi-gallery", unrepresented: false },
+  { id: "b1-05", name: "Agnes Waruguru", location: "Nairobi, Kenya", medium: "Painting, needlework, installation", score: 75, priceRange: "$400–several K", whyInteresting: "Prices currently low relative to CV — significant upside. Craft-meets-fine-art angle plays well with brand/corporate buyers.", showsPress: "60th Venice Biennale (2024), Stellenbosch Triennale, Casa Masaccio (Italy)", link: "", instagram: "https://www.instagram.com/waru_guru/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Venice Biennale artist at 30 who integrates beadwork and embroidery with abstract painting. Multi-sensory approach.", education: "BFA, Savannah College of Art and Design", residencies: "", repStatus: "Circle Art, Rele, Bode", unrepresented: false },
+  { id: "b1-06", name: "Bony Ramirez", location: "New Jersey / New York", medium: "Acrylic, colored pencil, oil pastel, sculpture", score: 74, priceRange: "$1.4K–$63K (auction)", whyInteresting: "Worth studying as a benchmark for the quality level Bernard Studia should target.", showsPress: "Jeffrey Deitch solo, Newark Museum solo, Modern Art Museum Fort Worth group", link: "", instagram: "https://www.instagram.com/bonyramirezz/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught. Taste calibration benchmark — exemplifies several Taste Bible axes but gallery infrastructure may be too established.", education: "Self-taught", residencies: "", repStatus: "Jeffrey Deitch, Ghebaly (STRONG)", unrepresented: false },
+  { id: "b1-07", name: "Cielo Félix-Hernández", location: "Brooklyn, NY", medium: "Oil on canvas with hibiscus-dyed satin", score: 73, priceRange: "Primary market", whyInteresting: "Diasporic nostalgia themes and vibrant palette have brand storytelling potential. Museum collection at 27.", showsPress: "sweet and sour (Sargent's Daughters), DOMESTICANX (El Museo del Barrio), Blum & Poe group show", link: "", instagram: "https://www.instagram.com/cielo__online/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Puerto Rican artist who dyes satin with actual hibiscus flowers and integrates into oil paintings. Genuine material honesty.", education: "BFA, Virginia Commonwealth University", residencies: "", repStatus: "Sargent's Daughters", unrepresented: false },
+  { id: "b1-08", name: "Omar Gabr", location: "Cairo, Egypt", medium: "Painting, khayameya tapestries, found objects", score: 71, priceRange: "Early market", whyInteresting: "Very early career with strong signals (1-54 top 10) — maximum upside if the work matures.", showsPress: "1-54 London (top 10), 1-54 Marrakech, AKAA Fair", link: "", instagram: "https://www.instagram.com/omargabrr/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Egyptian artist who survived childhood cancer. Satirical figurative work with traditional khayameya tapestry.", education: "Self-taught (commerce diploma)", residencies: "", repStatus: "Ubuntu Art Gallery (Cairo)", unrepresented: false },
+  { id: "b1-09", name: "Shakil Solanki", location: "Cape Town, South Africa", medium: "Oil-based monotype, gouache, painting", score: 70, priceRange: "$70–$1K", whyInteresting: "Aesthetic has strong corporate/brand appeal (luxury, hospitality). Priced below target but rising.", showsPress: "The Pearl Fishers (Everard Read), Yumeji's Theme (WHATIFTHEWORLD), Cape Town Opera commission", link: "", instagram: "https://www.instagram.com/shakilsolanki_studio/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Reimagines Persian/Hindu miniature traditions through contemporary queer lens. Decorative precision and cultural depth.", education: "BA Fine Art, University of Cape Town", residencies: "", repStatus: "Everard Read, THEFOURTH", unrepresented: false },
+  { id: "b1-10", name: "Reni Soares", location: "San Diego, CA", medium: "Acrylic on canvas", score: 66, priceRange: "$950–$2.7K", whyInteresting: "Most accessible price point — interesting for designer channel placement. Higher risk but cultural narrative has potential.", showsPress: "Saatchi Art Rising Stars 2025, The Other Art Fair (multiple cities)", link: "", instagram: "https://www.instagram.com/renisoaresart/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Cape Verdean painter with distinctive folded-canvas technique. Saatchi Rising Stars nod.", education: "Self-taught (BA in Business Administration)", residencies: "", repStatus: "Independent (Saatchi Art)", unrepresented: true },
+  { id: "b2-01", name: "Napoles Marty", location: "Connecticut / Rhode Island", medium: "Sculpture (charred wood), Drawing", score: 86, priceRange: "$5K–$15K", whyInteresting: "Extraordinary material honesty. Frieze LA Impact Prize 2026 signals institutional momentum without gallery gatekeeping.", showsPress: "Frieze LA Impact Prize solo (2026), James Cohan — NXTHVN Cohort 06 (2025), 12th Havana Biennial (2015)", link: "", instagram: "https://www.instagram.com/napoles_marty/", website: "napolesmarty.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Carves guardian and spirit figures from wood using chainsaws, then chars surfaces. Cuban heritage, migration, spirituality, and myth.", education: "National School of Fine Arts San Alejandro, Havana", residencies: "NXTHVN Fellow (2024-25), Int'l Ceramics Studio Hungary, Guttenberg Arts NJ", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b2-02", name: "Kristy Hughes", location: "USA", medium: "Sculpture, Mixed Media, Painting", score: 79, priceRange: "$5K–$15K", whyInteresting: "Strong emerging profile with cross-medium practice and material-driven approach.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Sculpture and mixed media practice exploring material transformation and identity.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b2-03", name: "Frantz Patrick Henry", location: "USA", medium: "Sculpture, Installation, Painting", score: 73, priceRange: "No public pricing", whyInteresting: "Strong diasporic narrative with installation work that offers advisory placement opportunities.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Sculpture and installation practice exploring Haitian diaspora, cultural memory, and material transformation.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b2-04", name: "Murjoni Merriweather", location: "USA", medium: "Ceramics, Sculpture, Video", score: 72, priceRange: "$5K–$7K", whyInteresting: "Christie's presence signals market validation while maintaining independence.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Ceramics and sculpture practice exploring Black identity, domesticity, and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b2-05", name: "Kayla Mattes", location: "USA", medium: "Handwoven Tapestry, Textile", score: 66, priceRange: "$2K–$10K", whyInteresting: "Cross-medium practice bridging digital and analog with strong material honesty.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Handwoven tapestry practice exploring digital culture through analog textile techniques.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b2-06", name: "Kimmah Dennis", location: "USA", medium: "Painting, Photography, Mixed Media", score: 64, priceRange: "$3K–$3.5K", whyInteresting: "Accessible price point with strong growth trajectory and culturally relevant themes.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Painting and photography practice exploring Black womanhood, spirituality, and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b2-07", name: "Jaiquan Fayson", location: "USA", medium: "Oil Painting, Drawing, Portraiture", score: 63, priceRange: "$5K–$15K", whyInteresting: "Strong technical skill with figurative work that resonates with collector base.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Oil painting and drawing practice with focus on portraiture and Black figurative tradition.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b2-08", name: "Dana-Marie Bullock", location: "USA", medium: "Painting, Sculpture, Installation", score: 61, priceRange: "No public pricing", whyInteresting: "Cross-medium practice with installation work offering advisory placement opportunities.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Painting and sculpture practice exploring identity, material transformation, and space.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b2-09", name: "Delaina Doshi", location: "USA", medium: "Fiber, Textile, Tesserae Quilts", score: 60, priceRange: "No public pricing", whyInteresting: "Material-driven practice with strong craft narrative and cross-medium approach.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Fiber and textile practice creating tesserae quilts that explore heritage and contemporary craft.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-01", name: "Malcolm Peacock", location: "New York", medium: "Performance, sculpture, time-based media, installation", score: 70, priceRange: "$10K–$20K", whyInteresting: "Strong diasporic narrative. Skowhegan alumni. Joan Mitchell Fellowship. Studio Museum residency — strong institutional pipeline.", showsPress: "Pass Carry Hold, MoMA PS1 (2024), a signal, a sprout, BMA (2025)", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Explores Black emotional/psychic spaces via everyday actions (braiding, running); diasporic themes of intimacy/presence; monumental endurance-based installations.", education: "BFA VCU (2016); MFA Rutgers Mason Gross (2019)", residencies: "Studio Museum Harlem (2023-24); Skowhegan; Joan Mitchell Center; UPenn; Denniston Hill", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-02", name: "Esperanza Cortés", location: "Colombia / New York City", medium: "Sculpture, mixed media", score: 67, priceRange: "$6K–$10K", whyInteresting: "Major museum exhibition history signals significant upside. Sculptural/installation work offers advisory placement.", showsPress: "Smack Mellon Gallery, Neuberger Museum of Art, Bronx Museum of Art", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Multicultural Colombian-American artist creating organic sculptures exploring memory, injustice in mining, colonialism.", education: "N/A", residencies: "MacDowell 2025, residency in Knoxville TN", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-03", name: "Ami Park", location: "Bronx/Queens NY", medium: "Fiber/textile installation, yarn/rope sculpture", score: 64, priceRange: "$5K–$20K", whyInteresting: "Strong diasporic narrative. Material-driven practice with strong craft narrative. Saatchi Rising Star.", showsPress: "Clio Art Fair 2025, Bronx Museum AIM Biennial, Pen + Brush", link: "", instagram: "https://www.instagram.com/iam__ami_/", website: "ami-park.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Korean diasporic artist using immersive fiber works to explore mind-object vibrations, intergenerational craft inheritance.", education: "BFA Fashion Design Parsons 2016", residencies: "LMCC Governors Island, Prairie Ronde", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-04", name: "Hai-Wen Lin", location: "Elk Grove, CA", medium: "Mixed media, cyanotype textiles, kite sculptures, fiber", score: 63, priceRange: "$5K–$15K", whyInteresting: "2025 Burke Prize, Luminarts Fellow. Skowhegan alumni. Strong diasporic narrative.", showsPress: "Burke Prize exhibition at MAD Museum (2025-2026), solo at Prairie, Pittsburgh Glass Center", link: "", instagram: "https://www.instagram.com/hai_wen_lin/", website: "haiwenlin.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Taiwanese-American artist blending garment construction with flight engineering in poetic, performative kite-garments.", education: "MDes Fashion Body Garment SAIC (2023); BA Design/Psychology UC Davis (2016); Skowhegan", residencies: "Bemis Center Spring 2025; MacDowell; Lighthouse Works; Haystack; Ox-Bow", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-05", name: "sonia louise davis", location: "Harlem, NY", medium: "Mixed media soft painting, sculpture, textiles", score: 61, priceRange: "$5K–$15K", whyInteresting: "Strong emerging profile with material-driven practice based in Harlem.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Mixed media practice exploring material transformation through soft painting and textile techniques.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-06", name: "Zoë Pulley", location: "Brooklyn, NY", medium: "Mixed media, textiles, sculpture", score: 59, priceRange: "$5K–$15K", whyInteresting: "Material-driven practice with strong craft narrative.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Mixed media and textile practice exploring identity and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-07", name: "Chidinma Dureke", location: "Maryland, US", medium: "Painting, sculpture, mixed media", score: 58, priceRange: "$5K–$20K", whyInteresting: "Cross-medium practice with strong diasporic narrative.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Painting and sculpture practice exploring Nigerian-American identity and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-08", name: "Rujuta Rao", location: "Goa, India", medium: "Sculpture, mixed media, installation", score: 57, priceRange: "$7K–$20K", whyInteresting: "Sculptural/installation work offers advisory placement opportunities. International perspective.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Sculpture and mixed media practice exploring Indian contemporary art and material transformation.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-09", name: "Kaela Mei-Chee Chambers", location: "New York, NY", medium: "Interdisciplinary (installation, performance, sculpture)", score: 57, priceRange: "$5K–$20K", whyInteresting: "Cross-medium practice with strong conceptual depth.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Interdisciplinary practice spanning installation, performance, and sculpture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-10", name: "Chayse Sampy", location: "Houston TX / New Haven CT", medium: "Mixed media painting, sculpture", score: 56, priceRange: "$5K–$20K", whyInteresting: "Strong emerging profile with growth potential.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Mixed media painting and sculpture exploring identity, culture, and material transformation.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-11", name: "Gabriela Pez", location: "Havana, Cuba", medium: "Painting (watercolor, mixed media)", score: 56, priceRange: "$5K–$15K", whyInteresting: "Strong diasporic narrative with accessible medium and price point.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Painting practice from Havana exploring Cuban identity, diaspora, and visual culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-12", name: "Ayla Gizlice", location: "Raleigh, NC", medium: "Ceramics, sculpture", score: 55, priceRange: "$5K–$20K", whyInteresting: "Material-driven practice with multicultural background.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Turkish-American ceramics and sculpture practice exploring cultural heritage and material transformation.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-13", name: "Farima Fooladi", location: "Iran / The Woodlands TX", medium: "Painting, mixed media", score: 54, priceRange: "$2K–$3K", whyInteresting: "Accessible price point with strong diasporic narrative.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Iranian-American painting practice exploring diaspora, identity, and cultural memory.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-14", name: "Diego Borgsdorf Fuenzalida", location: "Los Angeles / Washington DC", medium: "Textile / fiber art", score: 54, priceRange: "$5K–$20K", whyInteresting: "Material-driven practice with strong craft narrative.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Textile and fiber art practice exploring Latin American heritage and contemporary craft.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
+  { id: "b3-15", name: "chukwumaa", location: "Brooklyn, NY", medium: "Multidisciplinary sculpture, mixed media", score: 54, priceRange: "$5K–$20K", whyInteresting: "Cross-medium practice with strong conceptual depth based in Brooklyn.", showsPress: "", link: "", instagram: "", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Multidisciplinary sculpture and mixed media practice exploring identity and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true }
 ];
 
 function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
@@ -1017,11 +1069,202 @@ function syncRatingToSheet(artistName: string, rating: string) {
   }).catch(() => { /* silent — sheet sync is best-effort */ });
 }
 
+
+// ═══════════════════════════════════════════
+// BRIEF PANEL — Detailed artist brief
+// ═══════════════════════════════════════════
+function BriefPanel({ artist, onClose }: { artist: ScoutedArtist; onClose: () => void }) {
+  const scoreColor = artist.score >= 80 ? COLORS.green : artist.score >= 65 ? COLORS.gold : COLORS.coral;
+  
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      onClick={onClose}
+      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+    >
+      <div
+        className="relative w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-xl border p-6"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "rgba(20,20,30,0.95)",
+          backdropFilter: "blur(40px)",
+          borderColor: `${COLORS.teal}30`,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 rounded-lg border flex items-center justify-center transition-colors hover:bg-white/10"
+          style={{ borderColor: COLORS.borderSubtle }}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M4 4L12 12M12 4L4 12" stroke={COLORS.textMuted} strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        {/* Header */}
+        <div className="flex items-start gap-4 mb-5">
+          <ScoreRing score={artist.score} size={52} />
+          <div>
+            <h3 className="text-lg font-bold" style={{ color: COLORS.textPrimary }}>{artist.name}</h3>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs" style={{ color: COLORS.teal }}>{artist.medium}</span>
+              <span className="text-xs" style={{ color: COLORS.textFaint }}>|</span>
+              <span className="text-xs" style={{ color: COLORS.textMuted }}>{artist.location}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs font-medium tabular-nums" style={{ color: COLORS.gold }}>{artist.priceRange}</span>
+              <span className="text-[11px] px-1.5 py-px rounded" style={{ background: `${COLORS.teal}15`, color: COLORS.teal }}>{artist.batch}</span>
+              {artist.unrepresented && (
+                <span className="text-[11px] px-1.5 py-px rounded" style={{ background: `${COLORS.green}15`, color: COLORS.green }}>Unrepresented</span>
+              )}
+              {!artist.unrepresented && artist.repStatus && (
+                <span className="text-[11px] px-1.5 py-px rounded" style={{ background: `${COLORS.coral}15`, color: COLORS.coral }}>{artist.repStatus}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Sections */}
+        {artist.practice && (
+          <div className="mb-4">
+            <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Practice</h4>
+            <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.practice}</p>
+          </div>
+        )}
+
+        <div className="mb-4">
+          <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Why This Artist</h4>
+          <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.whyInteresting}</p>
+        </div>
+
+        {artist.showsPress && (
+          <div className="mb-4">
+            <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Shows & Press</h4>
+            <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.showsPress}</p>
+          </div>
+        )}
+
+        {artist.education && (
+          <div className="mb-4">
+            <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Education</h4>
+            <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.education}</p>
+          </div>
+        )}
+
+        {artist.residencies && (
+          <div className="mb-4">
+            <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Residencies</h4>
+            <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.residencies}</p>
+          </div>
+        )}
+
+        {/* Links */}
+        <div className="flex items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: COLORS.borderSubtle }}>
+          {artist.instagram && (
+            <a href={artist.instagram} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.04]"
+              style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                <circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                <circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} />
+              </svg>
+              Instagram
+            </a>
+          )}
+          {artist.website && (
+            <a href={artist.website.startsWith("http") ? artist.website : `https://${artist.website}`} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.04]"
+              style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                <ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                <path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" />
+              </svg>
+              Website
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// ARCHIVE MODAL
+// ═══════════════════════════════════════════
+function ArchiveModal({ artists, onClose, onConfirm }: { artists: ScoutedArtist[]; onClose: () => void; onConfirm: () => void }) {
+  const approved = artists.filter(a => a.rating === "approved");
+  const declined = artists.filter(a => a.rating === "declined");
+  const pending = artists.filter(a => a.rating === "pending");
+  
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      onClick={onClose}
+      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+    >
+      <div
+        className="relative w-full max-w-md rounded-xl border p-6"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "rgba(20,20,30,0.95)",
+          backdropFilter: "blur(40px)",
+          borderColor: `${COLORS.teal}30`,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+      >
+        <h3 className="text-base font-bold mb-4" style={{ color: COLORS.textPrimary }}>Archive This Week</h3>
+        <p className="text-xs mb-4" style={{ color: COLORS.textMuted }}>
+          This will archive all decisions from the current week and sync to the Art Scout Master Sheet.
+        </p>
+        
+        <div className="flex flex-col gap-2 mb-5">
+          <div className="flex items-center justify-between text-xs">
+            <span style={{ color: COLORS.green }}>Approved</span>
+            <span className="font-semibold tabular-nums" style={{ color: COLORS.green }}>{approved.length}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span style={{ color: COLORS.chartRed }}>Declined</span>
+            <span className="font-semibold tabular-nums" style={{ color: COLORS.chartRed }}>{declined.length}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span style={{ color: COLORS.textFaint }}>Pending</span>
+            <span className="font-semibold tabular-nums" style={{ color: COLORS.textFaint }}>{pending.length}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 rounded-lg border text-xs font-medium transition-colors hover:bg-white/[0.04]"
+            style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-colors"
+            style={{ background: COLORS.teal, color: "#000" }}
+          >
+            Confirm Archive
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScoutedArtistsReview() {
   const [artists, setArtists] = useState<ScoutedArtist[]>(getPersistedArtists);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "declined">("all");
   const [expanded, setExpanded] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [briefArtist, setBriefArtist] = useState<ScoutedArtist | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [archiveToast, setArchiveToast] = useState(false);
 
   // On mount, fetch saved ratings from backend (Google Sheets)
   useEffect(() => {
@@ -1136,7 +1379,7 @@ function ScoutedArtistsReview() {
               {/* Artist info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs font-semibold" style={{ color: COLORS.textPrimary }}>{artist.name}</span>
+                  <span className="text-xs font-semibold cursor-pointer hover:underline" style={{ color: COLORS.textPrimary }} onClick={(e) => { e.stopPropagation(); setBriefArtist(artist); }}>{artist.name}</span>
                   <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.location}</span>
                   {artist.rating === "approved" && (
                     <span className="text-[11px] font-medium px-1.5 py-px rounded" style={{ background: `${COLORS.green}15`, color: COLORS.green }}>Approved</span>
@@ -1158,6 +1401,20 @@ function ScoutedArtistsReview() {
                 </div>
                 {/* External links */}
                 <div className="flex items-center gap-1.5 mt-1.5">
+                  {/* Brief icon */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setBriefArtist(artist); }}
+                    className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                    style={{ borderColor: COLORS.borderSubtle }}
+                    title="View Brief"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                      <polyline points="14 2 14 8 20 8" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                      <line x1="16" y1="13" x2="8" y2="13" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                      <line x1="16" y1="17" x2="8" y2="17" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                    </svg>
+                  </button>
                   {artist.instagram && (
                     <a
                       href={artist.instagram}
@@ -1228,6 +1485,26 @@ function ScoutedArtistsReview() {
           ))}
         </div>
 
+        {/* Week indicator */}
+        <div className="px-4 pb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AgentIcon type="clock" color={COLORS.teal} size={10} />
+            <span className="text-[11px] font-medium" style={{ color: COLORS.teal }}>
+              Week {getISOWeek()}
+            </span>
+            <span className="text-[11px]" style={{ color: COLORS.textFaint }}>
+              {getWeekDateRange()}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowArchive(true)}
+            className="text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors hover:bg-white/[0.04]"
+            style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+          >
+            Archive Week
+          </button>
+        </div>
+
         {/* View on Google Sheets */}
         <div className="px-4 pb-3">
           <a
@@ -1243,6 +1520,30 @@ function ScoutedArtistsReview() {
             View full Art Scout Master Sheet
           </a>
         </div>
+
+        {/* Brief panel modal */}
+        {briefArtist && <BriefPanel artist={briefArtist} onClose={() => setBriefArtist(null)} />}
+
+        {/* Archive modal */}
+        {showArchive && (
+          <ArchiveModal
+            artists={artists}
+            onClose={() => setShowArchive(false)}
+            onConfirm={() => {
+              setShowArchive(false);
+              setArchiveToast(true);
+              setTimeout(() => setArchiveToast(false), 3000);
+            }}
+          />
+        )}
+
+        {/* Archive toast */}
+        {archiveToast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl border text-xs font-medium animate-fade-in-up"
+            style={{ background: "rgba(20,20,30,0.95)", borderColor: `${COLORS.teal}30`, color: COLORS.teal, boxShadow: "0 10px 30px rgba(0,0,0,0.4)" }}>
+            Week archived successfully. Decisions synced to Art Scout Master Sheet.
+          </div>
+        )}
       </div>
     </div>
   );
