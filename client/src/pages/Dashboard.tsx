@@ -975,6 +975,60 @@ interface ScoutedArtist {
   unrepresented?: boolean;
 }
 
+
+// ═══════════════════════════════════════════
+// VETTING PIPELINE TYPES
+// ═══════════════════════════════════════════
+type VettingStage = "scouted" | "deep-dive" | "shortlisted" | "in-conversation" | "declined";
+
+interface DeepDiveData {
+  fetchedAt: string;
+  status: "pending" | "complete" | "error";
+  fullExhibitionHistory?: string[];
+  secondaryMarket?: string;
+  representationDetails?: string;
+  socialMetrics?: { followers?: string; engagement?: string; collectorActivity?: string };
+  pressClippings?: { title: string; source: string; url?: string; date?: string; excerpt: string; relevance?: string }[];
+  characterSignals?: {
+    workEthic?: string;
+    processPhilosophy?: string;
+    spiritualReligious?: string;
+    communityInvolvement?: string;
+    collaborationReadiness?: string;
+    personalValues?: string;
+    overallAlignment?: string;
+  };
+  artistStatement?: string;
+  redFlags?: string[];
+  draftOutreach?: { dm?: string; email?: string };
+}
+
+interface ArtistVettingState {
+  stage: VettingStage;
+  updatedAt: string;
+  deepDive?: DeepDiveData;
+}
+
+const STAGE_CONFIG: Record<VettingStage, { label: string; color: string; order: number; icon: string }> = {
+  "scouted": { label: "Scouted", color: COLORS.textMuted, order: 0, icon: "telescope" },
+  "deep-dive": { label: "Deep Dive", color: COLORS.purple, order: 1, icon: "target" },
+  "shortlisted": { label: "Shortlisted", color: COLORS.gold, order: 2, icon: "gem" },
+  "in-conversation": { label: "In Conversation", color: COLORS.green, order: 3, icon: "send" },
+  "declined": { label: "Declined", color: COLORS.chartRed, order: 4, icon: "hub" },
+};
+
+// Global vetting state cache
+const _artistVetting: Record<string, ArtistVettingState> = {};
+let _vettingInitialized = false;
+
+function getArtistStage(artistName: string): VettingStage {
+  return _artistVetting[artistName]?.stage || "scouted";
+}
+
+function getArtistDeepDive(artistName: string): DeepDiveData | undefined {
+  return _artistVetting[artistName]?.deepDive;
+}
+
 // Week tracking
 function getISOWeek(): string {
   const now = new Date();
@@ -1192,6 +1246,286 @@ function BriefPanel({ artist, onClose }: { artist: ScoutedArtist; onClose: () =>
   );
 }
 
+
+// ═══════════════════════════════════════════
+// DEEP DIVE PANEL — enriched artist research view
+// ═══════════════════════════════════════════
+function DeepDivePanel({ artist, deepDive, onClose, onShortlist }: { artist: ScoutedArtist; deepDive: DeepDiveData; onClose: () => void; onShortlist: () => void }) {
+  const stage = getArtistStage(artist.name);
+  const stageConf = STAGE_CONFIG[stage];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-end"
+      onClick={onClose}
+      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+    >
+      <div
+        className="relative h-full w-full max-w-xl overflow-y-auto border-l"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "rgba(12,12,18,0.97)",
+          backdropFilter: "blur(40px)",
+          borderColor: `${COLORS.purple}30`,
+        }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-10 px-6 pt-5 pb-4 border-b" style={{ background: "rgba(12,12,18,0.95)", borderColor: COLORS.borderSubtle }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <ScoreRing score={artist.score} size={44} />
+              <div>
+                <h2 className="text-base font-bold" style={{ color: COLORS.textPrimary }}>{artist.name}</h2>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[11px]" style={{ color: COLORS.textMuted }}>{artist.location}</span>
+                  <span className="text-[11px] font-medium px-1.5 py-px rounded" style={{ background: `${stageConf.color}15`, color: stageConf.color }}>
+                    {stageConf.label}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-lg border flex items-center justify-center transition-colors hover:bg-white/[0.06]" style={{ borderColor: COLORS.borderSubtle }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke={COLORS.textFaint} strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+          {/* Stage progress bar */}
+          <div className="flex items-center gap-1 mt-2">
+            {(["scouted", "deep-dive", "shortlisted", "in-conversation"] as VettingStage[]).map((s, i) => {
+              const conf = STAGE_CONFIG[s];
+              const isCurrent = s === stage;
+              const isPast = conf.order < STAGE_CONFIG[stage].order;
+              return (
+                <div key={s} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full h-1 rounded-full" style={{ background: isPast || isCurrent ? conf.color : COLORS.borderSubtle, opacity: isCurrent ? 1 : isPast ? 0.5 : 0.2 }} />
+                  <span className="text-[9px] font-medium" style={{ color: isCurrent ? conf.color : isPast ? COLORS.textMuted : COLORS.textFaint }}>{conf.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-6 py-5 flex flex-col gap-5">
+          {/* Basic info */}
+          <div className="rounded-lg border p-4" style={{ ...GLASS_ALT }}>
+            <div className="flex items-center gap-2 mb-2">
+              <AgentIcon type="palette" color={COLORS.teal} size={14} />
+              <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.teal }}>Artist Profile</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-[11px]">
+              <div><span style={{ color: COLORS.textFaint }}>Medium</span><p className="mt-0.5" style={{ color: COLORS.textPrimary }}>{artist.medium}</p></div>
+              <div><span style={{ color: COLORS.textFaint }}>Price Range</span><p className="mt-0.5" style={{ color: COLORS.gold }}>{artist.priceRange}</p></div>
+              <div><span style={{ color: COLORS.textFaint }}>Education</span><p className="mt-0.5" style={{ color: COLORS.textPrimary }}>{artist.education || "—"}</p></div>
+              <div><span style={{ color: COLORS.textFaint }}>Representation</span><p className="mt-0.5" style={{ color: artist.unrepresented ? COLORS.green : COLORS.textPrimary }}>{artist.repStatus || (artist.unrepresented ? "Unrepresented" : "—")}</p></div>
+            </div>
+            {artist.practice && <p className="text-[11px] leading-relaxed mt-3" style={{ color: COLORS.textMuted }}>{artist.practice}</p>}
+          </div>
+
+          {/* Deep dive loading state */}
+          {deepDive.status === "pending" && (
+            <div className="rounded-lg border p-6 flex flex-col items-center gap-3" style={{ ...GLASS_ALT, borderColor: `${COLORS.purple}20` }}>
+              <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: `${COLORS.purple}40`, borderTopColor: "transparent" }} />
+              <span className="text-xs font-medium" style={{ color: COLORS.purple }}>Researching artist...</span>
+              <span className="text-[11px]" style={{ color: COLORS.textFaint }}>Gathering press clippings, interviews, and character signals</span>
+            </div>
+          )}
+
+          {/* Deep dive complete content */}
+          {deepDive.status === "complete" && (
+            <>
+              {/* Character Signals — the key section */}
+              {deepDive.characterSignals && (
+                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT, borderColor: `${COLORS.purple}20` }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <AgentIcon type="person" color={COLORS.purple} size={14} />
+                    <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.purple }}>Character Signals</span>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    {deepDive.characterSignals.workEthic && (
+                      <div className="text-[11px]">
+                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Work Ethic</span>
+                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.workEthic}</p>
+                      </div>
+                    )}
+                    {deepDive.characterSignals.processPhilosophy && (
+                      <div className="text-[11px]">
+                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Process & Philosophy</span>
+                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.processPhilosophy}</p>
+                      </div>
+                    )}
+                    {deepDive.characterSignals.spiritualReligious && (
+                      <div className="text-[11px]">
+                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Spiritual / Religious</span>
+                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.spiritualReligious}</p>
+                      </div>
+                    )}
+                    {deepDive.characterSignals.communityInvolvement && (
+                      <div className="text-[11px]">
+                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Community</span>
+                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.communityInvolvement}</p>
+                      </div>
+                    )}
+                    {deepDive.characterSignals.personalValues && (
+                      <div className="text-[11px]">
+                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Values</span>
+                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.personalValues}</p>
+                      </div>
+                    )}
+                    {deepDive.characterSignals.overallAlignment && (
+                      <div className="mt-1 p-2.5 rounded-md text-[11px]" style={{ background: `${COLORS.purple}08`, borderLeft: `2px solid ${COLORS.purple}40` }}>
+                        <span className="font-semibold" style={{ color: COLORS.purple }}>Alignment Assessment</span>
+                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textPrimary }}>{deepDive.characterSignals.overallAlignment}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Press & Interviews */}
+              {deepDive.pressClippings && deepDive.pressClippings.length > 0 && (
+                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <AgentIcon type="clipboard" color={COLORS.gold} size={14} />
+                    <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.gold }}>Press & Interviews</span>
+                    <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{deepDive.pressClippings.length}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {deepDive.pressClippings.map((clip, i) => (
+                      <div key={i} className="p-2.5 rounded-md transition-colors" style={{ background: "rgba(255,255,255,0.02)", borderLeft: `2px solid ${COLORS.gold}25` }}>
+                        <div className="flex items-center gap-2">
+                          {clip.url ? (
+                            <a href={clip.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium hover:underline" style={{ color: COLORS.textPrimary }}>{clip.title}</a>
+                          ) : (
+                            <span className="text-[11px] font-medium" style={{ color: COLORS.textPrimary }}>{clip.title}</span>
+                          )}
+                          {clip.url && (
+                            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0 opacity-40"><path d="M3 1h6v6M9 1L4 6" stroke={COLORS.textMuted} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px]" style={{ color: COLORS.teal }}>{clip.source}</span>
+                          {clip.date && <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{clip.date}</span>}
+                        </div>
+                        <p className="text-[11px] leading-relaxed mt-1" style={{ color: COLORS.textMuted }}>{clip.excerpt}</p>
+                        {clip.relevance && <p className="text-[11px] mt-1 italic" style={{ color: COLORS.purple }}>{clip.relevance}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Exhibition History */}
+              {deepDive.fullExhibitionHistory && deepDive.fullExhibitionHistory.length > 0 && (
+                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <AgentIcon type="bars" color={COLORS.teal} size={14} />
+                    <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.teal }}>Exhibition History</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {deepDive.fullExhibitionHistory.map((show, i) => (
+                      <div key={i} className="flex items-start gap-2 text-[11px] py-1">
+                        <span className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: COLORS.teal }} />
+                        <span style={{ color: COLORS.textMuted }}>{show}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Secondary Market + Social */}
+              <div className="grid grid-cols-2 gap-3">
+                {deepDive.secondaryMarket && (
+                  <div className="rounded-lg border p-3" style={{ ...GLASS_ALT }}>
+                    <span className="text-[11px] font-semibold tracking-wider uppercase block mb-1.5" style={{ color: COLORS.gold }}>Secondary Market</span>
+                    <p className="text-[11px] leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.secondaryMarket}</p>
+                  </div>
+                )}
+                {deepDive.socialMetrics && (
+                  <div className="rounded-lg border p-3" style={{ ...GLASS_ALT }}>
+                    <span className="text-[11px] font-semibold tracking-wider uppercase block mb-1.5" style={{ color: COLORS.teal }}>Social Presence</span>
+                    <div className="flex flex-col gap-1 text-[11px]">
+                      {deepDive.socialMetrics.followers && <div><span style={{ color: COLORS.textFaint }}>Followers: </span><span style={{ color: COLORS.textPrimary }}>{deepDive.socialMetrics.followers}</span></div>}
+                      {deepDive.socialMetrics.engagement && <div><span style={{ color: COLORS.textFaint }}>Engagement: </span><span style={{ color: COLORS.textPrimary }}>{deepDive.socialMetrics.engagement}</span></div>}
+                      {deepDive.socialMetrics.collectorActivity && <div><span style={{ color: COLORS.textFaint }}>Collector Activity: </span><span style={{ color: COLORS.textPrimary }}>{deepDive.socialMetrics.collectorActivity}</span></div>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Red Flags */}
+              {deepDive.redFlags && deepDive.redFlags.length > 0 && (
+                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT, borderColor: `${COLORS.chartRed}20` }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg width="14" height="14" viewBox="0 0 18 18" fill="none"><path d="M9 2L16 15H2L9 2Z" stroke={COLORS.chartRed} strokeWidth="1.5" strokeLinejoin="round" /><line x1="9" y1="7" x2="9" y2="10" stroke={COLORS.chartRed} strokeWidth="1.5" strokeLinecap="round" /><circle cx="9" cy="12.5" r="0.75" fill={COLORS.chartRed} /></svg>
+                    <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.chartRed }}>Red Flags</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {deepDive.redFlags.map((flag, i) => (
+                      <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
+                        <span className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: COLORS.chartRed }} />
+                        <span style={{ color: COLORS.textMuted }}>{flag}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Artist Statement */}
+              {deepDive.artistStatement && (
+                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT }}>
+                  <span className="text-[11px] font-semibold tracking-wider uppercase block mb-2" style={{ color: COLORS.textMuted }}>Artist Statement</span>
+                  <p className="text-[11px] leading-relaxed italic" style={{ color: COLORS.textMuted }}>"{deepDive.artistStatement}"</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Actions */}
+          <div className="sticky bottom-0 pt-3 pb-5 flex items-center gap-3" style={{ background: "linear-gradient(to top, rgba(12,12,18,1) 80%, transparent)" }}>
+            {/* External links */}
+            <div className="flex items-center gap-1.5">
+              {artist.instagram && (
+                <a href={artist.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.04]" style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" /></svg>
+                  Instagram
+                </a>
+              )}
+              {artist.website && (
+                <a href={artist.website.startsWith("http") ? artist.website : `https://${artist.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.04]" style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8" /><ellipse cx="12" cy="12" rx="4" ry="10" stroke="currentColor" strokeWidth="1.8" /><path d="M2 12h20" stroke="currentColor" strokeWidth="1.8" /></svg>
+                  Website
+                </a>
+              )}
+            </div>
+            <div className="flex-1" />
+            {/* Stage action button */}
+            {stage === "deep-dive" && deepDive.status === "complete" && (
+              <button
+                onClick={onShortlist}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold transition-all hover:brightness-110"
+                style={{ background: COLORS.gold, color: "#000" }}
+              >
+                <AgentIcon type="gem" color="#000" size={14} />
+                Move to Shortlist
+              </button>
+            )}
+            {stage === "shortlisted" && (
+              <button
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold transition-all hover:brightness-110"
+                style={{ background: COLORS.green, color: "#000" }}
+                title="Coming soon — outreach automation"
+              >
+                <AgentIcon type="send" color="#000" size={14} />
+                Draft Outreach
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════
 // ARCHIVE MODAL
 // ═══════════════════════════════════════════
@@ -1259,17 +1593,20 @@ function ArchiveModal({ artists, onClose, onConfirm }: { artists: ScoutedArtist[
 
 function ScoutedArtistsReview() {
   const [artists, setArtists] = useState<ScoutedArtist[]>(getPersistedArtists);
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "declined">("all");
+  const [filter, setFilter] = useState<"all" | "scouted" | "deep-dive" | "shortlisted" | "in-conversation" | "declined">("all");
   const [expanded, setExpanded] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [briefArtist, setBriefArtist] = useState<ScoutedArtist | null>(null);
+  const [deepDiveArtist, setDeepDiveArtist] = useState<ScoutedArtist | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [archiveToast, setArchiveToast] = useState(false);
+  const [, forceUpdate] = useState(0);
 
-  // On mount, fetch saved ratings from backend (Google Sheets)
+  // On mount, fetch saved ratings AND vetting data from backend
   useEffect(() => {
     if (_ratingsInitialized) return;
     _ratingsInitialized = true;
+    // Fetch legacy ratings
     fetch(`${API_BASE}/api/artist-ratings`)
       .then(r => r.json())
       .then(data => {
@@ -1278,7 +1615,6 @@ function ScoutedArtistsReview() {
           let changed = false;
           for (const [name, status] of Object.entries(r)) {
             if (status === "approved" || status === "declined") {
-              // Find matching artist by name
               const match = SCOUTED_ARTISTS_DATA.find(
                 a => a.name.toLowerCase() === name.toLowerCase()
               );
@@ -1288,37 +1624,107 @@ function ScoutedArtistsReview() {
               }
             }
           }
-          if (changed) {
-            setArtists(getPersistedArtists());
-          }
+          if (changed) setArtists(getPersistedArtists());
         }
       })
-      .catch(() => { /* silent */ });
+      .catch(() => {});
+    // Fetch vetting data
+    if (!_vettingInitialized) {
+      _vettingInitialized = true;
+      fetch(`${API_BASE}/api/vetting`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.vetting) {
+            Object.assign(_artistVetting, data.vetting);
+            forceUpdate(n => n + 1);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
-  const handleRating = (id: string, rating: "approved" | "declined") => {
-    setArtists(prev => {
-      const updated = prev.map(a => {
-        if (a.id !== id) return a;
-        const newRating = a.rating === rating ? "pending" : rating;
-        _artistRatings[id] = newRating;
-        // Sync to Google Sheets
-        setSyncing(id);
-        syncRatingToSheet(a.name, newRating);
-        setTimeout(() => setSyncing(null), 1500);
-        return { ...a, rating: newRating };
+  const advanceStage = async (artistName: string, targetStage: VettingStage) => {
+    setSyncing(artistName);
+    try {
+      const resp = await fetch(`${API_BASE}/api/vetting/advance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artistName, targetStage }),
       });
-      return updated;
-    });
+      const data = await resp.json();
+      if (data.success) {
+        if (data.vetting) {
+          _artistVetting[artistName] = data.vetting;
+        } else {
+          delete _artistVetting[artistName];
+        }
+        // Sync legacy ratings too
+        if (targetStage === "declined") {
+          const match = SCOUTED_ARTISTS_DATA.find(a => a.name === artistName);
+          if (match) {
+            _artistRatings[match.id] = "declined";
+            setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "declined" } : a));
+          }
+        } else if (targetStage === "scouted") {
+          const match = SCOUTED_ARTISTS_DATA.find(a => a.name === artistName);
+          if (match) {
+            delete _artistRatings[match.id];
+            setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "pending" } : a));
+          }
+        } else {
+          const match = SCOUTED_ARTISTS_DATA.find(a => a.name === artistName);
+          if (match) {
+            _artistRatings[match.id] = "approved";
+            setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "approved" } : a));
+          }
+        }
+        // Also sync to legacy endpoint
+        syncRatingToSheet(artistName, targetStage === "declined" ? "declined" : targetStage === "scouted" ? "pending" : "approved");
+        forceUpdate(n => n + 1);
+      }
+    } catch {}
+    setTimeout(() => setSyncing(null), 1200);
   };
 
-  const filtered = filter === "all" ? artists : artists.filter(a => a.rating === filter);
-  const counts = {
-    all: artists.length,
-    pending: artists.filter(a => a.rating === "pending").length,
-    approved: artists.filter(a => a.rating === "approved").length,
-    declined: artists.filter(a => a.rating === "declined").length,
+  const handleApprove = (artist: ScoutedArtist) => {
+    const currentStage = getArtistStage(artist.name);
+    if (currentStage === "scouted") {
+      // Approve = move to deep dive
+      advanceStage(artist.name, "deep-dive");
+    }
   };
+
+  const handleDecline = (artist: ScoutedArtist) => {
+    const currentStage = getArtistStage(artist.name);
+    if (currentStage === "declined") {
+      // Undo decline
+      advanceStage(artist.name, "scouted");
+    } else {
+      advanceStage(artist.name, "declined");
+    }
+  };
+
+  const handleShortlist = (artist: ScoutedArtist) => {
+    advanceStage(artist.name, "shortlisted");
+    setDeepDiveArtist(null);
+  };
+
+  // Stage-based filtering
+  const getArtistsByStage = (stage: string) => {
+    if (stage === "all") return artists;
+    return artists.filter(a => getArtistStage(a.name) === stage);
+  };
+
+  const stageCounts = {
+    all: artists.length,
+    scouted: artists.filter(a => getArtistStage(a.name) === "scouted").length,
+    "deep-dive": artists.filter(a => getArtistStage(a.name) === "deep-dive").length,
+    shortlisted: artists.filter(a => getArtistStage(a.name) === "shortlisted").length,
+    "in-conversation": artists.filter(a => getArtistStage(a.name) === "in-conversation").length,
+    declined: artists.filter(a => getArtistStage(a.name) === "declined").length,
+  };
+
+  const filtered = getArtistsByStage(filter);
 
   return (
     <div className="mx-4 mb-3 rounded-lg border overflow-hidden" style={{ ...GLASS_ALT, borderColor: `${COLORS.teal}20` }}>
@@ -1331,158 +1737,208 @@ function ScoutedArtistsReview() {
           <AgentIcon type="telescope" color={COLORS.teal} size={14} />
           <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.teal }}>Scouted Artists</span>
           <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.teal}15`, color: COLORS.teal }}>{artists.length}</span>
-          {counts.pending > 0 && (
-            <span className="text-[11px] px-1.5 py-px rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{counts.pending} to review</span>
+          {stageCounts.scouted > 0 && (
+            <span className="text-[11px] px-1.5 py-px rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{stageCounts.scouted} to review</span>
           )}
         </div>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="transition-transform duration-200" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
-          <path d="M3 5.5L7 9.5L11 5.5" stroke={COLORS.teal} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <div className="flex items-center gap-2">
+          {/* Mini stage pipeline indicators */}
+          {stageCounts["deep-dive"] > 0 && (
+            <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.purple}15`, color: COLORS.purple }}>{stageCounts["deep-dive"]} deep dive</span>
+          )}
+          {stageCounts.shortlisted > 0 && (
+            <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{stageCounts.shortlisted} shortlisted</span>
+          )}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="transition-transform duration-200" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+            <path d="M3 5.5L7 9.5L11 5.5" stroke={COLORS.teal} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
       </button>
 
       {/* Expandable content */}
       <div className="overflow-hidden transition-all duration-300 ease-in-out" style={{ maxHeight: expanded ? "9999px" : "0px", opacity: expanded ? 1 : 0 }}>
-        {/* Filter tabs */}
-        <div className="flex items-center gap-1 px-4 pb-2">
-          {(["all", "pending", "approved", "declined"] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors capitalize"
-              style={{
-                background: filter === f ? `${COLORS.teal}15` : "transparent",
-                color: filter === f ? COLORS.teal : COLORS.textFaint,
-              }}
-            >
-              {f} {counts[f] > 0 && <span className="tabular-nums ml-0.5">({counts[f]})</span>}
-            </button>
-          ))}
+        {/* Stage filter tabs */}
+        <div className="flex items-center gap-1 px-4 pb-2 overflow-x-auto">
+          {([
+            { key: "all", label: "All" },
+            { key: "scouted", label: "Scouted" },
+            { key: "deep-dive", label: "Deep Dive" },
+            { key: "shortlisted", label: "Shortlisted" },
+            { key: "in-conversation", label: "Active" },
+            { key: "declined", label: "Declined" },
+          ] as { key: typeof filter; label: string }[]).map(f => {
+            const stConf = f.key !== "all" ? STAGE_CONFIG[f.key as VettingStage] : null;
+            const activeColor = stConf ? stConf.color : COLORS.teal;
+            return (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors whitespace-nowrap"
+                style={{
+                  background: filter === f.key ? `${activeColor}15` : "transparent",
+                  color: filter === f.key ? activeColor : COLORS.textFaint,
+                }}
+              >
+                {f.label} {stageCounts[f.key] > 0 && <span className="tabular-nums ml-0.5">({stageCounts[f.key]})</span>}
+              </button>
+            );
+          })}
         </div>
 
         {/* Artist cards — scrollable */}
         <div className="px-4 pb-3 flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: "520px", scrollbarWidth: "thin", scrollbarColor: `${COLORS.teal}30 transparent` }}>
-          {filtered.map((artist) => (
-            <div
-              key={artist.id}
-              className="rounded-lg border p-3 flex gap-3 transition-all duration-200 group"
-              style={{
-                ...GLASS_ALT,
-                borderColor: artist.rating === "approved" ? `${COLORS.green}30` : artist.rating === "declined" ? `${COLORS.chartRed}20` : COLORS.borderSubtle,
-                opacity: artist.rating === "declined" ? 0.5 : 1,
-              }}
-            >
-              {/* Score ring */}
-              <div className="flex-shrink-0 pt-0.5">
-                <ScoreRing score={artist.score} size={40} />
-              </div>
+          {filtered.map((artist) => {
+            const stage = getArtistStage(artist.name);
+            const stageConf = STAGE_CONFIG[stage];
+            const deepDive = getArtistDeepDive(artist.name);
 
-              {/* Artist info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs font-semibold cursor-pointer hover:underline" style={{ color: COLORS.textPrimary }} onClick={(e) => { e.stopPropagation(); setBriefArtist(artist); }}>{artist.name}</span>
-                  <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.location}</span>
-                  {artist.rating === "approved" && (
-                    <span className="text-[11px] font-medium px-1.5 py-px rounded" style={{ background: `${COLORS.green}15`, color: COLORS.green }}>Approved</span>
-                  )}
-                  {artist.rating === "declined" && (
-                    <span className="text-[11px] font-medium px-1.5 py-px rounded" style={{ background: `${COLORS.chartRed}15`, color: COLORS.chartRed }}>Declined</span>
-                  )}
-                  {syncing === artist.id && (
-                    <span className="text-[11px] font-medium px-1.5 py-px rounded animate-pulse" style={{ background: `${COLORS.teal}10`, color: COLORS.teal }}>syncing...</span>
-                  )}
+            return (
+              <div
+                key={artist.id}
+                className="rounded-lg border p-3 flex gap-3 transition-all duration-200 group"
+                style={{
+                  ...GLASS_ALT,
+                  borderColor: stage === "declined" ? `${COLORS.chartRed}20` : stage !== "scouted" ? `${stageConf.color}30` : COLORS.borderSubtle,
+                  opacity: stage === "declined" ? 0.5 : 1,
+                }}
+              >
+                {/* Score ring */}
+                <div className="flex-shrink-0 pt-0.5">
+                  <ScoreRing score={artist.score} size={40} />
                 </div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] font-medium" style={{ color: COLORS.teal }}>{artist.medium}</span>
-                  <span className="text-[11px] tabular-nums" style={{ color: COLORS.gold }}>{artist.priceRange}</span>
-                </div>
-                <p className="text-[11px] leading-relaxed mb-1" style={{ color: COLORS.textMuted }}>{artist.whyInteresting}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.showsPress}</span>
-                </div>
-                {/* External links */}
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  {/* Brief icon */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setBriefArtist(artist); }}
-                    className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
-                    style={{ borderColor: COLORS.borderSubtle }}
-                    title="View Brief"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                      <polyline points="14 2 14 8 20 8" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                      <line x1="16" y1="13" x2="8" y2="13" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                      <line x1="16" y1="17" x2="8" y2="17" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                    </svg>
-                  </button>
-                  {artist.instagram && (
-                    <a
-                      href={artist.instagram}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
-                      style={{ borderColor: COLORS.borderSubtle }}
-                      title="Instagram"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                        <rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                        <circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                        <circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} />
-                      </svg>
-                    </a>
-                  )}
-                  {artist.website && (
-                    <a
-                      href={artist.website.startsWith("http") ? artist.website : `https://${artist.website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
-                      style={{ borderColor: COLORS.borderSubtle }}
-                      title="Portfolio"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                        <ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                        <path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                      </svg>
-                    </a>
-                  )}
-                </div>
-              </div>
 
-              {/* Action buttons */}
-              <div className="flex flex-col gap-1.5 flex-shrink-0 justify-center">
-                <button
-                  onClick={() => handleRating(artist.id, "approved")}
-                  className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
-                  style={{
-                    background: artist.rating === "approved" ? `${COLORS.green}20` : "transparent",
-                    borderColor: artist.rating === "approved" ? COLORS.green : COLORS.borderSubtle,
-                  }}
-                  title="Approve"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M2 8.5L6 12.5L14 4.5" stroke={artist.rating === "approved" ? COLORS.green : COLORS.textFaint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => handleRating(artist.id, "declined")}
-                  className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
-                  style={{
-                    background: artist.rating === "declined" ? `${COLORS.chartRed}20` : "transparent",
-                    borderColor: artist.rating === "declined" ? COLORS.chartRed : COLORS.borderSubtle,
-                  }}
-                  title="Decline"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 4L12 12M12 4L4 12" stroke={artist.rating === "declined" ? COLORS.chartRed : COLORS.textFaint} strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </button>
+                {/* Artist info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span
+                      className="text-xs font-semibold cursor-pointer hover:underline"
+                      style={{ color: COLORS.textPrimary }}
+                      onClick={(e) => { e.stopPropagation(); if (stage === "deep-dive" || stage === "shortlisted" || stage === "in-conversation") { setDeepDiveArtist(artist); } else { setBriefArtist(artist); } }}
+                    >
+                      {artist.name}
+                    </span>
+                    <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.location}</span>
+                    {/* Stage badge */}
+                    <span className="text-[11px] font-medium px-1.5 py-px rounded flex items-center gap-1" style={{ background: `${stageConf.color}15`, color: stageConf.color }}>
+                      <AgentIcon type={stageConf.icon} color={stageConf.color} size={9} />
+                      {stageConf.label}
+                    </span>
+                    {syncing === artist.name && (
+                      <span className="text-[11px] font-medium px-1.5 py-px rounded animate-pulse" style={{ background: `${COLORS.teal}10`, color: COLORS.teal }}>syncing...</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[11px] font-medium" style={{ color: COLORS.teal }}>{artist.medium}</span>
+                    <span className="text-[11px] tabular-nums" style={{ color: COLORS.gold }}>{artist.priceRange}</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed mb-1" style={{ color: COLORS.textMuted }}>{artist.whyInteresting}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.showsPress}</span>
+                  </div>
+                  {/* External links */}
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    {/* Brief / Deep Dive icon */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (stage === "deep-dive" || stage === "shortlisted" || stage === "in-conversation") { setDeepDiveArtist(artist); } else { setBriefArtist(artist); } }}
+                      className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                      style={{ borderColor: (stage === "deep-dive" || stage === "shortlisted") ? `${COLORS.purple}40` : COLORS.borderSubtle }}
+                      title={stage !== "scouted" && stage !== "declined" ? "View Deep Dive" : "View Brief"}
+                    >
+                      {(stage === "deep-dive" || stage === "shortlisted" || stage === "in-conversation") ? (
+                        <AgentIcon type="target" color={COLORS.purple} size={13} />
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                          <polyline points="14 2 14 8 20 8" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                          <line x1="16" y1="13" x2="8" y2="13" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                          <line x1="16" y1="17" x2="8" y2="17" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                        </svg>
+                      )}
+                    </button>
+                    {artist.instagram && (
+                      <a href={artist.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]" style={{ borderColor: COLORS.borderSubtle }} title="Instagram" onClick={(e) => e.stopPropagation()}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" /><circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" /><circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} /></svg>
+                      </a>
+                    )}
+                    {artist.website && (
+                      <a href={artist.website.startsWith("http") ? artist.website : `https://${artist.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]" style={{ borderColor: COLORS.borderSubtle }} title="Portfolio" onClick={(e) => e.stopPropagation()}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" /><ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" /><path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" /></svg>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action buttons — context-aware */}
+                <div className="flex flex-col gap-1.5 flex-shrink-0 justify-center">
+                  {stage === "scouted" && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(artist)}
+                        className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 hover:bg-white/[0.06]"
+                        style={{ background: "transparent", borderColor: COLORS.borderSubtle }}
+                        title="Approve — Start Deep Dive"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                          <path d="M2 8.5L6 12.5L14 4.5" stroke={COLORS.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDecline(artist)}
+                        className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 hover:bg-white/[0.06]"
+                        style={{ background: "transparent", borderColor: COLORS.borderSubtle }}
+                        title="Decline"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                          <path d="M4 4L12 12M12 4L4 12" stroke={COLORS.textFaint} strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                  {stage === "deep-dive" && (
+                    <button
+                      onClick={() => setDeepDiveArtist(artist)}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 hover:bg-white/[0.06]"
+                      style={{ background: `${COLORS.purple}10`, borderColor: `${COLORS.purple}40` }}
+                      title="View Deep Dive"
+                    >
+                      <AgentIcon type="target" color={COLORS.purple} size={14} />
+                    </button>
+                  )}
+                  {stage === "shortlisted" && (
+                    <button
+                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
+                      style={{ background: `${COLORS.gold}10`, borderColor: `${COLORS.gold}40` }}
+                      title="Shortlisted"
+                    >
+                      <AgentIcon type="gem" color={COLORS.gold} size={14} />
+                    </button>
+                  )}
+                  {stage === "in-conversation" && (
+                    <button
+                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
+                      style={{ background: `${COLORS.green}10`, borderColor: `${COLORS.green}40` }}
+                      title="In Conversation"
+                    >
+                      <AgentIcon type="send" color={COLORS.green} size={14} />
+                    </button>
+                  )}
+                  {stage === "declined" && (
+                    <button
+                      onClick={() => handleDecline(artist)}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 hover:bg-white/[0.06]"
+                      style={{ background: `${COLORS.chartRed}10`, borderColor: `${COLORS.chartRed}30` }}
+                      title="Undo Decline"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M2 8a6 6 0 1 1 1.8 4.3" stroke={COLORS.chartRed} strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M2 12V8h4" stroke={COLORS.chartRed} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Week indicator */}
@@ -1521,9 +1977,20 @@ function ScoutedArtistsReview() {
           </a>
         </div>
 
-        {/* Brief panel modal — portaled to body to escape overflow:hidden */}
+        {/* Brief panel modal — portaled to body */}
         {briefArtist && createPortal(
           <BriefPanel artist={briefArtist} onClose={() => setBriefArtist(null)} />,
+          document.body
+        )}
+
+        {/* Deep Dive panel — portaled to body */}
+        {deepDiveArtist && createPortal(
+          <DeepDivePanel
+            artist={deepDiveArtist}
+            deepDive={getArtistDeepDive(deepDiveArtist.name) || { fetchedAt: "", status: "pending" }}
+            onClose={() => setDeepDiveArtist(null)}
+            onShortlist={() => handleShortlist(deepDiveArtist)}
+          />,
           document.body
         )}
 
