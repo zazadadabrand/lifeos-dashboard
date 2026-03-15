@@ -1967,28 +1967,6 @@ const DELIVERABLES: Deliverable[] = [
     summary: "Every scouted artist with scores, links, status, and ratings",
   },
   {
-    id: "d-lifeos-concept",
-    lane: "System",
-    laneColor: COLORS.teal,
-    icon: "hub",
-    title: "LifeOS Concept & Architecture",
-    type: "deep-dive",
-    date: "2026-02-14",
-    url: "https://perplexity.ai/search/29965905-6704-4f4d-b8bc-4f2532977f5b",
-    summary: "Art advisory + crypto + ops lanes — the original LifeOS blueprint",
-  },
-  {
-    id: "d-art-ar-agent",
-    lane: "Art Advisory",
-    laneColor: COLORS.teal,
-    icon: "telescope",
-    title: "Art A&R Agent Design",
-    type: "deep-dive",
-    date: "2026-03-12",
-    url: "https://perplexity.ai/search/a7f774f3-bc82-4b15-9230-e8ea6ad765d4",
-    summary: "Scoring rubric 0-100, show history weighting, taste learning via feedback",
-  },
-  {
     id: "d-morning-brief",
     lane: "Hub",
     laneColor: COLORS.purple,
@@ -2010,17 +1988,7 @@ const DELIVERABLES: Deliverable[] = [
     url: "https://perplexity.ai/search/b17d1884-64de-4fbc-9128-f8d305a7fcc2",
     summary: "Gemini integration across Docs/Sheets/Slides/Drive, workflow recommendations",
   },
-  {
-    id: "d-evening-review",
-    lane: "Hub",
-    laneColor: COLORS.purple,
-    icon: "moon",
-    title: "Evening Review",
-    type: "brief",
-    date: "2026-03-13",
-    url: "https://docs.google.com/spreadsheets/d/1mC_0HwGj8chqbfhc1rG1Tj6rL61D-aESuMjCUx2sXwk/edit",
-    summary: "Day close, tomorrow preview, family check, wind down",
-  },
+
   {
     id: "d-learning-brief",
     lane: "Hub",
@@ -2065,18 +2033,6 @@ const DELIVERABLES: Deliverable[] = [
     url: "",
     summary: "WCAG contrast, min font sizes, density toggle, stat card unification",
   },
-  {
-    id: "d-finance-meme",
-    lane: "Business",
-    laneColor: COLORS.coral,
-    icon: "signal",
-    title: "Finance Meme Seeding Plan",
-    type: "document",
-    date: "2026-02-20",
-    url: "https://perplexity.ai/search/2caff287-b0e5-4f2d-a120-38cf031895d9",
-    summary: "Litquidity, OHWS, Trust Fund Terry — brief, asset flow, approval cadence",
-  },
-
 ];
 
 // Map deliverables to lane IDs for grouping
@@ -2089,8 +2045,14 @@ const LANE_DELIVERABLE_MAP: Record<string, string> = {
   "Finance": "finance",
 };
 
+// Only show deliverables from the last 1 day (today + yesterday)
 function getDeliverablesByLane(laneName: string): Deliverable[] {
-  return DELIVERABLES.filter(d => d.lane === laneName).sort((a, b) => b.date.localeCompare(a.date));
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  return DELIVERABLES
+    .filter(d => d.lane === laneName && d.date >= cutoffStr)
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 function getTypeLabel(type: Deliverable["type"]): string {
@@ -2353,8 +2315,11 @@ function TLDRDigest() {
     setExpandedLane(expandedLane === laneName ? null : laneName);
   };
 
-  const totalDeliverables = DELIVERABLES.length;
-  const totalLanes = new Set(DELIVERABLES.map(d => d.lane)).size;
+  const now2 = new Date();
+  const cutoff2 = new Date(now2.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const recentDeliverables = DELIVERABLES.filter(d => d.date >= cutoff2);
+  const totalDeliverables = recentDeliverables.length;
+  const totalLanes = new Set(recentDeliverables.map(d => d.lane)).size;
 
   return (
     <div
