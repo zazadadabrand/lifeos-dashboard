@@ -2515,15 +2515,15 @@ function computeAmbientGradient(variant: ColorVariant): string {
 // ═══════════════════════════════════════════
 const DEFAULT_SECTIONS: DashboardSection[] = [
   { id: "kpis", label: "Stats" },
+  { id: "agents-active", label: "Agent Network" },
   { id: "hub-connectors", label: "Hub & Connectors" },
   { id: "credits", label: "Credit Usage" },
-  { id: "agents-active", label: "Agent Network" },
   { id: "agents-planned", label: "Planned Lanes" },
   { id: "roadmap", label: "Roadmap" },
 ];
 
 // Sections that default to expanded
-const DEFAULT_OPEN_SECTIONS = new Set(["kpis", "hub-connectors"]);
+const DEFAULT_OPEN_SECTIONS = new Set(["kpis", "agents-active", "hub-connectors"]);
 
 export default function Dashboard() {
   useEffect(() => { document.documentElement.classList.add("dark"); }, []);
