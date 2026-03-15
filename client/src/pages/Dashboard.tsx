@@ -1001,13 +1001,30 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
   );
 }
 
+// Module-level rating store — survives React re-renders and component unmount/remount
+const _artistRatings: Record<string, "approved" | "declined" | "pending"> = {};
+function getPersistedArtists(): ScoutedArtist[] {
+  return SCOUTED_ARTISTS_DATA.map(a => ({
+    ...a,
+    rating: _artistRatings[a.id] || a.rating,
+  }));
+}
+
 function ScoutedArtistsReview() {
-  const [artists, setArtists] = useState<ScoutedArtist[]>(SCOUTED_ARTISTS_DATA);
+  const [artists, setArtists] = useState<ScoutedArtist[]>(getPersistedArtists);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "declined">("all");
   const [expanded, setExpanded] = useState(true);
 
   const handleRating = (id: string, rating: "approved" | "declined") => {
-    setArtists(prev => prev.map(a => a.id === id ? { ...a, rating: a.rating === rating ? "pending" : rating } : a));
+    setArtists(prev => {
+      const updated = prev.map(a => {
+        if (a.id !== id) return a;
+        const newRating = a.rating === rating ? "pending" : rating;
+        _artistRatings[id] = newRating;
+        return { ...a, rating: newRating };
+      });
+      return updated;
+    });
   };
 
   const filtered = filter === "all" ? artists : artists.filter(a => a.rating === filter);
