@@ -2546,11 +2546,23 @@ export default function Dashboard() {
     switch (sectionId) {
       case "kpis":
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPICard label="Active Agents" value={activeAgents} subtitle={`of ${totalAgents} total agents`} color={COLORS.teal} ring={Math.round((activeAgents / totalAgents) * 100)} delay={0} />
-            <KPICard label="Active Lanes" value={2} subtitle="of 4 planned" color={COLORS.gold} ring={50} delay={80} />
-            <KPICard label="Scheduled Tasks" value={7} subtitle="running daily/weekly" color={COLORS.purple} sparkData={[3, 4, 5, 5, 6, 7, 7]} delay={160} />
-            <KPICard label="Connectors" value={7} subtitle="all connected" color={COLORS.green} ring={100} delay={240} />
+          <div className="animate-fade-in-up rounded-xl border flex items-center justify-between px-5 py-3 flex-wrap gap-y-2" style={{ ...GLASS }}>
+            {[
+              { label: "Agents", value: `${activeAgents}/${totalAgents}`, color: COLORS.teal, detail: "active" },
+              { label: "Lanes", value: "2/4", color: COLORS.gold, detail: "active" },
+              { label: "Tasks", value: "7", color: COLORS.purple, detail: "daily/weekly" },
+              { label: "Connectors", value: "7/7", color: COLORS.green, detail: "linked" },
+            ].map((stat, i) => (
+              <div key={stat.label} className="flex items-center gap-2.5" style={{ minWidth: 0 }}>
+                {i > 0 && <div className="hidden sm:block w-px h-6" style={{ background: COLORS.border }} />}
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: stat.color, boxShadow: `0 0 6px ${stat.color}50` }} />
+                  <span className="text-xs font-medium" style={{ color: COLORS.textMuted }}>{stat.label}</span>
+                  <span className="text-sm font-bold tabular-nums" style={{ color: stat.color }}>{stat.value}</span>
+                  <span className="text-[11px] hidden sm:inline" style={{ color: COLORS.textFaint }}>{stat.detail}</span>
+                </div>
+              </div>
+            ))}
           </div>
         );
       case "hub-connectors":
