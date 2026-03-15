@@ -966,21 +966,23 @@ interface ScoutedArtist {
   whyInteresting: string;
   showsPress: string;
   link: string;
+  instagram: string;
+  website: string;
   batch: string;
   dateScouted: string;
   rating: "approved" | "declined" | "pending";
 }
 
 const SCOUTED_ARTISTS_DATA: ScoutedArtist[] = [
-  { id: "sa-1", name: "Napoles Marty", location: "Cuba / US", medium: "Sculptor, charred wood", score: 86, priceRange: "$5k–$15k", whyInteresting: "Charred wood guardians. Frieze LA Impact Prize 2026.", showsPress: "Frieze LA Impact Prize 2026, NXTHVN fellow", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-2", name: "Kristy Hughes", location: "US", medium: "Mixed media sculptor", score: 79, priceRange: "$5k–$12k", whyInteresting: "Hispanic/Indigenous mixed media sculptor. Solo at Aldrich Museum.", showsPress: "Aldrich Museum solo, NXTHVN, Rema Hort Mann Grant", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-3", name: "Frantz Patrick Henry", location: "Haiti / US", medium: "Sculptor, site-specific", score: 73, priceRange: "$5k–$15k", whyInteresting: "Haitian sculptor, site-specific installations. Yale MFA.", showsPress: "Yale MFA, NXTHVN, James Cohan group show", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-4", name: "Murjoni Merriweather", location: "US", medium: "Ceramic busts", score: 72, priceRange: "$5k–$7k", whyInteresting: "Ceramic busts celebrating Black culture. Christie's at $5K–$7K.", showsPress: "Christie's, Rubell Museum, BMA", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-5", name: "Kayla Mattes", location: "US", medium: "Handwoven tapestries", score: 66, priceRange: "$5k–$12k", whyInteresting: "Handwoven tapestries of memes and digital culture.", showsPress: "Broad Museum solo, Fountainhead residency", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-6", name: "Kimmah Dennis", location: "Liberia / US", medium: "Painter, displacement", score: 64, priceRange: "$5k–$10k", whyInteresting: "Liberian-Ivorian painter exploring Civil War displacement themes.", showsPress: "American Academy in Rome, Silver Art Projects", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-7", name: "Jaiquan Fayson", location: "US", medium: "Oil portraitist", score: 63, priceRange: "$3k–$8k", whyInteresting: "Formerly incarcerated, now art educator. Powerful oil portraits.", showsPress: "Silver Art Projects at WTC", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-8", name: "Dana-Marie Bullock", location: "Jamaica / US", medium: "Interdisciplinary, symbolic", score: 61, priceRange: "$3k–$8k", whyInteresting: "Jamaican interdisciplinary artist working with symbolic materials.", showsPress: "Silver Art Projects, Pratt MFA", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
-  { id: "sa-9", name: "Delaina Doshi", location: "US", medium: "Tesserae quilts, porcelain", score: 60, priceRange: "$5k–$10k", whyInteresting: "Quilts from smashed porcelain. Fiberart International 2nd place.", showsPress: "Fiberart International 2025, Helen Frankenthaler Award", link: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-1", name: "Napoles Marty", location: "Cuba / US", medium: "Sculptor, charred wood", score: 86, priceRange: "$5k–$15k", whyInteresting: "Charred wood guardians. Frieze LA Impact Prize 2026.", showsPress: "Frieze LA Impact Prize 2026, NXTHVN fellow", link: "", instagram: "https://www.instagram.com/napoles_marty/", website: "https://www.napolesmarty.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-2", name: "Kristy Hughes", location: "US", medium: "Mixed media sculptor", score: 79, priceRange: "$5k–$12k", whyInteresting: "Hispanic/Indigenous mixed media sculptor. Solo at Aldrich Museum.", showsPress: "Aldrich Museum solo, NXTHVN, Rema Hort Mann Grant", link: "", instagram: "", website: "https://www.kristyhughes.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-3", name: "Frantz Patrick Henry", location: "Haiti / US", medium: "Sculptor, site-specific", score: 73, priceRange: "$5k–$15k", whyInteresting: "Haitian sculptor, site-specific installations. Yale MFA.", showsPress: "Yale MFA, NXTHVN, James Cohan group show", link: "", instagram: "https://www.instagram.com/patrick_f._henry/", website: "https://frantzpatrickhenry.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-4", name: "Murjoni Merriweather", location: "US", medium: "Ceramic busts", score: 72, priceRange: "$5k–$7k", whyInteresting: "Ceramic busts celebrating Black culture. Christie's at $5K–$7K.", showsPress: "Christie's, Rubell Museum, BMA", link: "", instagram: "https://www.instagram.com/mvrjoni/", website: "https://www.mvrjoni.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-5", name: "Kayla Mattes", location: "US", medium: "Handwoven tapestries", score: 66, priceRange: "$5k–$12k", whyInteresting: "Handwoven tapestries of memes and digital culture.", showsPress: "Broad Museum solo, Fountainhead residency", link: "", instagram: "https://www.instagram.com/kaylamattes/", website: "https://kaylamattes.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-6", name: "Kimmah Dennis", location: "Liberia / US", medium: "Painter, displacement", score: 64, priceRange: "$5k–$10k", whyInteresting: "Liberian-Ivorian painter exploring Civil War displacement themes.", showsPress: "American Academy in Rome, Silver Art Projects", link: "", instagram: "https://www.instagram.com/kimmah_dennis/", website: "https://www.artsy.net/artist/kimmah-dennis", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-7", name: "Jaiquan Fayson", location: "US", medium: "Oil portraitist", score: 63, priceRange: "$3k–$8k", whyInteresting: "Formerly incarcerated, now art educator. Powerful oil portraits.", showsPress: "Silver Art Projects at WTC", link: "", instagram: "https://www.instagram.com/jaiquan_fayson/", website: "https://www.jaiquanfayson.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-8", name: "Dana-Marie Bullock", location: "Jamaica / US", medium: "Interdisciplinary, symbolic", score: 61, priceRange: "$3k–$8k", whyInteresting: "Jamaican interdisciplinary artist working with symbolic materials.", showsPress: "Silver Art Projects, Pratt MFA", link: "", instagram: "https://www.instagram.com/danamariebullock", website: "https://www.danamariebullock.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
+  { id: "sa-9", name: "Delaina Doshi", location: "US", medium: "Tesserae quilts, porcelain", score: 60, priceRange: "$5k–$10k", whyInteresting: "Quilts from smashed porcelain. Fiberart International 2nd place.", showsPress: "Fiberart International 2025, Helen Frankenthaler Award", link: "", instagram: "https://www.instagram.com/delaina_doshi/", website: "https://www.delainadoshi.com/", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending" },
 ];
 
 function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
@@ -1092,6 +1094,43 @@ function ScoutedArtistsReview() {
                 <div className="flex items-center gap-2">
                   <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.showsPress}</span>
                 </div>
+                {/* External links */}
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {artist.instagram && (
+                    <a
+                      href={artist.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                      style={{ borderColor: COLORS.borderSubtle }}
+                      title="Instagram"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                        <rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                        <circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                        <circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} />
+                      </svg>
+                    </a>
+                  )}
+                  {artist.website && (
+                    <a
+                      href={artist.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                      style={{ borderColor: COLORS.borderSubtle }}
+                      title="Portfolio"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                        <ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                        <path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
               </div>
 
               {/* Action buttons */}
@@ -1122,21 +1161,6 @@ function ScoutedArtistsReview() {
                     <path d="M4 4L12 12M12 4L4 12" stroke={artist.rating === "declined" ? COLORS.chartRed : COLORS.textFaint} strokeWidth="2" strokeLinecap="round" />
                   </svg>
                 </button>
-                {artist.link && (
-                  <a
-                    href={artist.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
-                    style={{ borderColor: COLORS.borderSubtle }}
-                    title="View portfolio"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M3.5 1.5H10.5V8.5M10.5 1.5L1.5 10.5" stroke={COLORS.textFaint} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </a>
-                )}
               </div>
             </div>
           ))}
