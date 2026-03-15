@@ -134,8 +134,8 @@ const COLORS = {
   // Text — LIGHT on dark frost
   textPrimary: "rgba(220,220,235,0.92)",
   textSecondary: "rgba(200,200,220,0.7)",
-  textMuted: "rgba(200,200,220,0.45)",
-  textFaint: "rgba(200,200,220,0.28)",
+  textMuted: "rgba(200,200,220,0.55)",
+  textFaint: "rgba(200,200,220,0.42)",
   // Light text for use on dark bg directly (section headers etc)
   textOnDark: "#c8c8d6",
   textOnDarkMuted: "#777790",
@@ -665,7 +665,7 @@ const LANES: Lane[] = [
     name: "Business",
     color: COLORS.coral,
     icon: "briefcase",
-    description: "Bernard Studia ops, Get Engaged, content strategy",
+    description: "Bernard Studia ops, content strategy, distribution",
     status: "planned",
     agents: [
       {
@@ -743,7 +743,9 @@ const CREDIT_DATA: CreditEntry[] = [
   { agentId: "zoey", agentName: "Zoey Agent", icon: "person", laneColor: COLORS.gold, laneName: "Family & Life", creditsUsed: 24, runs7d: 5, avgPerRun: 5, trend: "flat" },
   { agentId: "kelli", agentName: "Kel'li Agent", icon: "handshake", laneColor: COLORS.gold, laneName: "Family & Life", creditsUsed: 18, runs7d: 3, avgPerRun: 6, trend: "flat" },
   { agentId: "wellness", agentName: "Wellness", icon: "pulse", laneColor: COLORS.gold, laneName: "Family & Life", creditsUsed: 12, runs7d: 2, avgPerRun: 6, trend: "flat" },
-  { agentId: "design-critic", agentName: "Design Critic", icon: "telescope", laneColor: COLORS.teal, laneName: "System", creditsUsed: 0, runs7d: 0, avgPerRun: 0, trend: "flat" },
+  { agentId: "design-critic", agentName: "Design Critic", icon: "telescope", laneColor: COLORS.teal, laneName: "System", creditsUsed: 45, runs7d: 1, avgPerRun: 45, trend: "flat" },
+  { agentId: "sheet-archiver", agentName: "Sheet Archiver", icon: "clipboard", laneColor: COLORS.teal, laneName: "System", creditsUsed: 8, runs7d: 1, avgPerRun: 8, trend: "flat" },
+  { agentId: "midnight-catalog", agentName: "Midnight Catalog", icon: "moon", laneColor: COLORS.teal, laneName: "System", creditsUsed: 35, runs7d: 7, avgPerRun: 5, trend: "flat" },
 ];
 
 const TOTAL_CREDITS_7D = CREDIT_DATA.reduce((sum, c) => sum + c.creditsUsed, 0);
@@ -896,7 +898,7 @@ function StatusBadge({ status, color }: { status: AgentStatus; color: string }) 
   };
   const c = configs[status];
   return (
-    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: c.bg, color: c.text }}>
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: c.bg, color: c.text }}>
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.dot, boxShadow: status === "active" ? `0 0 6px ${c.dot}60` : "none" }} />
       {c.label}
     </span>
@@ -929,7 +931,7 @@ function AgentCard({ agent, laneColor, delay }: { agent: Agent; laneColor: strin
               </span>
               <StatusBadge status={agent.status} color={laneColor} />
             </div>
-            <span className="text-[10px] font-medium" style={{ color: laneColor, opacity: agent.status === "active" ? 1 : 0.5 }}>
+            <span className="text-[11px] font-medium" style={{ color: laneColor, opacity: agent.status === "active" ? 1 : 0.5 }}>
               {agent.codename} — {agent.role}
             </span>
           </div>
@@ -941,7 +943,7 @@ function AgentCard({ agent, laneColor, delay }: { agent: Agent; laneColor: strin
       {agent.schedule && (
         <div className="flex items-center gap-1.5 mt-0.5">
           <AgentIcon type="clock" color={COLORS.textFaint} size={10} />
-          <span className="text-[10px] tabular-nums" style={{ color: COLORS.textFaint }}>{agent.schedule}</span>
+          <span className="text-[11px] tabular-nums" style={{ color: COLORS.textFaint }}>{agent.schedule}</span>
         </div>
       )}
     </div>
@@ -977,7 +979,7 @@ function LaneGroup({ lane, delay }: { lane: Lane; delay: number }) {
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold" style={{ color: lane.color }}>{lane.name}</h3>
                 {lane.status === "planned" && (
-                  <span className="text-[9px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: `${COLORS.textFaint}15`, color: COLORS.textFaint }}>
+                  <span className="text-[11px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: `${COLORS.textFaint}15`, color: COLORS.textFaint }}>
                     Coming Soon
                   </span>
                 )}
@@ -1044,7 +1046,7 @@ function HubAgentsCard() {
             <p className="text-[11px]" style={{ color: COLORS.textMuted }}>Orchestrates all lanes with 3 daily touchpoints</p>
           </div>
         </div>
-        <span className="text-[10px] px-2 py-1 rounded-md tabular-nums" style={{ background: `${COLORS.teal}12`, color: COLORS.teal }}>
+        <span className="text-[11px] px-2 py-1 rounded-md tabular-nums" style={{ background: `${COLORS.teal}12`, color: COLORS.teal }}>
           Next: {HUB_AGENTS[nextIdx].name} in {hoursLeft}h {minsLeft}m
         </span>
       </div>
@@ -1072,7 +1074,7 @@ function HubAgentsCard() {
               </div>
               <span className="text-xs font-semibold tabular-nums" style={{ color: c }}>{agent.schedule?.replace("Daily ", "")}</span>
               <span className="text-[11px] font-medium" style={{ color: COLORS.textPrimary }}>{agent.name}</span>
-              <span className="text-[10px] text-center max-w-[140px] leading-tight" style={{ color: COLORS.textFaint }}>{agent.role}</span>
+              <span className="text-[11px] text-center max-w-[140px] leading-tight" style={{ color: COLORS.textFaint }}>{agent.role}</span>
             </div>
           );
         })}
@@ -1090,12 +1092,12 @@ function HubAgentsCard() {
 function SystemStatusCard() {
   const connectors = [
     { name: "Realtime Finance", connected: true },
-    { name: "Gmail + Calendar", connected: false },
-    { name: "Google Sheets", connected: false },
-    { name: "Google Drive", connected: false },
+    { name: "Gmail + Calendar", connected: true },
+    { name: "Google Sheets", connected: true },
+    { name: "Google Drive", connected: true },
+    { name: "GitHub", connected: true },
+    { name: "Vercel", connected: true },
     { name: "Slack", connected: false },
-    { name: "Notion", connected: false },
-    { name: "Pipedrive", connected: false },
   ];
 
   const connected = connectors.filter(c => c.connected).length;
@@ -1121,7 +1123,7 @@ function SystemStatusCard() {
             <div key={c.name} className="flex items-center gap-2 text-[11px]">
               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.connected ? COLORS.green : COLORS.textFaint }} />
               <span style={{ color: c.connected ? COLORS.textPrimary : COLORS.textMuted }}>{c.name}</span>
-              <span className="ml-auto text-[10px]" style={{ color: c.connected ? COLORS.green : COLORS.textFaint }}>
+              <span className="ml-auto text-[11px]" style={{ color: c.connected ? COLORS.green : COLORS.textFaint }}>
                 {c.connected ? "Live" : "Pending"}
               </span>
             </div>
@@ -1150,7 +1152,7 @@ function MiniCalendar() {
 
   return (
     <div className="rounded-lg p-3" style={{ ...GLASS_ALT }}>
-      <div className="text-[10px] font-semibold mb-2 flex items-center justify-between" style={{ color: COLORS.textMuted }}>
+      <div className="text-[11px] font-semibold mb-2 flex items-center justify-between" style={{ color: COLORS.textMuted }}>
         <span>March 2026</span>
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-sm" style={{ background: COLORS.teal }} /> Today
@@ -1160,7 +1162,7 @@ function MiniCalendar() {
       </div>
       <div className="grid grid-cols-7 gap-0.5 text-center">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <div key={i} className="text-[9px] py-0.5 font-medium" style={{ color: COLORS.textFaint }}>{d}</div>
+          <div key={i} className="text-[11px] py-0.5 font-medium" style={{ color: COLORS.textFaint }}>{d}</div>
         ))}
         {blanks.map((b) => <div key={`b-${b}`} />)}
         {days.map((d) => {
@@ -1176,7 +1178,7 @@ function MiniCalendar() {
           else if (isSaturday) { bg = `${COLORS.teal}12`; textColor = COLORS.teal; }
 
           return (
-            <div key={d} className="relative text-[10px] tabular-nums rounded-sm py-0.5 leading-tight" style={{ background: bg, color: textColor, fontWeight }}>
+            <div key={d} className="relative text-[11px] tabular-nums rounded-sm py-0.5 leading-tight" style={{ background: bg, color: textColor, fontWeight }}>
               {d}
             </div>
           );
@@ -1228,7 +1230,7 @@ function CreditUsageCard() {
 
         <div className="flex items-center gap-2 mt-3 mb-4 flex-wrap">
           {Object.entries(laneTotals).sort((a, b) => b[1] - a[1]).map(([lane, total]) => (
-            <div key={lane} className="flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md" style={{ background: `${laneColors[lane] || COLORS.textFaint}12`, color: laneColors[lane] || COLORS.textMuted }}>
+            <div key={lane} className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md" style={{ background: `${laneColors[lane] || COLORS.textFaint}12`, color: laneColors[lane] || COLORS.textMuted }}>
               <div className="w-1.5 h-1.5 rounded-full" style={{ background: laneColors[lane] || COLORS.textFaint }} />
               {lane}: <span className="font-semibold tabular-nums">{total}</span>
             </div>
@@ -1247,11 +1249,11 @@ function CreditUsageCard() {
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-medium" style={{ color: COLORS.textPrimary }}>{entry.agentName}</span>
-                    <span className="text-[9px]" style={{ color: COLORS.textFaint }}>{entry.runs7d} runs</span>
+                    <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{entry.runs7d} runs</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    {entry.trend === "up" && <span className="text-[9px]" style={{ color: COLORS.chartRed }}>&#9650;</span>}
-                    {entry.trend === "down" && <span className="text-[9px]" style={{ color: COLORS.green }}>&#9660;</span>}
+                    {entry.trend === "up" && <span className="text-[11px]" style={{ color: COLORS.chartRed }}>&#9650;</span>}
+                    {entry.trend === "down" && <span className="text-[11px]" style={{ color: COLORS.green }}>&#9660;</span>}
                     <span className="text-[11px] font-semibold tabular-nums" style={{ color: COLORS.textPrimary }}>{entry.creditsUsed}</span>
                   </div>
                 </div>
@@ -1271,10 +1273,10 @@ function CreditUsageCard() {
       </div>
 
       <div className="px-5 py-3 border-t flex items-center justify-between" style={{ borderColor: COLORS.borderSubtle }}>
-        <span className="text-[10px]" style={{ color: COLORS.textFaint }}>
+        <span className="text-[11px]" style={{ color: COLORS.textFaint }}>
           Highest: Art Scout ({CREDIT_DATA[0].avgPerRun} credits/run) · Lowest: Wellness ({CREDIT_DATA[CREDIT_DATA.length - 1].avgPerRun} credits/run)
         </span>
-        <span className="text-[10px] font-medium" style={{ color: COLORS.textMuted }}>~{Math.round(TOTAL_CREDITS_7D / 7)}/day avg</span>
+        <span className="text-[11px] font-medium" style={{ color: COLORS.textMuted }}>~{Math.round(TOTAL_CREDITS_7D / 7)}/day avg</span>
       </div>
     </div>
   );
@@ -1293,14 +1295,14 @@ function CreditSidebar() {
             <Sparkline data={[82, 95, 88, 110, 92, 86, 94]} color={COLORS.chartRed} width={200} height={40} />
           </div>
           <div className="text-right">
-            <span className="text-[10px] block" style={{ color: COLORS.textFaint }}>7-day trend</span>
+            <span className="text-[11px] block" style={{ color: COLORS.textFaint }}>7-day trend</span>
             <span className="text-[11px] font-medium" style={{ color: COLORS.green }}>&#9660; 4% vs prior week</span>
           </div>
         </div>
         <div className="flex items-center gap-3 mt-1">
           {[{ label: "Daily avg", value: `~${Math.round(TOTAL_CREDITS_7D / 7)}`, color: COLORS.textPrimary }, { label: "Peak day", value: "Mon", color: COLORS.chartRed }, { label: "Lightest", value: "Sat", color: COLORS.green }].map(s => (
             <div key={s.label} className="flex-1 rounded-lg p-2.5 text-center" style={{ ...GLASS_ALT }}>
-              <span className="text-[10px] block" style={{ color: COLORS.textFaint }}>{s.label}</span>
+              <span className="text-[11px] block" style={{ color: COLORS.textFaint }}>{s.label}</span>
               <span className="text-xs font-semibold tabular-nums" style={{ color: s.color }}>{s.value}</span>
             </div>
           ))}
@@ -1314,7 +1316,7 @@ function CreditSidebar() {
             { tip: "Midday Pulse stays silent when nothing moves — that's saving you ~40% vs always-notify", color: COLORS.green },
             { tip: "Connecting Gmail could reduce Morning Brief credits by ~15% (fewer web searches for calendar data)", color: COLORS.gold },
           ].map((t, i) => (
-            <div key={i} className="flex items-start gap-2 text-[10px] leading-relaxed" style={{ color: COLORS.textMuted }}>
+            <div key={i} className="flex items-start gap-2 text-[11px] leading-relaxed" style={{ color: COLORS.textMuted }}>
               <div className="w-1 h-1 rounded-full mt-1.5 flex-shrink-0" style={{ background: t.color }} />
               {t.tip}
             </div>
@@ -1341,7 +1343,7 @@ function BuildYourLifeOS() {
     <div className="animate-fade-in-up rounded-xl border overflow-hidden" style={{ background: `linear-gradient(135deg, rgba(22,22,30,0.6) 0%, rgba(26,21,40,0.5) 100%)`, backdropFilter: "blur(20px) saturate(1.4)", WebkitBackdropFilter: "blur(20px) saturate(1.4)", borderColor: `${COLORS.purple}25`, animationDelay: "600ms" }} data-testid="build-your-lifeos">
       <div className="p-5">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{ background: `${COLORS.purple}18`, color: COLORS.purple }}>
+          <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{ background: `${COLORS.purple}18`, color: COLORS.purple }}>
             Coming Soon
           </span>
         </div>
@@ -1357,7 +1359,7 @@ function BuildYourLifeOS() {
                 {s.num}
               </div>
               <span className="text-[11px] font-semibold text-center" style={{ color: COLORS.textPrimary }}>{s.label}</span>
-              <span className="text-[10px] text-center leading-tight" style={{ color: COLORS.textFaint }}>{s.desc}</span>
+              <span className="text-[11px] text-center leading-tight" style={{ color: COLORS.textFaint }}>{s.desc}</span>
             </div>
           ))}
         </div>
@@ -1392,9 +1394,9 @@ function EvolutionRoadmap() {
                 </svg>
               )}
             </div>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${m.color}15`, color: m.color }}>{m.version}</span>
-            <span className="text-[10px] font-semibold tabular-nums" style={{ color: m.color }}>{m.timing}</span>
-            <span className="text-[10px] text-center max-w-[120px] leading-tight" style={{ color: COLORS.textMuted }}>{m.label}</span>
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${m.color}15`, color: m.color }}>{m.version}</span>
+            <span className="text-[11px] font-semibold tabular-nums" style={{ color: m.color }}>{m.timing}</span>
+            <span className="text-[11px] text-center max-w-[120px] leading-tight" style={{ color: COLORS.textMuted }}>{m.label}</span>
           </div>
         ))}
       </div>
@@ -1422,7 +1424,64 @@ function SectionHeader({ title, subtitle, count }: { title: string; subtitle: st
 // ═══════════════════════════════════════════
 // HEADER (with color variant toggle)
 // ═══════════════════════════════════════════
-function Header({ activeVariant, onVariantChange }: { activeVariant: string; onVariantChange: (key: string) => void }) {
+type DensityLevel = "compact" | "comfortable" | "spacious";
+const DENSITY_SCALES: Record<DensityLevel, number> = {
+  compact: 0.92,
+  comfortable: 1.0,
+  spacious: 1.12,
+};
+const DENSITY_LABELS: Record<DensityLevel, string> = {
+  compact: "Compact",
+  comfortable: "Comfortable",
+  spacious: "Spacious",
+};
+
+function DensityToggle({ density, onChange }: { density: DensityLevel; onChange: (d: DensityLevel) => void }) {
+  const levels: DensityLevel[] = ["compact", "comfortable", "spacious"];
+  return (
+    <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
+      {levels.map((level) => (
+        <button
+          key={level}
+          onClick={() => onChange(level)}
+          className="relative px-2 py-0.5 rounded-md text-[11px] font-medium transition-all"
+          style={{
+            background: density === level ? "rgba(255,255,255,0.08)" : "transparent",
+            color: density === level ? COLORS.textPrimary : COLORS.textMuted,
+          }}
+          title={DENSITY_LABELS[level]}
+        >
+          {/* Icon representation */}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            {level === "compact" && (
+              <>
+                <rect x="2" y="3" width="10" height="1.5" rx="0.5" fill="currentColor" opacity="0.7" />
+                <rect x="2" y="6.25" width="10" height="1.5" rx="0.5" fill="currentColor" opacity="0.7" />
+                <rect x="2" y="9.5" width="10" height="1.5" rx="0.5" fill="currentColor" opacity="0.7" />
+              </>
+            )}
+            {level === "comfortable" && (
+              <>
+                <rect x="2" y="2" width="10" height="2" rx="0.5" fill="currentColor" opacity="0.7" />
+                <rect x="2" y="6" width="10" height="2" rx="0.5" fill="currentColor" opacity="0.7" />
+                <rect x="2" y="10" width="10" height="2" rx="0.5" fill="currentColor" opacity="0.7" />
+              </>
+            )}
+            {level === "spacious" && (
+              <>
+                <rect x="2" y="1" width="10" height="3" rx="0.75" fill="currentColor" opacity="0.7" />
+                <rect x="2" y="5.5" width="10" height="3" rx="0.75" fill="currentColor" opacity="0.7" />
+                <rect x="2" y="10" width="10" height="3" rx="0.75" fill="currentColor" opacity="0.7" />
+              </>
+            )}
+          </svg>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Header({ activeVariant, onVariantChange, density, onDensityChange }: { activeVariant: string; onVariantChange: (key: string) => void; density: DensityLevel; onDensityChange: (d: DensityLevel) => void }) {
   return (
     <header
       className="flex items-center justify-between px-6 py-3 border-b flex-shrink-0"
@@ -1439,9 +1498,13 @@ function Header({ activeVariant, onVariantChange }: { activeVariant: string; onV
       <div className="flex items-center gap-3">
         <LifeOSLogo size={28} />
         <span className="text-base font-bold tracking-tight" style={{ color: COLORS.textPrimary }}>LifeOS</span>
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: `${COLORS.teal}15`, color: COLORS.teal }}>v1.0</span>
+        <span className="text-[11px] font-medium px-1.5 py-0.5 rounded" style={{ background: `${COLORS.teal}15`, color: COLORS.teal }}>v1.0</span>
       </div>
       <div className="flex items-center gap-4">
+        {/* Density toggle */}
+        <DensityToggle density={density} onChange={onDensityChange} />
+        {/* Divider */}
+        <div className="w-px h-5" style={{ background: COLORS.borderSubtle }} />
         {/* Color variant toggle */}
         <div className="flex items-center gap-1.5" data-testid="color-variant-toggle">
           {Object.entries(COLOR_VARIANTS).map(([key, v]) => (
@@ -1457,7 +1520,7 @@ function Header({ activeVariant, onVariantChange }: { activeVariant: string; onV
                 data-testid={`variant-${key}`}
               />
               <span
-                className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 rounded text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 rounded text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
                 style={{ background: 'rgba(0,0,0,0.85)', color: 'rgba(220,220,235,0.9)', backdropFilter: 'blur(8px)' }}
               >
                 {v.label}
@@ -1465,7 +1528,7 @@ function Header({ activeVariant, onVariantChange }: { activeVariant: string; onV
             </div>
           ))}
         </div>
-        <span className="text-sm font-medium" style={{ color: COLORS.textMuted }}>Ant Kinnel</span>
+        <span className="text-sm font-medium hidden sm:inline" style={{ color: COLORS.textMuted }}>Ant Kinnel</span>
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: `${COLORS.teal}20`, color: COLORS.teal }}>AK</div>
       </div>
     </header>
@@ -1536,10 +1599,11 @@ function CollapsibleSection({
     <div data-testid={`section-${id}`}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-2 px-1 group"
+        className="w-full flex items-center justify-between py-3 px-2 group rounded-md transition-colors hover:bg-white/[0.03]"
+        style={{ minHeight: '44px' }}
         data-testid={`toggle-${id}`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {dragHandleProps && (
             <span
               {...dragHandleProps}
@@ -1555,14 +1619,14 @@ function CollapsibleSection({
           </span>
         </div>
         <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
+          width="18"
+          height="18"
+          viewBox="0 0 18 18"
           fill="none"
           className="transition-transform duration-200"
           style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
         >
-          <path d="M3 5.5L7 9.5L11 5.5" stroke={COLORS.textMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 7L9 12L14 7" stroke={COLORS.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
       <div
@@ -1751,9 +1815,20 @@ const DELIVERABLES: Deliverable[] = [
     summary: "Master log of all deliverables with dates, types, and links",
   },
   {
+    id: "d-design-critique",
+    lane: "System",
+    laneColor: COLORS.teal,
+    icon: "telescope",
+    title: "Design Critique — 62/100",
+    type: "report",
+    date: "2026-03-14",
+    url: "",
+    summary: "WCAG contrast, min font sizes, density toggle, stat card unification",
+  },
+  {
     id: "d-finance-meme",
     lane: "Business",
-    laneColor: "#22d3ee",
+    laneColor: COLORS.coral,
     icon: "signal",
     title: "Finance Meme Seeding Plan",
     type: "document",
@@ -1761,39 +1836,7 @@ const DELIVERABLES: Deliverable[] = [
     url: "https://perplexity.ai/search/2caff287-b0e5-4f2d-a120-38cf031895d9",
     summary: "Litquidity, OHWS, Trust Fund Terry — brief, asset flow, approval cadence",
   },
-  {
-    id: "d-health-tip",
-    lane: "Family",
-    laneColor: COLORS.gold,
-    icon: "pulse",
-    title: "Health Tip: Active Recovery",
-    type: "notification",
-    date: "2026-03-14",
-    url: "https://perplexity.ai/search/a719daeb-1fc4-4b11-8820-e0fc38c62999",
-    summary: "6-min post-golf hip + calf reset, BP-conscious",
-  },
-  {
-    id: "d-devotional",
-    lane: "Family",
-    laneColor: COLORS.gold,
-    icon: "person",
-    title: "Morning Devotional: John 15",
-    type: "notification",
-    date: "2026-03-14",
-    url: "https://perplexity.ai/search/9dedcc9b-1d77-4293-9311-e2d73ee33250",
-    summary: "Amplified Bible — New Testament Saturday rotation",
-  },
-  {
-    id: "d-sola-responsibilities",
-    lane: "Business",
-    laneColor: "#22d3ee",
-    icon: "person",
-    title: "Sola Role Definition",
-    type: "document",
-    date: "2026-01-20",
-    url: "https://perplexity.ai/search/31bd4e4d-9f6b-4df8-8380-1ea7fd8cbc45",
-    summary: "Celebrity-to-media page conversion — Sola oversight responsibilities",
-  },
+
 ];
 
 // Map deliverables to lane IDs for grouping
@@ -1854,10 +1897,10 @@ function DeliverablesList({ laneName, laneColor }: { laneName: string; laneColor
       >
         <div className="flex items-center gap-2">
           <AgentIcon type="clipboard" color={laneColor} size={11} />
-          <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: laneColor }}>
+          <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: laneColor }}>
             Deliverables
           </span>
-          <span className="text-[10px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${laneColor}15`, color: laneColor }}>
+          <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${laneColor}15`, color: laneColor }}>
             {items.length}
           </span>
         </div>
@@ -1902,22 +1945,22 @@ function DeliverablesList({ laneName, laneColor }: { laneName: string; laneColor
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span
-                      className="text-[8px] font-medium px-1.5 py-px rounded"
+                      className="text-[11px] font-medium px-1.5 py-px rounded"
                       style={{ background: `${laneColor}12`, color: laneColor }}
                     >
                       {getTypeLabel(d.type)}
                     </span>
-                    <span className="text-[9px]" style={{ color: COLORS.textFaint }}>
+                    <span className="text-[11px]" style={{ color: COLORS.textFaint }}>
                       {getRelativeDate(d.date)}
                     </span>
                     {d.url && d.url.includes("drive.google.com") && (
-                      <span className="text-[8px] px-1 py-px rounded" style={{ background: "rgba(66,133,244,0.12)", color: "#4285f4" }}>PDF</span>
+                      <span className="text-[11px] px-1 py-px rounded" style={{ background: "rgba(66,133,244,0.12)", color: "#4285f4" }}>PDF</span>
                     )}
                     {d.url && d.url.includes("docs.google.com/spreadsheets") && (
-                      <span className="text-[8px] px-1 py-px rounded" style={{ background: "rgba(52,168,83,0.12)", color: "#34a853" }}>Sheet</span>
+                      <span className="text-[11px] px-1 py-px rounded" style={{ background: "rgba(52,168,83,0.12)", color: "#34a853" }}>Sheet</span>
                     )}
                   </div>
-                  <p className="text-[9px] mt-0.5 leading-relaxed line-clamp-1" style={{ color: COLORS.textMuted }}>
+                  <p className="text-[11px] mt-0.5 leading-relaxed line-clamp-1" style={{ color: COLORS.textMuted }}>
                     {d.summary}
                   </p>
                 </div>
@@ -1977,7 +2020,7 @@ function TLDRDigest() {
     icon: "hub",
     label: "Hub",
     color: COLORS.purple,
-    status: "3 agents running",
+    status: "7 scheduled tasks running",
     detail: `Next: ${nextAgent.name} in ${nextAgentTime}`,
     lane: "Hub",
   });
@@ -2048,8 +2091,8 @@ function TLDRDigest() {
     icon: "signal",
     label: "Connectors",
     color: COLORS.textMuted,
-    status: "3 live / 4 pending",
-    detail: "Finance, Gmail, Sheets connected · Drive, Slack, Notion, Pipedrive pending",
+    status: "7 connected",
+    detail: "Sheets, Drive, GitHub, Finance, Gmail, Calendar, Vercel — all live",
   });
 
   // Credits
@@ -2082,7 +2125,7 @@ function TLDRDigest() {
       {/* Header row */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h2 className="text-lg font-semibold" style={{ color: COLORS.textPrimary }}>
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: COLORS.textPrimary }}>
             {greeting}, Ant
           </h2>
           <p className="text-xs mt-0.5" style={{ color: COLORS.textMuted }}>
@@ -2090,7 +2133,7 @@ function TLDRDigest() {
           </p>
         </div>
         <div
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
           style={{ background: `${nextAgent.color}15`, color: nextAgent.color }}
         >
           <AgentIcon type={nextAgent.icon} color={nextAgent.color} size={11} />
@@ -2131,7 +2174,7 @@ function TLDRDigest() {
                 </div>
                 {hasItems && (
                   <div className="flex items-center gap-1 shrink-0 pt-0.5">
-                    <span className="text-[9px] tabular-nums" style={{ color: `${line.color}90` }}>
+                    <span className="text-[11px] tabular-nums" style={{ color: `${line.color}90` }}>
                       {laneItems.length}
                     </span>
                     <svg
@@ -2172,7 +2215,7 @@ function TLDRDigest() {
                           <AgentIcon type={d.icon} color={line.color} size={10} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-medium truncate" style={{ color: COLORS.textPrimary }}>
+                              <span className="text-[11px] font-medium truncate" style={{ color: COLORS.textPrimary }}>
                                 {d.title}
                               </span>
                               {isLink && (
@@ -2182,15 +2225,15 @@ function TLDRDigest() {
                               )}
                             </div>
                             <div className="flex items-center gap-1.5 mt-px">
-                              <span className="text-[7px] font-medium px-1 py-px rounded" style={{ background: `${line.color}12`, color: line.color }}>
+                              <span className="text-[11px] font-medium px-1 py-px rounded" style={{ background: `${line.color}12`, color: line.color }}>
                                 {getTypeLabel(d.type)}
                               </span>
-                              <span className="text-[8px]" style={{ color: COLORS.textFaint }}>{getRelativeDate(d.date)}</span>
+                              <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{getRelativeDate(d.date)}</span>
                               {d.url && d.url.includes("drive.google.com") && (
-                                <span className="text-[7px] px-1 py-px rounded" style={{ background: "rgba(66,133,244,0.12)", color: "#4285f4" }}>PDF</span>
+                                <span className="text-[11px] px-1 py-px rounded" style={{ background: "rgba(66,133,244,0.12)", color: "#4285f4" }}>PDF</span>
                               )}
                               {d.url && d.url.includes("docs.google.com/spreadsheets") && (
-                                <span className="text-[7px] px-1 py-px rounded" style={{ background: "rgba(52,168,83,0.12)", color: "#34a853" }}>Sheet</span>
+                                <span className="text-[11px] px-1 py-px rounded" style={{ background: "rgba(52,168,83,0.12)", color: "#34a853" }}>Sheet</span>
                               )}
                             </div>
                           </div>
@@ -2209,7 +2252,7 @@ function TLDRDigest() {
       <div className="mt-2 mb-1.5" style={{ borderTop: `1px solid ${COLORS.borderSubtle}` }} />
       <div className="flex items-center gap-2">
         <AgentIcon type="clipboard" color={COLORS.textMuted} size={11} />
-        <span className="text-[10px]" style={{ color: COLORS.textMuted }}>
+        <span className="text-[11px]" style={{ color: COLORS.textMuted }}>
           {totalDeliverables} deliverables across {totalLanes} lanes — tap any lane to expand
         </span>
       </div>
@@ -2248,6 +2291,8 @@ export default function Dashboard() {
   const [sections, setSections] = useState<DashboardSection[]>(DEFAULT_SECTIONS);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeVariant, setActiveVariant] = useState<string>("deep-space");
+  const [density, setDensity] = useState<DensityLevel>("comfortable");
+  const scale = DENSITY_SCALES[density];
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const variant = COLOR_VARIANTS[activeVariant];
@@ -2288,8 +2333,8 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KPICard label="Active Agents" value={activeAgents} subtitle={`of ${totalAgents} total agents`} color={COLORS.teal} ring={Math.round((activeAgents / totalAgents) * 100)} delay={0} />
             <KPICard label="Active Lanes" value={2} subtitle="of 4 planned" color={COLORS.gold} ring={50} delay={80} />
-            <KPICard label="Scheduled Tasks" value={5} subtitle="running regularly" color={COLORS.purple} sparkData={[2, 3, 4, 3, 4, 5, 5]} delay={160} />
-            <KPICard label="Connectors" value={1} subtitle="of 7 available" color={COLORS.green} ring={14} delay={240} />
+            <KPICard label="Scheduled Tasks" value={7} subtitle="running daily/weekly" color={COLORS.purple} sparkData={[3, 4, 5, 5, 6, 7, 7]} delay={160} />
+            <KPICard label="Connectors" value={7} subtitle="all connected" color={COLORS.green} ring={100} delay={240} />
           </div>
         );
       case "hub-connectors":
@@ -2315,7 +2360,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <h3 className="text-xs font-semibold" style={{ color: COLORS.teal }}>System</h3>
-                      <p className="text-[10px]" style={{ color: COLORS.textMuted }}>Core infrastructure and tracking</p>
+                      <p className="text-[11px]" style={{ color: COLORS.textMuted }}>Core infrastructure and tracking</p>
                     </div>
                   </div>
                 </div>
@@ -2381,11 +2426,11 @@ export default function Dashboard() {
       />
 
       {/* Header — z-index 10 */}
-      <Header activeVariant={activeVariant} onVariantChange={setActiveVariant} />
+      <Header activeVariant={activeVariant} onVariantChange={setActiveVariant} density={density} onDensityChange={setDensity} />
 
       {/* Main content — z-index 2, relative */}
       <main className="flex-1 overflow-y-auto p-6" style={{ position: "relative", zIndex: 2, overscrollBehavior: "contain" }}>
-        <div className="max-w-[1400px] mx-auto flex flex-col gap-4 pl-4">
+        <div className="max-w-[1400px] mx-auto flex flex-col transition-all duration-300" style={{ gap: `${scale * 16}px`, paddingLeft: `${scale * 16}px` }}>
           {/* TL;DR Digest — always visible at top */}
           <TLDRDigest />
 
