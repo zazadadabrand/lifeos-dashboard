@@ -2173,6 +2173,93 @@ function FamilyIdeasPipeline() {
     if (ok) updateFamilySnapshotBlob(updated);
   };
 
+  // Stage selector dropdown for a family idea — uses portal to escape overflow:hidden parents
+  const FamilyStageSelector = ({ idea }: { idea: FamilyIdea }) => {
+    const [open, setOpen] = useState(false);
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (btnRef.current?.contains(e.target as Node)) return;
+        if (menuRef.current?.contains(e.target as Node)) return;
+        setOpen(false);
+      };
+      if (open) document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [open]);
+
+    useEffect(() => {
+      if (open && btnRef.current) {
+        const rect = btnRef.current.getBoundingClientRect();
+        setMenuPos({ top: rect.bottom + 4, left: rect.left });
+      }
+    }, [open]);
+
+    return (
+      <>
+        <button
+          ref={btnRef}
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+          style={{
+            borderColor: `${FAMILY_STAGE_COLORS[idea.status]}40`,
+            color: FAMILY_STAGE_COLORS[idea.status],
+            background: `${FAMILY_STAGE_COLORS[idea.status]}10`,
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: FAMILY_STAGE_COLORS[idea.status] }} />
+          {idea.status}
+          {changingStage === idea.id ? (
+            <span className="animate-spin text-[10px]">&#9696;</span>
+          ) : (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}>
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+        {open && menuPos && ReactDOM.createPortal(
+          <div
+            ref={menuRef}
+            className="fixed rounded-lg border py-1 min-w-[160px] shadow-xl"
+            style={{
+              top: menuPos.top,
+              left: menuPos.left,
+              zIndex: 9999,
+              background: "rgba(20,20,30,0.97)",
+              borderColor: COLORS.border,
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+            }}
+          >
+            {FAMILY_STAGES.map(stage => (
+              <button
+                key={stage}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStageChange(idea, stage);
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors hover:bg-white/[0.06]"
+                style={{ color: idea.status === stage ? FAMILY_STAGE_COLORS[stage] : COLORS.textSecondary }}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: FAMILY_STAGE_COLORS[stage], opacity: idea.status === stage ? 1 : 0.5 }} />
+                {stage}
+                {idea.status === stage && (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto">
+                    <path d="M2 6L5 9L10 3" stroke={FAMILY_STAGE_COLORS[stage]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+      </>
+    );
+  };
+
   const filtered = ideas
     .filter(i => filter === "all" ? true : i.status === filter)
     .filter(i => personFilter === "all" ? true : i.person === personFilter);
@@ -2365,21 +2452,8 @@ function FamilyIdeasPipeline() {
                   {idea.description && (
                     <p className="text-[11px] mb-1.5" style={{ color: COLORS.textMuted, lineHeight: "1.4" }}>{idea.description}</p>
                   )}
-                  {/* Stage selector */}
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {FAMILY_STAGES.map(stage => (
-                      <button key={stage} onClick={() => handleStageChange(idea, stage)}
-                        disabled={changingStage === idea.id}
-                        className="text-[10px] font-medium px-2 py-0.5 rounded transition-all"
-                        style={{ background: idea.status === stage ? `${FAMILY_STAGE_COLORS[stage]}22` : "transparent",
-                          color: idea.status === stage ? FAMILY_STAGE_COLORS[stage] : COLORS.textFaint,
-                          border: `1px solid ${idea.status === stage ? `${FAMILY_STAGE_COLORS[stage]}35` : "transparent"}`,
-                          cursor: changingStage === idea.id ? "wait" : "pointer",
-                          opacity: changingStage === idea.id ? 0.4 : 1 }}>
-                        {stage}
-                      </button>
-                    ))}
-                  </div>
+                  {/* Stage selector — portal dropdown matching artist pipeline */}
+                  <FamilyStageSelector idea={idea} />
                 </div>
               </div>
             );
