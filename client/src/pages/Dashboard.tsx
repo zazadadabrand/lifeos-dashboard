@@ -2751,8 +2751,22 @@ function FamilyIdeasPipeline() {
                   {idea.description && (
                     <p className="text-[11px] mb-1.5" style={{ color: COLORS.textMuted, lineHeight: "1.4" }}>{idea.description}</p>
                   )}
-                  {/* Stage selector — portal dropdown matching artist pipeline */}
-                  <FamilyStageSelector idea={idea} />
+                  {/* Stage selector + brief button */}
+                  <div className="flex items-center gap-2">
+                    <FamilyStageSelector idea={idea} />
+                    {idea.status !== "Idea" && idea.status !== "Declined" && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedIdea(idea.id); }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+                        style={{ borderColor: `${PERSON_COLORS[idea.person]}30`, color: PERSON_COLORS[idea.person] }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <path d="M1 3.5h8M1 5.5h6M1 7.5h4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+                        </svg>
+                        Brief
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
