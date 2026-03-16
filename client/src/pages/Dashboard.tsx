@@ -3660,6 +3660,7 @@ function computeAmbientGradient(variant: ColorVariant): string {
 // MAIN DASHBOARD PAGE
 // ═══════════════════════════════════════════
 const DEFAULT_SECTIONS: DashboardSection[] = [
+  { id: "tldr", label: "At a Glance" },
   { id: "kpis", label: "Stats" },
   { id: "agents-active", label: "Agent Network" },
   { id: "hub-connectors", label: "Hub & Connectors" },
@@ -3669,7 +3670,7 @@ const DEFAULT_SECTIONS: DashboardSection[] = [
 ];
 
 // Sections that default to expanded
-const DEFAULT_OPEN_SECTIONS = new Set(["kpis", "agents-active", "hub-connectors"]);
+const DEFAULT_OPEN_SECTIONS = new Set(["tldr", "kpis", "agents-active", "hub-connectors"]);
 
 export default function Dashboard() {
   useEffect(() => { document.documentElement.classList.add("dark"); }, []);
@@ -3714,6 +3715,8 @@ export default function Dashboard() {
 
   const renderSection = (sectionId: string) => {
     switch (sectionId) {
+      case "tldr":
+        return <TLDRDigest />;
       case "kpis":
         return (
           <div className="animate-fade-in-up rounded-xl border flex items-center justify-between px-5 py-3 flex-wrap gap-y-2" style={{ ...GLASS }}>
@@ -3824,9 +3827,6 @@ export default function Dashboard() {
       {/* Main content — z-index 2, relative */}
       <main className="flex-1 overflow-y-auto p-6" style={{ position: "relative", zIndex: 2, overscrollBehavior: "contain" }}>
         <div className="max-w-[1400px] mx-auto flex flex-col transition-all duration-300" style={{ gap: `${scale * 16}px`, paddingLeft: `${scale * 16}px` }}>
-          {/* TL;DR Digest — always visible at top */}
-          <TLDRDigest />
-
           {/* Collapsible sections */}
           {sections.map((section) => (
             <CollapsibleSection
