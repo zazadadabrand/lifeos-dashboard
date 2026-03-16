@@ -3,14 +3,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
   "framework": null,
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "@vercel/node@3.0.0"
-    }
-  },
   "rewrites": [
-    { "source": "/api/pipeline/snapshot", "destination": "/api/pipeline/snapshot" },
-    { "source": "/api/pipeline/changes", "destination": "/api/pipeline/changes" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
