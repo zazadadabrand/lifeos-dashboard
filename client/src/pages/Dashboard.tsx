@@ -1754,53 +1754,60 @@ function ScoutedArtistsReview() {
     setDeepDiveArtist(null);
   };
 
-  // ─── Sync all localStorage vetting states to Google Sheet via server ───
-  const handleSyncToSheet = async () => {
+  // ─── Sync all localStorage vetting states to Google Sheet via sync proxy ───
+  const SYNC_PROXY_URL = "https://www.perplexity.ai/computer/a/bernard-studia-sync-proxy-N9I9I.gOQkOazTUmwsjfaA";
+
+  // Listen for sync-complete messages from the popup
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "sync-complete" && event.data.data?.success) {
+        const d = event.data.data;
+        const stages = d.stages || {};
+        const parts: string[] = [];
+        for (const [stage, count] of Object.entries(stages)) {
+          parts.push(`${count} ${stage.toLowerCase()}`);
+        }
+        const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+        setSyncToast({ type: "success", message: `${d.updated} artist${d.updated !== 1 ? "s" : ""} synced to Sheet${detail}.` });
+        setSheetSyncing(false);
+        setTimeout(() => setSyncToast(null), 6000);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  const handleSyncToSheet = () => {
+    const allVetting = { ..._artistVetting };
+    const count = Object.keys(allVetting).length;
+
+    if (count === 0) {
+      setSyncToast({ type: "error", message: "No vetting data to sync. Approve or decline artists first." });
+      setTimeout(() => setSyncToast(null), 4000);
+      return;
+    }
+
     setSheetSyncing(true);
     setSyncToast(null);
 
-    try {
-      // Read all vetting data from localStorage
-      const allVetting = { ..._artistVetting };
-      const count = Object.keys(allVetting).length;
-
-      if (count === 0) {
-        setSyncToast({ type: "error", message: "No vetting data to sync. Approve or decline artists first." });
-        setSheetSyncing(false);
-        setTimeout(() => setSyncToast(null), 4000);
-        return;
-      }
-
-      // POST to server bulk-sync endpoint
-      const resp = await fetch(`${API_BASE}/api/vetting/bulk-sync`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vetting: allVetting }),
-      });
-
-      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-
-      const data = await resp.json();
-      if (data.success) {
-        const stageInfo = data.stages || {};
-        const deepDiveCount = stageInfo["deep-dive"] || 0;
-        const shortlistedCount = stageInfo.shortlisted || 0;
-        const declinedCount = stageInfo.declined || 0;
-        const parts: string[] = [];
-        if (deepDiveCount > 0) parts.push(`${deepDiveCount} deep dive`);
-        if (shortlistedCount > 0) parts.push(`${shortlistedCount} shortlisted`);
-        if (declinedCount > 0) parts.push(`${declinedCount} declined`);
-        const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-        setSyncToast({ type: "success", message: `${data.artistCount} artist${data.artistCount !== 1 ? "s" : ""} synced${detail}. Sheet update queued.` });
-      } else {
-        throw new Error(data.error || "Unknown error");
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Sync failed";
-      setSyncToast({ type: "error", message: `Sync failed: ${msg}. Try again shortly.` });
-    } finally {
+    // Encode vetting data in URL hash and open sync proxy page
+    const encoded = encodeURIComponent(JSON.stringify(allVetting));
+    const syncUrl = `${SYNC_PROXY_URL}#${encoded}`;
+    
+    // Open in a small popup window
+    const popup = window.open(syncUrl, "bernardSyncProxy", "width=480,height=400,left=200,top=200");
+    
+    if (!popup) {
+      // Popup blocked — fallback to new tab
+      window.open(syncUrl, "_blank");
+      setSyncToast({ type: "success", message: `Sync opened in new tab. ${count} artist${count !== 1 ? "s" : ""} being synced.` });
       setSheetSyncing(false);
       setTimeout(() => setSyncToast(null), 5000);
+    } else {
+      setSyncToast({ type: "success", message: `Syncing ${count} artist${count !== 1 ? "s" : ""} to Sheet...` });
+      // Auto-clear syncing state after timeout in case postMessage doesn't arrive
+      setTimeout(() => setSheetSyncing(false), 15000);
+      setTimeout(() => setSyncToast(null), 15000);
     }
   };
 
