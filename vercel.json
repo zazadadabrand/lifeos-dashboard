@@ -4,6 +4,8 @@
   "outputDirectory": "dist/public",
   "framework": null,
   "rewrites": [
+    { "source": "/api/pipeline/snapshot", "destination": "/api/pipeline/snapshot" },
+    { "source": "/api/pipeline/changes", "destination": "/api/pipeline/changes" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
