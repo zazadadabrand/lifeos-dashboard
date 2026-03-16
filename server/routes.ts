@@ -51,6 +51,14 @@ interface CharacterSignals {
 const artistRatings: Record<string, "approved" | "declined" | "pending"> = {};
 const artistVetting: Record<string, ArtistVetting> = {};
 
+// ═══════════════════════════════════════════
+// BULK SYNC STATE — persisted across requests (in-memory, resets on deploy)
+// This is the bridge between localStorage and Google Sheets.
+// The enrichment cron reads from here and pushes to Sheets.
+// ═══════════════════════════════════════════
+let bulkSyncState: Record<string, ArtistVetting> = {};
+let lastSyncTimestamp: string | null = null;
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -149,6 +157,49 @@ export async function registerRoutes(
     }
 
     res.json({ success: true, vetting: artistVetting[artistName] });
+  });
+
+  // ═══════════════════════════════════════════
+  // BULK SYNC — Push all localStorage vetting states to server
+  // Dashboard calls this when user clicks "Sync to Sheet"
+  // Enrichment cron reads this to find artists needing processing
+  // ═══════════════════════════════════════════
+  app.post("/api/vetting/bulk-sync", async (req, res) => {
+    const { vetting } = req.body;
+    if (!vetting || typeof vetting !== "object") {
+      return res.status(400).json({ success: false, error: "Missing or invalid vetting data" });
+    }
+
+    // Merge into bulk sync state (incoming data takes precedence)
+    for (const [name, state] of Object.entries(vetting as Record<string, ArtistVetting>)) {
+      bulkSyncState[name] = state;
+      // Also update the per-artist store
+      artistVetting[name] = state;
+    }
+
+    lastSyncTimestamp = new Date().toISOString();
+
+    const stageCount: Record<string, number> = {};
+    for (const state of Object.values(bulkSyncState)) {
+      stageCount[state.stage] = (stageCount[state.stage] || 0) + 1;
+    }
+
+    res.json({
+      success: true,
+      syncedAt: lastSyncTimestamp,
+      artistCount: Object.keys(bulkSyncState).length,
+      stages: stageCount,
+    });
+  });
+
+  // GET bulk sync state — for enrichment cron to read
+  app.get("/api/vetting/bulk-state", async (_req, res) => {
+    res.json({
+      success: true,
+      vetting: bulkSyncState,
+      lastSyncTimestamp,
+      artistCount: Object.keys(bulkSyncState).length,
+    });
   });
 
   return httpServer;
