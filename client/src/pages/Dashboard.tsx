@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import ReactDOM from "react-dom";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 import {
   DndContext,
@@ -1000,6 +1001,8 @@ interface PipelineArtist {
   whyInteresting: string;
   showsPress: string;
   link: string;
+  instagram: string;
+  website: string;
   status: VettingStage;
   antRating: string;
   hasDeepDive: boolean;
@@ -1167,22 +1170,34 @@ function ScoutedArtistsReview() {
     }
   };
 
-  // Stage selector dropdown for an artist
+  // Stage selector dropdown for an artist — uses fixed positioning to escape overflow:hidden parents
   const StageSelector = ({ artist }: { artist: PipelineArtist }) => {
     const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
     
     useEffect(() => {
       const handleClickOutside = (e: MouseEvent) => {
-        if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        if (btnRef.current?.contains(e.target as Node)) return;
+        if (menuRef.current?.contains(e.target as Node)) return;
+        setOpen(false);
       };
       if (open) document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [open]);
 
+    useEffect(() => {
+      if (open && btnRef.current) {
+        const rect = btnRef.current.getBoundingClientRect();
+        setMenuPos({ top: rect.bottom + 4, left: rect.left });
+      }
+    }, [open]);
+
     return (
-      <div ref={ref} className="relative">
+      <>
         <button
+          ref={btnRef}
           onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
           className="flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
           style={{
@@ -1201,10 +1216,19 @@ function ScoutedArtistsReview() {
             </svg>
           )}
         </button>
-        {open && (
+        {open && menuPos && ReactDOM.createPortal(
           <div
-            className="absolute z-50 top-full left-0 mt-1 rounded-lg border py-1 min-w-[160px]"
-            style={{ ...GLASS, background: "rgba(20,20,30,0.95)", borderColor: COLORS.border, backdropFilter: "blur(20px)" }}
+            ref={menuRef}
+            className="fixed rounded-lg border py-1 min-w-[160px] shadow-xl"
+            style={{
+              top: menuPos.top,
+              left: menuPos.left,
+              zIndex: 9999,
+              background: "rgba(20,20,30,0.97)",
+              borderColor: COLORS.border,
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+            }}
           >
             {PIPELINE_STAGES.map(stage => (
               <button
@@ -1226,9 +1250,10 @@ function ScoutedArtistsReview() {
                 )}
               </button>
             ))}
-          </div>
+          </div>,
+          document.body
         )}
-      </div>
+      </>
     );
   };
 
@@ -1553,28 +1578,39 @@ function ScoutedArtistsReview() {
 
           {/* Bottom action bar — sticky */}
           <div className="sticky bottom-0 px-6 py-4 flex items-center gap-3" style={{ background: "rgba(12,12,18,0.95)", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
-            {/* Instagram / Portfolio link */}
-            {artist.link && (
-              <a
-                href={extractUrl(artist.link) || artist.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border text-[12px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
-                style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
-              >
-                {artist.link.includes("instagram") ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" /></svg>
-                    Instagram
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8" /><ellipse cx="12" cy="12" rx="4" ry="10" stroke="currentColor" strokeWidth="1.8" /><path d="M2 12h20" stroke="currentColor" strokeWidth="1.8" /></svg>
-                    Portfolio
-                  </>
-                )}
-              </a>
-            )}
+            {/* Instagram + Website links — show both when available */}
+            {(() => {
+              const igUrl = artist.instagram || (artist.link?.includes("instagram") ? artist.link.split(" | ")[0] : "");
+              const webUrl = artist.website || (artist.link && !artist.link.includes("instagram") ? artist.link.split(" | ")[0] : artist.link?.split(" | ").find((u: string) => !u.includes("instagram")) || "");
+              return (
+                <>
+                  {igUrl && (
+                    <a
+                      href={igUrl.startsWith("http") ? igUrl : `https://www.instagram.com/${igUrl.replace(/^@/, "")}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg border text-[12px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+                      style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" /></svg>
+                      Instagram
+                    </a>
+                  )}
+                  {webUrl && !webUrl.includes("instagram") && (
+                    <a
+                      href={webUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg border text-[12px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+                      style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8" /><ellipse cx="12" cy="12" rx="4" ry="10" stroke="currentColor" strokeWidth="1.8" /><path d="M2 12h20" stroke="currentColor" strokeWidth="1.8" /></svg>
+                      Portfolio
+                    </a>
+                  )}
+                </>
+              );
+            })()}
             <div className="flex-1" />
             {/* Move to next stage CTA */}
             {nextLabel && artist.status !== "Declined" && (
@@ -1751,42 +1787,50 @@ function ScoutedArtistsReview() {
                   <div className="flex items-center gap-2">
                     <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.showsPress}</span>
                   </div>
-                  {/* External links */}
+                  {/* External links — show both IG and website when available */}
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    {artist.link && artist.link.includes("instagram") && (
-                      <a
-                        href={artist.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
-                        style={{ borderColor: COLORS.borderSubtle }}
-                        title="Instagram"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                          <circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                          <circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} />
-                        </svg>
-                      </a>
-                    )}
-                    {artist.link && !artist.link.includes("instagram") && (
-                      <a
-                        href={artist.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
-                        style={{ borderColor: COLORS.borderSubtle }}
-                        title="Portfolio"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                          <ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                          <path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                        </svg>
-                      </a>
-                    )}
+                    {(() => {
+                      const igUrl = artist.instagram || (artist.link?.includes("instagram") ? artist.link.split(" | ")[0] : "");
+                      const webUrl = artist.website || (artist.link && !artist.link.includes("instagram") ? artist.link.split(" | ")[0] : artist.link?.split(" | ").find((u: string) => !u.includes("instagram")) || "");
+                      return (
+                        <>
+                          {igUrl && (
+                            <a
+                              href={igUrl.startsWith("http") ? igUrl : `https://www.instagram.com/${igUrl.replace(/^@/, "")}/`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                              style={{ borderColor: COLORS.borderSubtle }}
+                              title="Instagram"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                <rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                                <circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                                <circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} />
+                              </svg>
+                            </a>
+                          )}
+                          {webUrl && !webUrl.includes("instagram") && (
+                            <a
+                              href={webUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                              style={{ borderColor: COLORS.borderSubtle }}
+                              title="Portfolio"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                                <ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                                <path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                              </svg>
+                            </a>
+                          )}
+                        </>
+                      );
+                    })()}
                     {/* Open deep dive slide-out */}
                     {(artist.hasDeepDive || artist.status === "Deep Dive") && (
                       <button
