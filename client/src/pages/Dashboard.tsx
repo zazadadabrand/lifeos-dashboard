@@ -1986,11 +1986,12 @@ function LaneGroup({ lane, delay }: { lane: Lane; delay: number }) {
 const FAMILY_SNAPSHOT_URL = "/api/family/snapshot";
 const FAMILY_CHANGES_URL = "/api/family/changes";
 
-type FamilyIdeaStage = "Idea" | "Approved" | "Planned" | "Done" | "Declined";
-const FAMILY_STAGES: FamilyIdeaStage[] = ["Idea", "Approved", "Planned", "Done", "Declined"];
+type FamilyIdeaStage = "Idea" | "Approved" | "Shortlisted" | "Planned" | "Done" | "Declined";
+const FAMILY_STAGES: FamilyIdeaStage[] = ["Idea", "Approved", "Shortlisted", "Planned", "Done", "Declined"];
 const FAMILY_STAGE_COLORS: Record<FamilyIdeaStage, string> = {
   "Idea": COLORS.textMuted,
   "Approved": COLORS.teal,
+  "Shortlisted": COLORS.purple,
   "Planned": COLORS.gold,
   "Done": COLORS.green,
   "Declined": COLORS.chartRed,
@@ -2005,6 +2006,23 @@ const PERSON_COLORS: Record<FamilyPerson, string> = {
   "Family": COLORS.gold,
 };
 
+interface FamilyIdeaBrief {
+  venue?: string;
+  address?: string;
+  hours?: string;
+  pricing?: string;
+  duration?: string;
+  groupSize?: string;
+  whatToExpect?: string;
+  bookingUrl?: string;
+  bookingPhone?: string;
+  parking?: string;
+  birthdayPerks?: string;
+  rating?: string;
+  recommendation?: string;
+  enrichedAt?: string;
+}
+
 interface FamilyIdea {
   id: string;
   title: string;
@@ -2016,6 +2034,7 @@ interface FamilyIdea {
   notes: string;
   budget: string;
   dueDate: string;
+  brief?: FamilyIdeaBrief;
 }
 
 let _familyIdeas: FamilyIdea[] = [];
@@ -2107,6 +2126,7 @@ function FamilyIdeasPipeline() {
   const [newPerson, setNewPerson] = useState<FamilyPerson>("Family");
   const [newType, setNewType] = useState("Activity");
   const [newDueDate, setNewDueDate] = useState("");
+  const [expandedIdea, setExpandedIdea] = useState<string | null>(null);
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadIdeas = useCallback(async (showStatus = true) => {
@@ -2256,6 +2276,285 @@ function FamilyIdeasPipeline() {
           </div>,
           document.body
         )}
+      </>
+    );
+  };
+
+  // Brief slide-out for approved+ family ideas — mirrors artist DeepDiveSlideOut
+  const FamilyBriefSlideOut = ({ idea, onClose }: { idea: FamilyIdea; onClose: () => void }) => {
+    const b = idea.brief;
+    const stagesForProgress: FamilyIdeaStage[] = ["Idea", "Approved", "Shortlisted", "Planned", "Done"];
+    const stageIndex = stagesForProgress.indexOf(idea.status);
+
+    const nextStageMap: Partial<Record<FamilyIdeaStage, FamilyIdeaStage>> = {
+      "Approved": "Shortlisted",
+      "Shortlisted": "Planned",
+      "Planned": "Done",
+    };
+    const nextStage = nextStageMap[idea.status];
+    const nextLabel = nextStage ? `Move to ${nextStage}` : null;
+
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 z-[100] transition-opacity duration-300"
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+          onClick={onClose}
+        />
+        {/* Panel */}
+        <div
+          className="fixed top-0 right-0 z-[101] overflow-y-auto"
+          style={{
+            width: "min(520px, 90vw)",
+            height: "100vh",
+            background: "rgba(12,12,18,0.97)",
+            backdropFilter: "blur(40px) saturate(1.6)",
+            borderLeft: `1px solid ${COLORS.borderSubtle}`,
+            boxShadow: "-8px 0 40px rgba(0,0,0,0.5)",
+            animation: "slideInRight 0.3s ease-out",
+          }}
+        >
+          {/* Header */}
+          <div className="sticky top-0 z-10 px-6 pt-6 pb-4" style={{ background: "rgba(12,12,18,0.95)", borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0" style={{ background: `${PERSON_COLORS[idea.person]}15`, color: PERSON_COLORS[idea.person] }}>
+                {idea.person[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold" style={{ color: COLORS.textPrimary }}>{idea.title}</h2>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${PERSON_COLORS[idea.person]}15`, color: PERSON_COLORS[idea.person] }}>{idea.person}</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{idea.type}</span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: `${FAMILY_STAGE_COLORS[idea.status]}15`, color: FAMILY_STAGE_COLORS[idea.status], border: `1px solid ${FAMILY_STAGE_COLORS[idea.status]}30` }}>
+                    {idea.status}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full flex items-center justify-center border transition-colors hover:bg-white/[0.06]"
+                style={{ borderColor: COLORS.borderSubtle }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M3 3L11 11M11 3L3 11" stroke={COLORS.textMuted} strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Stage progress bar */}
+            <div className="mt-4 flex items-center gap-0">
+              {stagesForProgress.map((stage, i) => {
+                const isActive = i <= stageIndex;
+                const isCurrent = stage === idea.status;
+                return (
+                  <div key={stage} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full h-[3px] rounded-full transition-all duration-500"
+                      style={{
+                        background: isActive ? FAMILY_STAGE_COLORS[stage] : COLORS.borderSubtle,
+                        opacity: isActive ? 1 : 0.4,
+                      }}
+                    />
+                    <span
+                      className="text-[9px] font-medium"
+                      style={{ color: isCurrent ? FAMILY_STAGE_COLORS[stage] : isActive ? COLORS.textMuted : COLORS.textFaint }}
+                    >
+                      {stage}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="px-6 py-5 flex flex-col gap-5">
+
+            {/* Overview card */}
+            <div className="rounded-lg p-5" style={{ background: "rgba(18,18,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderColor: `${PERSON_COLORS[idea.person]}18` }}>
+              <div className="flex items-center gap-2 mb-3">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke={PERSON_COLORS[idea.person]} strokeWidth="1.3" /><path d="M5 6h6M5 8.5h4M5 11h2" stroke={PERSON_COLORS[idea.person]} strokeWidth="1" strokeLinecap="round" /></svg>
+                <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: PERSON_COLORS[idea.person] }}>Overview</span>
+              </div>
+              <p className="text-[13px] leading-relaxed mb-3" style={{ color: COLORS.textSecondary }}>{idea.description}</p>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                {idea.budget && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Budget</div>
+                    <div className="text-[13px] font-medium" style={{ color: COLORS.gold }}>{idea.budget}</div>
+                  </div>
+                )}
+                {idea.dueDate && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Target Date</div>
+                    <div className="text-[13px]" style={{ color: COLORS.textPrimary }}>{new Date(idea.dueDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
+                  </div>
+                )}
+              </div>
+              {idea.notes && (
+                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+                  <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: COLORS.textFaint }}>Notes</div>
+                  <p className="text-[12px] leading-relaxed" style={{ color: COLORS.textMuted }}>{idea.notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Brief details — only if brief data exists */}
+            {b ? (
+              <>
+                {/* Venue & Logistics */}
+                {(b.venue || b.address || b.hours) && (
+                  <div className="rounded-lg border p-5" style={{ background: "rgba(18,18,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderColor: `${COLORS.teal}12` }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1C4.5 1 2.5 3 2.5 5.5C2.5 9 7 13 7 13s4.5-4 4.5-7.5C11.5 3 9.5 1 7 1z" stroke={COLORS.teal} strokeWidth="1.2" /><circle cx="7" cy="5.5" r="1.5" stroke={COLORS.teal} strokeWidth="1" /></svg>
+                      <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.teal }}>Venue & Logistics</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3">
+                      {b.venue && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Venue</div>
+                          <div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{b.venue}</div>
+                        </div>
+                      )}
+                      {b.address && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Address</div>
+                          <div className="text-[12px]" style={{ color: COLORS.textSecondary }}>{b.address}</div>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-3">
+                        {b.hours && (
+                          <div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Hours (Sat)</div>
+                            <div className="text-[12px]" style={{ color: COLORS.textSecondary }}>{b.hours}</div>
+                          </div>
+                        )}
+                        {b.duration && (
+                          <div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Duration</div>
+                            <div className="text-[12px]" style={{ color: COLORS.textSecondary }}>{b.duration}</div>
+                          </div>
+                        )}
+                        {b.parking && (
+                          <div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Parking</div>
+                            <div className="text-[12px]" style={{ color: COLORS.textSecondary }}>{b.parking}</div>
+                          </div>
+                        )}
+                        {b.groupSize && (
+                          <div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Group Size</div>
+                            <div className="text-[12px]" style={{ color: COLORS.textSecondary }}>{b.groupSize}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pricing & Booking */}
+                {(b.pricing || b.bookingUrl) && (
+                  <div className="rounded-lg border p-5" style={{ background: "rgba(18,18,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderColor: `${COLORS.gold}12` }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke={COLORS.gold} strokeWidth="1.2" /><path d="M7 4v6M5 5.5h4M5 8.5h4" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" /></svg>
+                      <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.gold }}>Pricing & Booking</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3">
+                      {b.pricing && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Pricing</div>
+                          <div className="text-[12px] leading-relaxed" style={{ color: COLORS.textSecondary }}>{b.pricing}</div>
+                        </div>
+                      )}
+                      {b.birthdayPerks && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Birthday Perks</div>
+                          <div className="text-[12px] leading-relaxed" style={{ color: COLORS.textSecondary }}>{b.birthdayPerks}</div>
+                        </div>
+                      )}
+                      {b.rating && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Rating</div>
+                          <div className="text-[12px]" style={{ color: COLORS.textSecondary }}>{b.rating}</div>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        {b.bookingUrl && (
+                          <a href={b.bookingUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors hover:bg-white/[0.06]"
+                            style={{ background: `${COLORS.gold}12`, color: COLORS.gold, border: `1px solid ${COLORS.gold}30` }}>
+                            <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M3.5 1.5H10.5V8.5M10.5 1.5L1.5 10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            Book Online
+                          </a>
+                        )}
+                        {b.bookingPhone && (
+                          <a href={`tel:${b.bookingPhone.replace(/[^+\d]/g, "")}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors hover:bg-white/[0.06]"
+                            style={{ background: "rgba(255,255,255,0.04)", color: COLORS.textMuted, border: `1px solid ${COLORS.borderSubtle}` }}>
+                            <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M4.5 1.5L2 4.5c1 3 3.5 5.5 6.5 6.5l3-2.5-2-2-1.5 1c-1-.5-2.5-2-3-3l1-1.5-2-2z" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            {b.bookingPhone}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* What to Expect */}
+                {b.whatToExpect && (
+                  <div className="rounded-lg border p-5" style={{ background: "rgba(18,18,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderColor: `${COLORS.purple}12` }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v4M7 9v4M1 7h4M9 7h4" stroke={COLORS.purple} strokeWidth="1.2" strokeLinecap="round" /></svg>
+                      <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.purple }}>What to Expect</span>
+                    </div>
+                    <p className="text-[12px] leading-relaxed" style={{ color: COLORS.textSecondary }}>{b.whatToExpect}</p>
+                  </div>
+                )}
+
+                {/* Recommendation */}
+                {b.recommendation && (
+                  <div className="rounded-lg border p-5" style={{ background: "rgba(18,18,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderColor: `${COLORS.green}12` }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 7l2.5 2.5L10 4" stroke={COLORS.green} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.green }}>Recommendation</span>
+                    </div>
+                    <p className="text-[12px] leading-relaxed" style={{ color: COLORS.textSecondary }}>{b.recommendation}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* No brief yet */
+              <div className="rounded-lg border p-5 text-center" style={{ background: "rgba(18,18,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderColor: COLORS.borderSubtle }}>
+                <div className="text-[11px] font-bold tracking-wider uppercase mb-2" style={{ color: COLORS.textFaint }}>Brief Pending</div>
+                <p className="text-[12px]" style={{ color: COLORS.textMuted }}>Detailed research for this idea hasn't been generated yet. It will be populated automatically.</p>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-3 pt-2" style={{ borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+              {nextLabel && (
+                <button
+                  onClick={() => { handleStageChange(idea, nextStage!); onClose(); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[12px] font-semibold transition-colors hover:brightness-110"
+                  style={{ background: FAMILY_STAGE_COLORS[nextStage!], color: "#000" }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  {nextLabel}
+                </button>
+              )}
+              {idea.status !== "Declined" && (
+                <button
+                  onClick={() => { handleStageChange(idea, "Declined"); onClose(); }}
+                  className="px-4 py-2.5 rounded-lg text-[12px] font-medium transition-colors hover:bg-white/[0.06]"
+                  style={{ color: COLORS.chartRed, border: `1px solid ${COLORS.chartRed}30` }}
+                >
+                  Decline
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </>
     );
   };
@@ -2460,6 +2759,13 @@ function FamilyIdeasPipeline() {
           })}
         </div>
       </div>
+
+      {/* Brief Slide-Out */}
+      {expandedIdea && (() => {
+        const idea = ideas.find(x => x.id === expandedIdea);
+        return idea ? <FamilyBriefSlideOut idea={idea} onClose={() => setExpandedIdea(null)} /> : null;
+      })()}
+
     </div>
   );
 }
