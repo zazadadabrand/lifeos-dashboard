@@ -3,9 +3,14 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
   "framework": null,
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@3.0.0"
+    }
+  },
   "rewrites": [
-    { "source": "/api/pipeline/snapshot", "destination": "https://jsonblob.com/api/jsonBlob/019cf4cc-d5b8-705a-97d6-502d72422549" },
-    { "source": "/api/pipeline/changes", "destination": "https://jsonblob.com/api/jsonBlob/019cf4b1-c056-7145-8ce7-165cc8918236" },
+    { "source": "/api/pipeline/snapshot", "destination": "/api/pipeline/snapshot" },
+    { "source": "/api/pipeline/changes", "destination": "/api/pipeline/changes" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
