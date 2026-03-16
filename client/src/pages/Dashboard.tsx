@@ -1294,7 +1294,7 @@ function ScoutedArtistsReview() {
   // ── Full slide-out deep dive panel ──
   const DeepDiveSlideOut = ({ artist, onClose }: { artist: PipelineArtist; onClose: () => void }) => {
     const dd = artist.deepDive;
-    const stageIndex = PIPELINE_STAGES.filter(s => s !== "Declined").indexOf(artist.status);
+    const stageIndex = (PIPELINE_STAGES.filter(s => s !== "Declined") as string[]).indexOf(artist.status);
     const stages = ["Scouted", "Deep Dive", "Shortlisted", "In Conversation"] as VettingStage[];
     const rep = getRepresentation(artist);
 
