@@ -972,9 +972,9 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
 // ARTIST PIPELINE — GLOBAL SYNC SYSTEM
 // ═══════════════════════════════════════════
 // JSONBlob IDs
-// Pipeline API — direct JSONBlob access (CORS supported)
-const SNAPSHOT_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019cf4cc-d5b8-705a-97d6-502d72422549";
-const WRITE_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019cf4b1-c056-7145-8ce7-165cc8918236";
+// Pipeline API — proxied via Vercel Edge Functions (JSONBlob lacks CORS)
+const SNAPSHOT_BLOB_URL = "/api/pipeline/snapshot";
+const WRITE_BLOB_URL = "/api/pipeline/changes";
 
 // Pipeline stages in order
 type VettingStage = "Scouted" | "Deep Dive" | "Shortlisted" | "In Conversation" | "Active" | "Declined";
