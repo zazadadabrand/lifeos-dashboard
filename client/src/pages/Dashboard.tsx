@@ -1970,8 +1970,422 @@ function LaneGroup({ lane, delay }: { lane: Lane; delay: number }) {
       {/* Scouted artists review — Art Advisory lane only */}
       {lane.id === "art" && <ScoutedArtistsReview />}
 
+      {/* Family ideas pipeline — Family lane only */}
+      {lane.id === "family" && <FamilyIdeasPipeline />}
+
       {/* Collapsible deliverables */}
       <DeliverablesList laneName={lane.name} laneColor={lane.color} />
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════
+// FAMILY IDEAS PIPELINE — GLOBAL SYNC SYSTEM
+// ═══════════════════════════════════════════
+const FAMILY_SNAPSHOT_URL = "/api/family/snapshot";
+const FAMILY_CHANGES_URL = "/api/family/changes";
+
+type FamilyIdeaStage = "Idea" | "Approved" | "Planned" | "Done" | "Declined";
+const FAMILY_STAGES: FamilyIdeaStage[] = ["Idea", "Approved", "Planned", "Done", "Declined"];
+const FAMILY_STAGE_COLORS: Record<FamilyIdeaStage, string> = {
+  "Idea": COLORS.textMuted,
+  "Approved": COLORS.teal,
+  "Planned": COLORS.gold,
+  "Done": COLORS.green,
+  "Declined": COLORS.chartRed,
+};
+
+type FamilyPerson = "Siyah" | "Zoey" | "Kel'li" | "Family";
+const FAMILY_PEOPLE: FamilyPerson[] = ["Siyah", "Zoey", "Kel'li", "Family"];
+const PERSON_COLORS: Record<FamilyPerson, string> = {
+  "Siyah": COLORS.teal,
+  "Zoey": COLORS.purple,
+  "Kel'li": COLORS.coral,
+  "Family": COLORS.gold,
+};
+
+interface FamilyIdea {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  person: FamilyPerson;
+  status: FamilyIdeaStage;
+  addedAt: string;
+  notes: string;
+  budget: string;
+  dueDate: string;
+}
+
+let _familyIdeas: FamilyIdea[] = [];
+let _familyLoaded = false;
+let _familyLastSync: string | null = null;
+
+async function fetchFamilySnapshot(): Promise<{ ideas: FamilyIdea[]; snapshotAt: string } | null> {
+  try {
+    const [snapshotRes, changesRes] = await Promise.all([
+      fetch(FAMILY_SNAPSHOT_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
+      fetch(FAMILY_CHANGES_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
+    ]);
+    if (!snapshotRes.ok) return null;
+    const data = await snapshotRes.json();
+    if (!data.ideas || !Array.isArray(data.ideas)) return null;
+
+    let ideas: FamilyIdea[] = data.ideas;
+    if (changesRes.ok) {
+      try {
+        const changesData = await changesRes.json();
+        const changes: any[] = Array.isArray(changesData?.changes) ? changesData.changes : [];
+        if (changes.length > 0) {
+          const statusMap = new Map(changes.filter((c: any) => c.type === "status").map((c: any) => [c.ideaId, c.newStage]));
+          const newIdeas: FamilyIdea[] = changes.filter((c: any) => c.type === "add").map((c: any) => c.idea);
+          ideas = ideas.map(i => {
+            const newStatus = statusMap.get(i.id);
+            return newStatus ? { ...i, status: newStatus } : i;
+          });
+          const existingIds = new Set(ideas.map(i => i.id));
+          for (const ni of newIdeas) {
+            if (!existingIds.has(ni.id)) ideas.push(ni);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    return { ideas, snapshotAt: data.snapshotAt };
+  } catch {
+    return null;
+  }
+}
+
+async function pushFamilyChange(change: any): Promise<boolean> {
+  try {
+    const readRes = await fetch(FAMILY_CHANGES_URL, { cache: "no-store", headers: { Accept: "application/json" } });
+    const current = readRes.ok ? await readRes.json() : { syncedAt: null, changes: [] };
+    const changes = Array.isArray(current.changes) ? current.changes : [];
+
+    if (change.type === "status") {
+      const existing = changes.findIndex((c: any) => c.type === "status" && c.ideaId === change.ideaId);
+      if (existing >= 0) changes[existing] = change;
+      else changes.push(change);
+    } else {
+      changes.push(change);
+    }
+
+    const writeRes = await fetch(FAMILY_CHANGES_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ syncedAt: new Date().toISOString(), changes }),
+    });
+    return writeRes.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function updateFamilySnapshotBlob(ideas: FamilyIdea[]) {
+  try {
+    await fetch(FAMILY_SNAPSHOT_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ ideas, snapshotAt: new Date().toISOString() }),
+    });
+  } catch { /* fire-and-forget */ }
+}
+
+function FamilyIdeasPipeline() {
+  const [ideas, setIdeas] = useState<FamilyIdea[]>(_familyIdeas);
+  const [filter, setFilter] = useState<"all" | FamilyIdeaStage>("all");
+  const [personFilter, setPersonFilter] = useState<"all" | FamilyPerson>("all");
+  const [expanded, setExpanded] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [changingStage, setChangingStage] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newPerson, setNewPerson] = useState<FamilyPerson>("Family");
+  const [newType, setNewType] = useState("Activity");
+  const [newDueDate, setNewDueDate] = useState("");
+  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadIdeas = useCallback(async (showStatus = true) => {
+    if (showStatus) { setSyncing(true); setSyncStatus("syncing"); }
+    const snapshot = await fetchFamilySnapshot();
+    if (snapshot) {
+      _familyIdeas = snapshot.ideas;
+      _familyLastSync = snapshot.snapshotAt;
+      _familyLoaded = true;
+      setIdeas(snapshot.ideas);
+      if (showStatus) setSyncStatus("success");
+    } else if (!_familyLoaded) {
+      _familyLoaded = true;
+      if (showStatus) setSyncStatus("error");
+    }
+    if (showStatus) { setSyncing(false); setTimeout(() => setSyncStatus("idle"), 3000); }
+  }, []);
+
+  useEffect(() => {
+    if (!_familyLoaded) loadIdeas(true);
+    syncIntervalRef.current = setInterval(() => loadIdeas(false), 5 * 60 * 1000);
+    return () => { if (syncIntervalRef.current) clearInterval(syncIntervalRef.current); };
+  }, [loadIdeas]);
+
+  const handleStageChange = async (idea: FamilyIdea, newStage: FamilyIdeaStage) => {
+    if (idea.status === newStage) return;
+    setChangingStage(idea.id);
+    const updated = ideas.map(i => i.id === idea.id ? { ...i, status: newStage } : i);
+    _familyIdeas = updated;
+    setIdeas(updated);
+
+    const ok = await pushFamilyChange({ type: "status", ideaId: idea.id, newStage, changedAt: new Date().toISOString() });
+    if (!ok) {
+      const reverted = ideas.map(i => i.id === idea.id ? { ...i, status: idea.status } : i);
+      _familyIdeas = reverted;
+      setIdeas(reverted);
+    } else {
+      updateFamilySnapshotBlob(updated);
+    }
+    setChangingStage(null);
+  };
+
+  const handleAddIdea = async () => {
+    if (!newTitle.trim()) return;
+    const idea: FamilyIdea = {
+      id: `idea-${Date.now()}`,
+      title: newTitle.trim(),
+      description: newDescription.trim(),
+      type: newType,
+      person: newPerson,
+      status: "Idea",
+      addedAt: new Date().toISOString(),
+      notes: "",
+      budget: "",
+      dueDate: newDueDate,
+    };
+    const updated = [...ideas, idea];
+    _familyIdeas = updated;
+    setIdeas(updated);
+    setShowAddForm(false);
+    setNewTitle(""); setNewDescription(""); setNewPerson("Family"); setNewType("Activity"); setNewDueDate("");
+
+    const ok = await pushFamilyChange({ type: "add", idea, changedAt: new Date().toISOString() });
+    if (ok) updateFamilySnapshotBlob(updated);
+  };
+
+  const filtered = ideas
+    .filter(i => filter === "all" ? true : i.status === filter)
+    .filter(i => personFilter === "all" ? true : i.person === personFilter);
+
+  const counts: Record<string, number> = { all: ideas.length };
+  for (const stage of FAMILY_STAGES) counts[stage] = ideas.filter(i => i.status === stage).length;
+
+  const formatSyncTime = (iso: string | null) => {
+    if (!iso) return "never";
+    try {
+      const d = new Date(iso);
+      const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (diffMin < 1) return "just now";
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}h ago`;
+      return d.toLocaleDateString();
+    } catch { return "unknown"; }
+  };
+
+  const getDaysUntilDue = (dueDate: string) => {
+    if (!dueDate) return null;
+    const d = new Date(dueDate);
+    const now = new Date();
+    const diff = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  if (!expanded) {
+    return (
+      <div className="px-4 pb-3">
+        <button onClick={() => setExpanded(true)} className="w-full rounded-lg border px-4 py-2.5 flex items-center justify-between"
+          style={{ ...GLASS_ALT, borderColor: GLASS_ALT.borderColor, cursor: "pointer" }}>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: COLORS.gold }}>Ideas Pipeline</span>
+            <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: `${COLORS.gold}18`, color: COLORS.gold }}>{ideas.length}</span>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: COLORS.textMuted }}><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 pb-3">
+      <div className="rounded-xl border overflow-hidden" style={{ ...GLASS, borderColor: GLASS.borderColor }}>
+        {/* Header */}
+        <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: COLORS.borderSubtle }}>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setExpanded(false)} className="flex items-center gap-2" style={{ cursor: "pointer", background: "none", border: "none", padding: 0 }}>
+              <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: COLORS.gold }}>Ideas Pipeline</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: COLORS.textMuted, transform: "rotate(180deg)" }}><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+            <span className="text-[11px]" style={{ color: COLORS.textFaint }}>synced {formatSyncTime(_familyLastSync)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowAddForm(!showAddForm)} className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+              style={{ background: showAddForm ? `${COLORS.gold}30` : `${COLORS.gold}15`, color: COLORS.gold, border: "none", cursor: "pointer" }}>
+              {showAddForm ? "Cancel" : "+ Add Idea"}
+            </button>
+            <button onClick={() => loadIdeas(true)} disabled={syncing}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+              style={{ background: syncStatus === "success" ? `${COLORS.green}20` : syncStatus === "error" ? `${COLORS.chartRed}20` : "rgba(255,255,255,0.06)",
+                color: syncStatus === "success" ? COLORS.green : syncStatus === "error" ? COLORS.chartRed : COLORS.textMuted,
+                border: "none", cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.6 : 1 }}>
+              {syncing ? "Syncing..." : syncStatus === "success" ? "Synced" : syncStatus === "error" ? "Retry" : "Sync"}
+            </button>
+          </div>
+        </div>
+
+        {/* Add form */}
+        {showAddForm && (
+          <div className="px-4 py-3 border-b" style={{ borderColor: COLORS.borderSubtle, background: "rgba(255,255,255,0.02)" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+              <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="What's the idea?"
+                className="text-sm px-3 py-2 rounded-lg border outline-none w-full"
+                style={{ background: "rgba(255,255,255,0.05)", borderColor: COLORS.borderSubtle, color: COLORS.textPrimary }} />
+              <input value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Brief description (optional)"
+                className="text-sm px-3 py-2 rounded-lg border outline-none w-full"
+                style={{ background: "rgba(255,255,255,0.05)", borderColor: COLORS.borderSubtle, color: COLORS.textPrimary }} />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {FAMILY_PEOPLE.map(p => (
+                <button key={p} onClick={() => setNewPerson(p)}
+                  className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
+                  style={{ background: newPerson === p ? `${PERSON_COLORS[p]}25` : "rgba(255,255,255,0.04)",
+                    color: newPerson === p ? PERSON_COLORS[p] : COLORS.textMuted,
+                    border: `1px solid ${newPerson === p ? `${PERSON_COLORS[p]}40` : COLORS.borderSubtle}`, cursor: "pointer" }}>
+                  {p}
+                </button>
+              ))}
+              <span className="w-px h-4 mx-1" style={{ background: COLORS.borderSubtle }} />
+              {["Gift", "Activity", "Trip", "Milestone"].map(t => (
+                <button key={t} onClick={() => setNewType(t)}
+                  className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
+                  style={{ background: newType === t ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)",
+                    color: newType === t ? COLORS.textPrimary : COLORS.textMuted,
+                    border: `1px solid ${newType === t ? COLORS.border : COLORS.borderSubtle}`, cursor: "pointer" }}>
+                  {t}
+                </button>
+              ))}
+              <input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)}
+                className="text-[11px] px-2 py-1 rounded-lg border outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", borderColor: COLORS.borderSubtle, color: COLORS.textMuted, colorScheme: "dark" }} />
+              <button onClick={handleAddIdea} disabled={!newTitle.trim()}
+                className="text-[11px] font-semibold px-3 py-1.5 rounded-lg ml-auto transition-all"
+                style={{ background: newTitle.trim() ? COLORS.gold : `${COLORS.gold}30`, color: newTitle.trim() ? "#000" : COLORS.textMuted,
+                  border: "none", cursor: newTitle.trim() ? "pointer" : "not-allowed" }}>
+                Add
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Stage filter chips */}
+        <div className="px-4 py-2.5 flex items-center gap-1.5 flex-wrap border-b" style={{ borderColor: COLORS.borderSubtle }}>
+          <button onClick={() => setFilter("all")}
+            className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
+            style={{ background: filter === "all" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
+              color: filter === "all" ? COLORS.textPrimary : COLORS.textMuted,
+              border: `1px solid ${filter === "all" ? COLORS.border : "transparent"}`, cursor: "pointer" }}>
+            All {counts.all}
+          </button>
+          {FAMILY_STAGES.filter(s => s !== "Declined").map(stage => (
+            <button key={stage} onClick={() => setFilter(stage)}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
+              style={{ background: filter === stage ? `${FAMILY_STAGE_COLORS[stage]}20` : "rgba(255,255,255,0.04)",
+                color: filter === stage ? FAMILY_STAGE_COLORS[stage] : COLORS.textMuted,
+                border: `1px solid ${filter === stage ? `${FAMILY_STAGE_COLORS[stage]}40` : "transparent"}`, cursor: "pointer" }}>
+              {stage} {counts[stage]}
+            </button>
+          ))}
+          {counts["Declined"] > 0 && (
+            <button onClick={() => setFilter("Declined")}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
+              style={{ background: filter === "Declined" ? `${COLORS.chartRed}20` : "rgba(255,255,255,0.04)",
+                color: filter === "Declined" ? COLORS.chartRed : COLORS.textMuted,
+                border: `1px solid ${filter === "Declined" ? `${COLORS.chartRed}40` : "transparent"}`, cursor: "pointer" }}>
+              Declined {counts["Declined"]}
+            </button>
+          )}
+          <span className="w-px h-4 mx-1" style={{ background: COLORS.borderSubtle }} />
+          <button onClick={() => setPersonFilter("all")}
+            className="text-[11px] font-medium px-2 py-1 rounded-full transition-all"
+            style={{ background: personFilter === "all" ? "rgba(255,255,255,0.08)" : "transparent",
+              color: personFilter === "all" ? COLORS.textPrimary : COLORS.textFaint,
+              border: `1px solid ${personFilter === "all" ? COLORS.border : "transparent"}`, cursor: "pointer" }}>
+            All
+          </button>
+          {FAMILY_PEOPLE.map(p => (
+            <button key={p} onClick={() => setPersonFilter(p)}
+              className="text-[11px] font-medium px-2 py-1 rounded-full transition-all"
+              style={{ background: personFilter === p ? `${PERSON_COLORS[p]}15` : "transparent",
+                color: personFilter === p ? PERSON_COLORS[p] : COLORS.textFaint,
+                border: `1px solid ${personFilter === p ? `${PERSON_COLORS[p]}30` : "transparent"}`, cursor: "pointer" }}>
+              {p}
+            </button>
+          ))}
+        </div>
+
+        {/* Ideas list */}
+        <div className="max-h-[400px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+          {filtered.length === 0 && (
+            <div className="px-4 py-8 text-center">
+              <span className="text-sm" style={{ color: COLORS.textMuted }}>No ideas yet. Add one above.</span>
+            </div>
+          )}
+          {filtered.map(idea => {
+            const daysUntil = getDaysUntilDue(idea.dueDate);
+            const isUrgent = daysUntil !== null && daysUntil >= 0 && daysUntil <= 7;
+            return (
+              <div key={idea.id} className="px-4 py-3 border-b flex items-start gap-3 transition-all"
+                style={{ borderColor: COLORS.borderSubtle, opacity: changingStage === idea.id ? 0.5 : 1,
+                  background: isUrgent ? "rgba(229,168,33,0.04)" : "transparent" }}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-sm font-medium" style={{ color: COLORS.textPrimary }}>{idea.title}</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: `${PERSON_COLORS[idea.person]}18`, color: PERSON_COLORS[idea.person] }}>{idea.person}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{idea.type}</span>
+                    {daysUntil !== null && daysUntil >= 0 && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: isUrgent ? `${COLORS.gold}20` : "rgba(255,255,255,0.06)",
+                        color: isUrgent ? COLORS.gold : COLORS.textFaint }}>
+                        {daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `${daysUntil}d`}
+                      </span>
+                    )}
+                    {daysUntil !== null && daysUntil < 0 && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: `${COLORS.chartRed}15`, color: COLORS.chartRed }}>Overdue</span>
+                    )}
+                  </div>
+                  {idea.description && (
+                    <p className="text-[11px] mb-1.5" style={{ color: COLORS.textMuted, lineHeight: "1.4" }}>{idea.description}</p>
+                  )}
+                  {/* Stage selector */}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {FAMILY_STAGES.map(stage => (
+                      <button key={stage} onClick={() => handleStageChange(idea, stage)}
+                        disabled={changingStage === idea.id}
+                        className="text-[10px] font-medium px-2 py-0.5 rounded transition-all"
+                        style={{ background: idea.status === stage ? `${FAMILY_STAGE_COLORS[stage]}22` : "transparent",
+                          color: idea.status === stage ? FAMILY_STAGE_COLORS[stage] : COLORS.textFaint,
+                          border: `1px solid ${idea.status === stage ? `${FAMILY_STAGE_COLORS[stage]}35` : "transparent"}`,
+                          cursor: changingStage === idea.id ? "wait" : "pointer",
+                          opacity: changingStage === idea.id ? 0.4 : 1 }}>
+                        {stage}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
