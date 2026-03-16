@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 import {
   DndContext,
@@ -951,187 +950,8 @@ function AgentCard({ agent, laneColor, delay }: { agent: Agent; laneColor: strin
 }
 
 // ═══════════════════════════════════════════
-// SCOUTED ARTISTS DATA + REVIEW COMPONENT
+// SCORE RING (reusable)
 // ═══════════════════════════════════════════
-interface ScoutedArtist {
-  id: string;
-  name: string;
-  location: string;
-  medium: string;
-  score: number;
-  priceRange: string;
-  whyInteresting: string;
-  showsPress: string;
-  link: string;
-  instagram: string;
-  website: string;
-  batch: string;
-  dateScouted: string;
-  rating: "approved" | "declined" | "pending";
-  practice?: string;
-  education?: string;
-  residencies?: string;
-  repStatus?: string;
-  unrepresented?: boolean;
-}
-
-
-// ═══════════════════════════════════════════
-// VETTING PIPELINE TYPES
-// ═══════════════════════════════════════════
-type VettingStage = "scouted" | "deep-dive" | "shortlisted" | "in-conversation" | "declined";
-
-interface DeepDiveData {
-  fetchedAt: string;
-  status: "pending" | "complete" | "error";
-  fullExhibitionHistory?: string[];
-  secondaryMarket?: string;
-  representationDetails?: string;
-  socialMetrics?: { followers?: string; engagement?: string; collectorActivity?: string };
-  pressClippings?: { title: string; source: string; url?: string; date?: string; excerpt: string; relevance?: string }[];
-  characterSignals?: {
-    workEthic?: string;
-    processPhilosophy?: string;
-    spiritualReligious?: string;
-    communityInvolvement?: string;
-    collaborationReadiness?: string;
-    personalValues?: string;
-    overallAlignment?: string;
-  };
-  artistStatement?: string;
-  redFlags?: string[];
-  draftOutreach?: { dm?: string; email?: string };
-}
-
-interface ArtistVettingState {
-  stage: VettingStage;
-  updatedAt: string;
-  deepDive?: DeepDiveData;
-}
-
-const STAGE_CONFIG: Record<VettingStage, { label: string; color: string; order: number; icon: string }> = {
-  "scouted": { label: "Scouted", color: COLORS.textMuted, order: 0, icon: "telescope" },
-  "deep-dive": { label: "Deep Dive", color: COLORS.purple, order: 1, icon: "target" },
-  "shortlisted": { label: "Shortlisted", color: COLORS.gold, order: 2, icon: "gem" },
-  "in-conversation": { label: "In Conversation", color: COLORS.green, order: 3, icon: "send" },
-  "declined": { label: "Declined", color: COLORS.chartRed, order: 4, icon: "hub" },
-};
-
-// Global vetting state cache — persisted to localStorage
-const VETTING_LS_KEY = "lifeos-artist-vetting";
-
-function loadVettingFromStorage(): Record<string, ArtistVettingState> {
-  try {
-    const raw = localStorage.getItem(VETTING_LS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return {};
-}
-
-function saveVettingToStorage(data: Record<string, ArtistVettingState>) {
-  try {
-    localStorage.setItem(VETTING_LS_KEY, JSON.stringify(data));
-  } catch {}
-}
-
-const _artistVetting: Record<string, ArtistVettingState> = loadVettingFromStorage();
-let _vettingInitialized = Object.keys(_artistVetting).length > 0;
-
-// ═══════════════════════════════════════════
-// PRE-SEEDED DEEP DIVE DATA (from Google Sheet column M)
-// These 8 artists have completed enrichment; Patrick Eugène is declined.
-// Merges with localStorage — localStorage takes precedence if user has made changes.
-// ═══════════════════════════════════════════
-const _SEEDED_VETTING: Record<string, ArtistVettingState> = {"Bony Ramirez": {"stage": "deep-dive", "updatedAt": "2026-03-16T03:46:00.000Z", "deepDive": {"status": "complete", "fullExhibitionHistory": ["SOLO EXHIBITIONS (from artist CV):\n- 2024: Cattleya — The Newark Museum of Art — Newark, New Jersey, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: TROPICAL APEX — Jeffrey Deitch — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: CARIBABY — Sugar Hill Museum — New York City, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: CAYMAN TEARS — François Ghebaly — Los Angeles, CA, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2021: Noblesse Oblige — Bradley Ertaskiran — Montreal, Canada ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2020: MUSA X PARADISIACA — Thierry Goldberg Gallery — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2020: Grass Under The Wood — Thierry Goldberg Gallery — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2016: PREFACE — Perth Amboy Center for the Arts — Perth Amboy, NJ, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n\nGROUP EXHIBITIONS (from artist CV):\n- 2024: Surrealism and Us: Caribbean and African Diasporic Artists since 1940 — The Modern Art Museum of Fort Worth — Fort Worth, TX, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: Tender Loving Care: Contemporary Art from the Collection — Museum of Fine Arts Boston — Boston, MA, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: A Living Legacy: Recent Acquisitions in Contemporary Art — Frye Art Museum — Seattle, WA, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: Kindred Worlds: The Priscila & Alvin Hudgins Collection — Hudson River Museum — Yonkers, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: GIMME SHELTER — Historic Hampton House — Miami, FL, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: The Bunker Artspace — West Palm Beach, FL, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: BANK 10th Anniversary Show “Birthday Party!” — Bank / Mabsociety — Shanghai, China ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2023: The Speed of Grace — Simoes de Assis — São Paulo, Brazil ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2022: Boil, Toil & Trouble — Art In Common — Miami / Los Angeles / Chicago, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2022: Sueñx — The Mistake Room — Los Angeles, CA, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2022: Magical Realism Revisited — Bank Mabsociety — Shanghai, China ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2022: Miami is Not the Caribbean. Yet it Feels Like it — Oolite Arts — Miami, FL, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2022: Night Owl — Massimo De Carlo — VSPACE (online) ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2022: Holy Water — Eric Firestone Gallery — East Hampton, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2022: Last Call — Bradley Ertaskiran — Montreal, Canada ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2022: Pa’l Patio — Calderón — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2021: Running — Quingdao City Art Museum — Qingdao, China ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2021: In the Margins — Kapp Kapp — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2021: Everyday Secrets — Luce Gallery — Torino, Italy ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2021: Shining in the Low Tide — UNCLEBROTHER — Hancock, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2021: Fragmented Bodies II: Fluidity in Form — Albertz Benda — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2021: Shattered Glass — Jeffrey Deitch — Los Angeles, CA, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2021: De Por Vida — Company Gallery — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2020: GEST — Nino Mier Gallery — Los Angeles, CA, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2020: And The Sun Left — Thierry Goldberg Gallery — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2020: We Must Begin Wherever We Are — Zürcher Gallery — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2020: New Wave — Anna Zorina Gallery — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2020: Wassaic Project Summer Exhibition — Wassaic Project — Wassaic, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2020: The Privilege of Getting Back Together — REGULARNORMAL — New York, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2019: First Annual — Hudson Valley Museum of Contemporary Art — Peekskill, NY, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))\n- 2018: Immigrant Narratives — The Surveyor General’s Office Museum — Perth Amboy, NJ, USA ([Bony Ramirez – CV](https://bonyramirez.com/cv))"], "secondaryMarket": "Coverage indicates limited but meaningful auction history concentrated at Phillips/online sales, with a record around $63,000 (with fees) for the 2020 work “Las Perlas Traen Lágrimas,” noted as more than tripling its high estimate at Phillips New York in May 2022 ([The Art Newspaper](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist)). The same profile frames this as ‘sustainable rather than speculative,’ noting auction outcomes generally near primary pricing ranges ([The Art Newspaper](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist)). Direct Artnet Price Database extraction was blocked by an incomplete page response via fetch_url ([Artnet artist page](https://www.artnet.com/artists/bony-ramirez/)).", "socialMetrics": {"followers": "", "engagement": "", "collectorActivity": ""}, "pressClippings": [{"title": "Bony Ramirez: Cutthroat", "source": "Juxtapoz", "url": "[Juxtapoz](https://www.juxtapoz.com/news/magazine/features/bony-ramirez-cutthroat/)", "date": "2025-06-26", "excerpt": "Ramirez frames his practice as emotionally direct but carefully paced: he says he tries to avoid an exhibition reading as “trauma, trauma, trauma,” insisting there must be “space to rest.” He also describes using taxidermy sculptures as a way to be more personally open when painting feels harder to speak through.", "relevance": "Strong signal of self-awareness, emotional regulation, and a values-driven approach to representing trauma without sensationalism; also indicates reflective practice and willingness to discuss mental health and vulnerability."}, {"title": "An Interview With artist Bony Ramirez", "source": "Observer", "url": "[Observer](https://observer.com/2024/07/arts-interview-bony-ramirez-cattleya-newark-museum-art/)", "date": "2024-07-25", "excerpt": "Ramirez describes his Newark Museum solo as a “full circle moment” and explicitly frames it as “giving back to the community that influenced me.” He is unusually direct about intent: he says his compositions must be “brutally honest” about colonization/exploitation and that he wants to show realities “explicitly without sugarcoating them.”", "relevance": "Clear community-minded orientation; strong integrity/conviction signal around political-historical subject matter; indicates seriousness about message clarity and accountability to audience."}, {"title": "Bony Ramirez: from construction worker to coveted emerging artist", "source": "The Art Newspaper", "url": "[The Art Newspaper](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist)", "date": "2024-08-08", "excerpt": "Profile emphasizes disciplined work under constraint: Ramirez painted “in his kitchen during weekends and spare hours” while working construction and describes the macho job environment where he “couldn’t feel comfortable being myself.” He also states he’s careful about pacing projects across multiple galleries, saying he works with galleries that “understand me as a person” and tries to give each “equal amounts of attention.”", "relevance": "Work ethic + professionalism + reputation management; suggests reliability in partnerships and values alignment (prefers human fit, fair attention allocation, measured career staging)."}, {"title": "Interview with Bony Ramirez", "source": "Les Nouveaux Riches Magazine", "url": "[Les Nouveaux Riches Magazine](https://www.les-nouveaux-riches.com/interview-with-bony-ramirez/)", "date": "2020-08-17", "excerpt": "Ramirez describes theme selection as choosing an idea he “will enjoy” and expanding it; he cites Caribbean culture as a core focus. He also explains titling in Spanish with his own English translations to prevent meaning being “lost in translation,” especially for Dominican slang.", "relevance": "Signals cultural stewardship and care with language/meaning; suggests intentionality about representation and communication across audiences."}, {"title": "From Lunch Break Visits to Solo Show, Bony Ramirez’s Homecoming Exhibition at The Newark Museum of Art", "source": "Art Currently", "url": "[Art Currently](https://artcurrently.com/bony-ramirez-homecoming-exhibition-at-newark-museum)", "date": "2024", "excerpt": "In an interview tied to “Cattleya,” Ramirez states: “My intention with this piece was to include a more personal perspective… highlight how the lingering effects of colonialism persist… particularly through the labor and exploitation of the working class.” He frames the show as a “homecoming,” linking early museum visits to his present institutional platform.", "relevance": "Values signal around class/labor and historical continuity; indicates a personal ethical framework rather than purely aesthetic positioning."}], "characterSignals": {"workEthic": "Ramirez’s narrative repeatedly emphasizes sustained practice under economic constraint—making work nights/weekends while employed in construction and continuing despite limited institutional access ([The Art Newspaper](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist)). He also communicates professional discipline in how he stages projects across galleries, aiming to give collaborators ‘equal amounts of attention’ ([The Art Newspaper](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist)).", "processPhilosophy": "He positions his work as message-forward rather than purely interpretive, prioritizing clarity of meaning and ‘brutal honesty’ about exploitation and colonial histories ([Observer](https://observer.com/2024/07/arts-interview-bony-ramirez-cattleya-newark-museum-art/)). He also speaks about pacing emotional intensity—creating space for ‘rest’ so exhibitions aren’t only trauma narratives ([Juxtapoz](https://www.juxtapoz.com/news/magazine/features/bony-ramirez-cutthroat/)).", "spiritualReligious": "Ramirez frequently cites early exposure to Catholic church imagery as his first meaningful contact with art, and notes that religious iconography/composition remains a foundational visual reference even as he reinterprets it through queer identity ([Observer](https://observer.com/2024/07/arts-interview-bony-ramirez-cattleya-newark-museum-art/); [Juxtapoz](https://www.juxtapoz.com/news/magazine/features/bony-ramirez-cutthroat/)). He frames his career trajectory with an openness to fate (‘trust the universe’) in at least one long-form interview, suggesting a spiritualized trust-in-process mindset ([Juxtapoz](https://www.juxtapoz.com/news/magazine/features/bony-ramirez-cutthroat/)).", "communityInvolvement": "He explicitly frames his Newark Museum solo as ‘giving back’ to the New Jersey community and inspiring others as he was inspired by the museum ([Observer](https://observer.com/2024/07/arts-interview-bony-ramirez-cattleya-newark-museum-art/)). His public-facing artist talks (e.g., museum programming) reinforce community engagement via education/outreach contexts ([The Newark Museum of Art YouTube](https://www.youtube.com/watch?v=wogEzgMNbYs)).", "collaborationReadiness": "He has worked with multiple reputable galleries and institutions and emphasizes choosing partners who ‘understand me as a person’ and managing parallel relationships carefully rather than chasing exclusivity ([The Art Newspaper](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist)). His CV also shows curatorial activity (group exhibitions he curated), indicating ability to collaborate in organizing contexts ([Bony Ramirez – CV](https://bonyramirez.com/cv)).", "personalValues": "Core values that come through include cultural memory/heritage (Caribbean/Dominican identity), honesty about colonialism and labor exploitation, and care for accurate self-representation (e.g., controlling Spanish/English translation to preserve meaning) ([Observer](https://observer.com/2024/07/arts-interview-bony-ramirez-cattleya-newark-museum-art/); [Les Nouveaux Riches Magazine](https://www.les-nouveaux-riches.com/interview-with-bony-ramirez/)). He also speaks openly about mental health, vulnerability, and using art as a therapeutic channel ([Juxtapoz](https://www.juxtapoz.com/news/magazine/features/bony-ramirez-cutthroat/)).", "overallAlignment": "Overall, Ramirez reads as a conviction-led, craft-and-story artist with a clear ethical compass: he insists on explicit, historically grounded narratives and is mindful about not exploiting trauma for effect ([Observer](https://observer.com/2024/07/arts-interview-bony-ramirez-cattleya-newark-museum-art/); [Juxtapoz](https://www.juxtapoz.com/news/magazine/features/bony-ramirez-cutthroat/)). His repeated emphasis on community ‘giving back,’ disciplined partnership management, and cultural stewardship suggests strong alignment with a values-driven advisory prioritizing cultural depth and integrity ([Observer](https://observer.com/2024/07/arts-interview-bony-ramirez-cattleya-newark-museum-art/); [The Art Newspaper](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist))."}, "artistStatement": "“Bony Ramirez adheres black and brown drawn figures onto painted wood panels, creating mixed medium portraits that portray contemporary Caribbean life and the underlying European colonialist history that remains in the psyche of individuals.” ([Bony Ramirez — About](https://bonyramirez.com/about))", "redFlags": ["No credible reporting surfaced in the targeted searches indicating major controversies, gallery disputes, or misconduct allegations tied to Ramirez ([search results](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist)). Primary risk to flag is market/institutional ‘rapid rise’ dynamics (pandemic-era discovery, increasing demand) which can invite speculation, though one market-facing profile explicitly frames his auction record as not far above primary pricing ([The Art Newspaper](https://www.theartnewspaper.com/2024/08/08/bony-ramirez-from-construction-worker-to-coveted-emerging-artist))."]}}, "Cielo Félix-Hernández": {"stage": "deep-dive", "updatedAt": "2026-03-16T03:46:00.000Z", "deepDive": {"status": "complete", "fullExhibitionHistory": ["Solo / solo presentations (confirmed):\n- *Savior Complex* (viewing room), Sargent’s Daughters, dates June 13 – July 11, 2025 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez-savior))\n- *sweet and sour*, Sargent’s Daughters (West), Los Angeles, CA, Nov 4 – Dec 21, 2023 ([Arte al Día](https://www.artealdia.com/Galleries/BODIES-AND-LANDSCAPES-ETERNALLY-IN-FLUX-CIELO-FELIX-HERNANDEZ-AT-SARGENT-S-DAUGHTERS))\n- *nieta*, Sargent’s Daughters, New York, NY, Jan 7 – Feb 5, 2022 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez-nieta))\n- *a place to rest my palms* (solo booth), Booth 4.07, NADA Miami 2022, Miami, FL, Nov 30 – Dec 3, 2022 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n\nGroup exhibitions / programs (confirmed in accessible sources):\n- *Unity is Medicine* (curated performance by Guadalupe Maravilla), Materials for the Arts, Queens, NY, Mar 13, 2025 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *in the whirlwind or in the storm* (Visual Artist AIRspace Resident Exhibition), Cuchifritos Gallery + Project Space, New York, NY, Jun 21 – Aug 31, 2024 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *“Pictures Girls Make”: Portraitures* (TEFAF New York presentation), BLUM Gallery, New York, NY, May 10–14, 2024 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *Puerto Rico Negrx*, Museo de Arte Contemporáneo de Puerto Rico, San Juan, Puerto Rico, Oct 20, 2023 – Sep 1, 2024 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *“Pictures Girls Make”: Portraitures*, Blum & Poe, Los Angeles, CA, Sep 9 – Oct 21, 2023 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *Domesticanx*, El Museo del Barrio, New York, NY, opened Oct 27, 2022 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *Ojos de Perro Azul* (curated by Natalie Weder and Nuria Galland), Marinaro, New York, NY, Sep 1 – Oct 1, 2022 ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *Death of Beauty*, Sargent’s Daughters, Los Angeles, CA (year not specified on the artist page) ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *Nine Lives*, Fortnight Institute, New York, NY (year not specified on the artist page) ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *Flame Tree* (curated by Bony Ramirez), REGULARNORMAL, New York, NY (year not specified on the artist page) ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *documento*, Embajada, San Juan, Puerto Rico (year not specified on the artist page) ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- *Dynasty* (curated by Amy Goldrich, Christopher K. Ho, Omar Lopez-Chahoud, Sara Reisman), PS122 Gallery, New York, NY (year not specified on the artist page) ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n\nResidencies (context for exhibition/professional history):\n- Abrons Art Center, New York, NY (AIRspace) ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))\n- Silver Art Projects, New York, NY ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez))"], "secondaryMarket": "No public auction results were found in Artsy’s auction-results section for this artist, which states, ‘There are currently no auction results for this artist’ ([Artsy](https://www.artsy.net/artist/cielo-felix-hernandez/auction-results)). No Christie’s/Sotheby’s/Phillips results surfaced in the searches conducted in this run (best interpreted as ‘no readily discoverable public-auction footprint’ rather than definitive absence).", "socialMetrics": {"followers": "", "engagement": "", "collectorActivity": ""}, "pressClippings": [{"title": "SPOTLIGHT: CIELO FELIX-HERNANDEZ", "source": "Platform Art", "url": "[Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview)", "date": "2022-06-15", "excerpt": "Félix-Hernández describes digging through her grandmother’s archived photographs and noticing repetition around migration, using those fragments to ‘fill gaps’ in memory and resurface how her ‘transness has been hidden’ under archival histories. She also notes tension with art-world capitalism—‘Their jobs are literally to market me… I don’t really want to participate in… capitalism’—and frames her practice as healing and energy protection.", "relevance": "High-signal character read: anti-capitalist posture, insistence on self-definition beyond labels, and a values-forward commitment to trans community support organizations; also reveals disciplined research (archives), intentional material choices, and emotional honesty."}, {"title": "Cielo Felix-Hernandez’s Pink-Hued Paintings Are Awash with Diasporic Nostalgia", "source": "Artsy", "url": "[Artsy](https://www.artsy.net/article/artsy-editorial-cielo-felix-hernandezs-pink-hued-paintings-awash-diasporic-nostalgia)", "date": "2022-01-26", "excerpt": "On ‘nieta,’ Félix-Hernández explains the hibiscus-based pink as intuitive and frames her paintings as ‘a dialogue with very diasporic materials,’ where migrating objects make ‘the self and the homeland bleed into each other.’ She describes the work as a ‘fantasy dreamscape’ of childhood and adds that it occurs ‘spiritually in other universes… in a place that may not exist yet.’", "relevance": "Strong process philosophy + worldview: materially grounded (hibiscus wash/dye/tea) and simultaneously metaphysical/imaginative; indicates cultural depth rooted in Puerto Rican diasporic experience and a poetic, expansive sense of place."}, {"title": "Exploring the Idea of Domesticanx Through Art", "source": "W Magazine", "url": "[W Magazine](https://www.wmagazine.com/culture/domesticanx-museo-del-barrio-museum-artist-interview)", "date": "2023-02-06", "excerpt": "Félix-Hernández says, ‘Domesticanx felt like being in a show with my own elders,’ and links the exhibition to ‘conversations that we don’t get to have with our families.’ She positions home as sanctuary, informed by her experience as a trans Puerto Rican woman navigating ‘othering’ and belonging.", "relevance": "Clear values around lineage, intergenerational respect, and home/family as cultural and psychological refuge; suggests humility and gratitude toward predecessors rather than self-mythologizing."}, {"title": "BODIES AND LANDSCAPES ETERNALLY IN FLUX: CIELO FÉLIX-HERNÁNDEZ AT SARGENT’S DAUGHTERS", "source": "Arte al Día", "url": "[Arte al Día](https://www.artealdia.com/Galleries/BODIES-AND-LANDSCAPES-ETERNALLY-IN-FLUX-CIELO-FELIX-HERNANDEZ-AT-SARGENT-S-DAUGHTERS)", "date": "2023-11-17", "excerpt": "In discussing ‘sweet and sour,’ Félix-Hernández offers a poetic statement about overlapping fear/excitement, displacement, and rebuilding: ‘…seeing your childhood home change… a home becoming rubble… reused to remold an alternative home… replanting seeds… becoming a puddle.’ The review also notes her hand-tied satin fringe extending compositions beyond the canvas.", "relevance": "Signals emotional seriousness and resilience (displacement, rebuilding) plus commitment to craft (labor-intensive finishing, material extension beyond painting)."}, {"title": "Cocinando: Artist Talk ft. Cielo Felix Hernandez… (AW CLASSROOM Episode 19)", "source": "YouTube (AW CLASSROOM)", "url": "[YouTube](https://www.youtube.com/watch?v=9G6Gk2VbD9Q)", "date": "2021-11-30", "excerpt": "In a panel talk, Félix-Hernández describes herself as ‘transdisciplinary’ and motivated by experimentation—‘I’m so attracted to materials… playing around and being excited about a textile or… an object I found.’ She also frames the work around land/indigeneity and survival, and discusses collecting clothing and objects as carriers of identity.", "relevance": "Direct process disclosure: curiosity-driven studio practice, high material intelligence, and thematic anchoring in survival/land/identity; indicates openness to dialogue and public-facing communication."}], "characterSignals": {"workEthic": "Félix-Hernández frames her practice as sustained by research and repetition (revisiting family photo archives) and by labor-intensive making (e.g., hand-tied satin fringe; building surfaces with hibiscus washes/dyes). She also describes working in ways that protect her energy and mental health, prioritizing healing over external expectations, including ‘successful artist’ narratives ([Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview)).", "processPhilosophy": "Her process merges autobiographical memory with ‘diasporic materials’ (hibiscus wash/dye/tea; migrating objects) to model how homeland and self ‘bleed into each other’ ([Artsy](https://www.artsy.net/article/artsy-editorial-cielo-felix-hernandezs-pink-hued-paintings-awash-diasporic-nostalgia)). She positions painting as a space of care/resilience and uses iconographies from Boricua/Caribbean life while allowing fantasy and archetype to expand what’s possible ([Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview)).", "spiritualReligious": "Not overtly religious in the sources reviewed, but she uses spiritual language about the work existing ‘spiritually in other universes’ and describes ‘divine’ hues and metaphysical, dreamlike settings ([Artsy](https://www.artsy.net/article/artsy-editorial-cielo-felix-hernandezs-pink-hued-paintings-awash-diasporic-nostalgia); [Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview)).", "communityInvolvement": "She explicitly names trans-led mutual aid/advocacy organizations (e.g., Body Hack; Comida Pal Pueblo) as important to her life and practice, stating she’s ‘more driven by my community than anything else’ ([Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview)). The gallery also notes her ‘parallel practices of activism and organizing’ as reinforcing belief in community as sustaining force ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez-savior)).", "collaborationReadiness": "Career trajectory shows institutional and curatorial collaborations: El Museo del Barrio group exhibition ‘Domesticanx’ and museum collection inclusion ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez); [W Magazine](https://www.wmagazine.com/culture/domesticanx-museo-del-barrio-museum-artist-interview)). She has participated in residencies (Abrons Art Center; Silver Art Projects) that typically require cohort collaboration and public programming ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez)).", "personalValues": "Repeated emphasis on lineage (grandmother/mother archives; ‘bloodline’), Puerto Rican cultural preservation, and anti-colonial critique (mourning changes to land/architecture; colonial impact on memory) indicates a values base rooted in heritage and justice ([Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview)). She also signals skepticism of commodification and art-world capitalism, preferring community accountability and self-determination ([Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview)).", "overallAlignment": "Overall alignment appears strong for a values-driven advisory centered on conviction, craft, and cultural depth: she demonstrates material rigor, a coherent ethical stance (community care, anti-erasure), and an intellectually/poetically grounded narrative of diaspora and trans-femme futurity ([Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview); [Artsy](https://www.artsy.net/article/artsy-editorial-cielo-felix-hernandezs-pink-hued-paintings-awash-diasporic-nostalgia)). The main caveat is limited public market transparency/auction history (none found), so due diligence should focus on primary-market pricing discipline and editioning/production scale ([Artsy](https://www.artsy.net/artist/cielo-felix-hernandez/auction-results))."}, "artistStatement": "A concise practice encapsulation used by her representing gallery: ‘Working primarily in oil paint, Félix-Hernández depicts figures who author their own narratives, constructed out of familiar Boricua and Caribbean iconographies’ ([Sargent’s Daughters](https://www.sargentsdaughters.com/cielo-felix-hernandez)). Complementary quote: the work creates a ‘fantasy dreamscape around my childhood’ ([Artsy](https://www.artsy.net/article/artsy-editorial-cielo-felix-hernandezs-pink-hued-paintings-awash-diasporic-nostalgia)).", "redFlags": ["No direct red flags (legal disputes, fraud allegations, gallery conflicts) surfaced in the reviewed sources during this run. Potential watch-outs: (1) public statements critical of art-world capitalism and discomfort with being ‘marketed’ may complicate certain commercial partnerships—though this can also be a positive integrity signal ([Platform Art](https://www.platformart.com/features/cielo-felix-hernandez-interview)); (2) social handle fragmentation (multiple accounts/tags) can create mild brand/identity ambiguity; verify primary account(s) and representation channels via the official site contact section ([cielofelixhernandez.com](https://cielofelixhernandez.com))."]}}, "Napoles Marty": {"stage": "deep-dive", "updatedAt": "2026-03-16T03:46:00.000Z", "deepDive": {"status": "complete", "fullExhibitionHistory": ["SOLO\n- 2023 — The dreamer/The creature — Flanagan Campus Gallery — Rhode Island, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2022 — Die Walküre-Land — Knight Campus Gallery — Rhode Island, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2019 — Frammenti — Isolo 17 Gallery — Verona, Italy ([napolesmarty.com](https://www.napolesmarty.com))\n- 2018 — Meet — Open Studio — Denmark ([napolesmarty.com](https://www.napolesmarty.com))\n- 2017 — Open Studio — Old Furnace Artist Residency — Virginia, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2015 — Deconstruction / Restructuring — 12th Havana Biennial — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 2014 — Diálogos Temporales — Open Studio — Madrid, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2011 — Open Studio — Madrid, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n\nGROUP\n- 2025 — One Less Traveled — LongWoods Preserve — Maine, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2025 — The Things Left Unsaid — James Cohan Gallery — New York, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2024 — Cuerpos/Bodies — Open Studio 21.0, Carlos Garaicoa Studio — Madrid, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2023 — This Is Out of Hand — Institute of Contemporary Art (ICA) — Maine, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2023 — Made in Hungary — Knight Campus Gallery — Rhode Island, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2021 — Premio Combat 2021 Prize — Museo Giovanni Fattori — Livorno, Italy ([napolesmarty.com](https://www.napolesmarty.com))\n- 2021 — 2020 Vision — Cabrillo College — California, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2020 — SHIFTING STREAMS: Twelve Artists by the Hudson River — Hostos Center — Bronx, New York, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2019 — Guttenberg Arts Gallery — New Jersey, USA ([napolesmarty.com](https://www.napolesmarty.com))\n- 2018 — 38th Eva International Ireland's Biennial — Limerick City Gallery of Art — Limerick, Ireland ([napolesmarty.com](https://www.napolesmarty.com))\n- 2016 — Ciudad Autónoma de Melilla — Casa Ibañez Museum — Melilla, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2016 — International Biennial of Contemporary Emerging Art Eve-Maria Zimmermann — Canary Island, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2016 — Federico García Lorca Cultural Center — Madrid, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2016 — 77 International Exhibition of Fine Arts Valdepeñas — Ciudad Real, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2016 — Ciudad de Tomelloso 2016 — Ciudad Real, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2016 — Ensamble 3x1 — Open Studio — Madrid, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2015 — 82 Salón de Otoño — Casa de Vacas — Madrid, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2015 — De Facto (collateral to 12th Havana Biennial) — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 2014 — 81 Salón de Otoño — Casa de Vacas — Madrid, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2013 — Figurativas 13 — European Museum of Modern Art — Barcelona, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2011 — Figurativas 11 — European Museum of Modern Art — Barcelona, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2011 — Figurativas 11 — Museo Casa de la Moneda — Madrid, Spain ([napolesmarty.com](https://www.napolesmarty.com))\n- 2007 — Borders — Fresa y Chocolate Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 2003 — From the Earth — Fernando Boada Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 2003 — Exhibition — Servando Cabrera Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 2003 — Heriberto Manero XX — Domingo Ravenet Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 2001 — Conjunto — Expocuba Pavilion — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 2000 — Académica — Casa de la Poesía — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 2000 — Anatomicum — 10 de Octubre Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 1999 — Tribute — Casa Museo Osvaldo Guayasamín — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 1999 — Two Decades — Her Car Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 1998 — 20 Years — 10 de Octubre Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 1998 — Parallel Exhibition to the Sculpture Biennial Teodoro Ramos Blanco — 10 de Octubre Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 1998 — Naturarte — Horizontes Panamericanos Resort Hotel — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))\n- 1997 — Encounters Cuba- Argentina — Grupo 10 de Octubre Gallery — Havana, Cuba ([napolesmarty.com](https://www.napolesmarty.com))"], "secondaryMarket": "No direct, artist-specific public auction records were found in open web results for major houses/databases during this research pass (Christie’s/Sotheby’s/Phillips/Artnet searches returned general pages or non-specific mentions rather than lot-level results) ([Christie's](https://www.christies.com)). Current visibility appears primarily primary-market/institutional (Frieze Impact Prize, NXTHVN, James Cohan group show) rather than established resale activity ([The Art Newspaper](https://www.theartnewspaper.com/2025/12/10/napoles-marty-frieze-impact-prize-los-angeles)). Recommendation: if subscription access exists (Artnet Price Database / Artprice), run a definitive name-variant search (‘Napoles Marty’, ‘Marty, Napoles’) to confirm zero-results vs. unindexed transactions.", "socialMetrics": {"followers": "", "engagement": "", "collectorActivity": ""}, "pressClippings": [], "characterSignals": {"workEthic": "In interview, Marty emphasizes slowing down, articulating intent, and using critique to refine the work (‘pushed [me] to slow down and articulate what I was doing and why’), suggesting discipline and an ability to translate intuition into intentional practice ([Elephant Magazine](https://elephant.art/napoles-marty-in-conversation-with-diana-nawi-mentorship-nxthvn-and-the-frieze-los-angeles-impact-prize/)). His process is physically demanding (chainsaw carving + charring/burning wood), implying high labor input and craft commitment ([napolesmarty.com](https://www.napolesmarty.com)).", "processPhilosophy": "He describes a balance of control and responsiveness to material: frustration becomes a pivot point where ‘the wood begins to speak,’ and unexpected cuts are treated as ‘openings’ rather than mistakes ([Elephant Magazine](https://elephant.art/napoles-marty-in-conversation-with-diana-nawi-mentorship-nxthvn-and-the-frieze-los-angeles-impact-prize/)). His drawings act as real-time ‘witnesses’ to making, and he cycles between drawing and carving to keep ‘energy’ flowing across media ([Elephant Magazine](https://elephant.art/napoles-marty-in-conversation-with-diana-nawi-mentorship-nxthvn-and-the-frieze-los-angeles-impact-prize/)).", "spiritualReligious": "Across sources, his ‘guardian’ figures are explicitly tied to spirituality, memory, migration, and ancestry; he says the guardians come from ‘migration… spirituality… memory’ ([Elephant Magazine](https://elephant.art/napoles-marty-in-conversation-with-diana-nawi-mentorship-nxthvn-and-the-frieze-los-angeles-impact-prize/)). His practice statement frames figures as ‘spiritual protectors’ and situates the work in myth/cultural practice and Cuban heritage ([napolesmarty.com](https://www.napolesmarty.com)); NXTHVN statement also foregrounds myths, protectors/monsters, and life/death metamorphosis ([NXTHVN](https://www.nxthvn.com/residents/napoles-marty/)).", "communityInvolvement": "Documented teaching roles include creative drawing teacher (North Star Academy – Washington Park High School, 2021) and ceramics teacher (Brooklyn Ascend Middle School, 2020), plus prior sculpture/drawing teaching at San Alejandro and an atelier in Havana (2002–2005), indicating sustained pedagogy/mentorship orientation ([napolesmarty.com](https://www.napolesmarty.com)). His NXTHVN fellowship participation suggests engagement in a cohort/critique community model ([The Art Newspaper](https://www.theartnewspaper.com/2025/12/10/napoles-marty-frieze-impact-prize-los-angeles)).", "collaborationReadiness": "He frames the Frieze Impact Prize as ‘recognition, support, and opportunity’ and expresses interest in ‘new connections with curators, collectors, and institutions,’ signaling openness to institutional partnerships ([Elephant Magazine](https://elephant.art/napoles-marty-in-conversation-with-diana-nawi-mentorship-nxthvn-and-the-frieze-los-angeles-impact-prize/)). The award structure involves working with Frieze LA and curator Diana Nawi on a solo presentation ([Frieze](http://www.frieze.com/article/napoles-marty-impact-prize-frieze-los-angeles-2026)).", "personalValues": "Recurring values: cultural roots/Cuban heritage, protective/guardian archetypes, openness to dialogue, and respect for mentorship; he states NXTHVN helped him see ‘my voice and my background are strengths’ ([Elephant Magazine](https://elephant.art/napoles-marty-in-conversation-with-diana-nawi-mentorship-nxthvn-and-the-frieze-los-angeles-impact-prize/)). Audience ethics are present in his refusal to control viewer response, aiming for work to ‘confront, protect, or even unsettle’ depending on the viewer ([Elephant Magazine](https://elephant.art/napoles-marty-in-conversation-with-diana-nawi-mentorship-nxthvn-and-the-frieze-los-angeles-impact-prize/)).", "overallAlignment": "Signals align strongly with a values-driven advisory focused on conviction, craft, and cultural depth: the practice is materially rigorous (carving/charring) and conceptually anchored in migration, spirituality, myth, and protection ([napolesmarty.com](https://www.napolesmarty.com)). He also appears coachable and partnership-ready through mentorship narratives and institutional dialogue (NXTHVN/Frieze) while maintaining clear authorship and philosophical coherence ([Elephant Magazine](https://elephant.art/napoles-marty-in-conversation-with-diana-nawi-mentorship-nxthvn-and-the-frieze-los-angeles-impact-prize/))."}, "artistStatement": "Core statement (personal site): Marty’s practice centers the body as ‘carrier of meaning,’ using wood/plaster/clay/oil to build raw, sometimes grotesque figures exploring ‘power, vulnerability, and transformation,’ with ‘spiritual protectors or guardians’ tied to memory, myth, cultural practices, and Cuban heritage ([napolesmarty.com](https://www.napolesmarty.com)). Complementary first-person statement (NXTHVN): ‘I employ the human body as the primary vehicle for conveying my ideas… [figures] left rough and unfinished… a gateway into… power and vulnerability… creatures… protectors, monsters, and embodiments of our deepest myths’ ([NXTHVN](https://www.nxthvn.com/residents/napoles-marty/)).", "redFlags": ["No substantiated controversies, legal issues, or public disputes specifically involving the artist were identified in the open-web queries run for ‘controversy/scandal/dispute’ (results contained unrelated ‘Napoles’ items and general art-world articles) ([Elephant Magazine](https://elephant.art/industrial-dispute-the-rise-and-fall-of-beijings-798-art-complex-25072022/)). Potential diligence flags are instead market-structural: rapid visibility from Frieze award could create hype/price pressure without a transparent secondary market track record yet (no public lot results found in this pass) ([The Art Newspaper](https://www.theartnewspaper.com/2025/12/10/napoles-marty-frieze-impact-prize-los-angeles))."]}}, "Murjoni Merriweather": {"stage": "deep-dive", "updatedAt": "2026-03-16T03:46:00.000Z", "deepDive": {"status": "complete", "fullExhibitionHistory": ["Known exhibitions and programs located in sources (not a complete catalogue raisonné; MutualArt exhibition page did not enumerate shows in tool output):\n\n- *Murjoni Merriweather: The Walk* — Creative Alliance (Main Gallery), Baltimore, MD — 2022 ([Baltimore Beat](https://baltimorebeat.com/murjoni-merriweather-the-walk/)).\n- *S E E D* (Mobile Art Gallery installation presented by CulturalDC) — Smithsonian Anacostia Community Museum, Washington, DC — Oct 5–Dec 22, 2024 ([Anacostia Community Museum](https://anacostia.si.edu/s-e-e-d); [CulturalDC](https://www.culturaldc.org/murjoni)).\n\nExhibitions cited (without specific titles/years in retrieved text):\n- Exhibited at Baltimore Museum of Art — Baltimore, MD (year(s) not specified in press release) ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).\n- Exhibited at Eubie Blake Cultural Center — Baltimore, MD (year(s) not specified) ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).\n- Exhibited at The Walters Art Museum — Baltimore, MD (year(s) not specified) ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).\n- Exhibited at Saint Louis Art Museum — St. Louis, MO (year(s) not specified) ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).\n- Exhibited at Rubell Museum — Miami, FL (year(s) not specified) ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).\n\nResidencies / artist development (relevant to exhibition history / career):\n- Creative Alliance Residency — Baltimore, MD — 2019–2022 ([Baltimore Beat](https://baltimorebeat.com/murjoni-merriweather-the-walk/); [Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).\n- Fountainhead Residency — Miami, FL — year not specified (press release) ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).\n- Alma | Lewis Residency — Pittsburgh, PA — year not specified (press release); also referenced as 2022 residency in exhibition review ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica); [Baltimore Beat](https://baltimorebeat.com/murjoni-merriweather-the-walk/)).\n- MASS MoCA Studio — North Adams, MA — year not specified (press release) ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).\n- JJC Summer Artists-in-Residence at MICA — Baltimore, MD — 2025 ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica))."], "secondaryMarket": "- Christie's online-only lots exist for Merriweather, including *J A S M I N E* in the ‘Rosa de la Cruz Collection’ online sale listing (details visible in snippet metadata, but the tool-extracted page content did not expose estimate/realized price fields) ([Christie’s lot page](https://onlineonly.christies.com/s/rosa-de-la-cruz-collection-online-sale/murjoni-merriweather-b-1996-35/228375)).\n- Artnet artist page indicates 7 auctioned works with close dates in 2024 (June 4; July 18 x2; Oct 1; Oct 23 x2; Dec 18) but does not provide prices in the extracted content ([Artnet](https://www.artnet.com/artists/murjoni-merriweather/)).\n- MutualArt’s artist page in the tool output did not display price ranges or realized results, despite the search snippet suggesting a range (limitation: data likely behind interactive elements not returned in extraction) ([MutualArt](https://www.mutualart.com/Artist/Murjoni-Merriweather/235B5BD321B8BDAC)).\n\nAssessment: Verified presence of auction listings (Christie’s; Artnet database entries), but realized prices/estimates were not accessible via retrieved page text in this run; recommend manual verification inside Christie's sale results and a paid database (Artnet Price Database / MutualArt) for exact comps.", "socialMetrics": {"followers": "", "engagement": "", "collectorActivity": ""}, "pressClippings": [{"title": "Murjoni Merriweather | A Love of Clay", "source": "Ocean Africa (The Ocean African)", "url": "[Ocean Africa](https://www.oceanafrica.io/articles/murjoni-merriweather-a-love-of-clay)", "date": "2024-05-21", "excerpt": "Merriweather frames her influences as communal and matriarchal: “There are a number of women who inspire me and my work. The main one is all black women… We have to overcome all of these prejudgements.” She describes specific works as interventions against Eurocentric beauty standards and stereotypes, e.g., making a figure with “no hair, big lips, and a gap… and manages to love herself for how she naturally comes.”", "relevance": "Strong values signal (Black self-love, anti-stereotype work) and personal grounding in family/friends; shows intentionality behind iconography (hair, grills) and a protective, affirming posture toward community."}, {"title": "Murjoni Merriweather: \"The Walk\"", "source": "Baltimore Beat", "url": "[Baltimore Beat](https://baltimorebeat.com/murjoni-merriweather-the-walk/)", "date": "2022-11-15", "excerpt": "Review emphasizes process transparency and viewer care: the show includes “Cycle Circle,” eight pedestals mapping her making from raw clay to finished bust, alongside process drawings and time-lapse video. Merriweather also invites visitor reflection with notecards asking “HOW DO YOU TRULY FEEL?” and incorporates locally sourced beauty-supply hair into the installation ecology.", "relevance": "Signals disciplined, iterative studio practice and audience-centered community orientation (interactive prompts; local sourcing; warmth/comfort as curatorial ethic)."}, {"title": "Baltimore artist creates sculptures to help Black community ‘feel seen’", "source": "WMAR 2 News Baltimore", "url": "[WMAR 2 News Baltimore](https://www.wmar2news.com/bridgingthegap/baltimore-artist-creates-sculptures-to-help-black-community-feel-seen)", "date": "2025-02-06", "excerpt": "Merriweather links representation to childhood museum experiences: “When I was growing up… I saw a lot of sculptures that had Eurocentric features… I also want little girls to go to museums to feel proud of themselves.” She stresses intentional design choices (“Everything is intentional”) and describes the NFL Artist Replay mentorship opportunity at Art Basel as a way her work reached broader audiences.", "relevance": "Clear mission-driven orientation (representation, relatability) and evidence of institutional/brand collaboration (NFL program) without diluting purpose."}, {"title": "BMA Announces Murjoni Merriweather…Selected as 2025 JJC Summer Artists-in-Residence at MICA", "source": "Baltimore Museum of Art (Press Release)", "url": "[Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)", "date": "2025-06-04", "excerpt": "BMA describes her practice as “clay portraits and videos [that] uplift the community by addressing and eliminating stereotypes and normalizing what is natural about black bodies,” and notes multiple competitive residencies (Creative Alliance, Fountainhead, Alma|Lewis, MASS MoCA Studio) plus exhibition placements across museums.", "relevance": "Third-party validation and professionalism signal; residencies indicate work ethic and ability to operate within structured programs and institutional settings."}, {"title": "Murjoni Merriweather, Lettie and Myles, 2020", "source": "Elephant", "url": "[Elephant](https://elephant.art/murjoni-merriweather-lettie-and-myles-2020/)", "date": "2022-01-24", "excerpt": "Elephant presents the work with a concise artist-positioning quote: as a Black woman artist, Merriweather says “the best way to create and talk about Black culture is through art, especially claywork.” (Page is an artwork feature rather than a full interview.)", "relevance": "Useful as an externally published framing of her medium conviction and cultural intent; limited depth compared to long-form interviews."}], "characterSignals": {"workEthic": "Evidence of sustained studio rigor and iterative making: her Creative Alliance residency work culminates in a process-forward exhibition structure (‘Cycle Circle’ shows sequential stages from raw clay to finished bust) and includes drawings with notes/fingerprints and time-lapse process video ([Baltimore Beat](https://baltimorebeat.com/murjoni-merriweather-the-walk/)). Competitive residencies across multiple institutions (Creative Alliance, Fountainhead, Alma|Lewis, MASS MoCA Studio; plus 2025 JJC Summer Residency at MICA) suggest consistent production capacity and reliability in structured programs ([Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)).", "processPhilosophy": "Her process treats clay portraiture as cultural ‘record’ and reparative representation, rejecting Eurocentric beauty norms and building figures that ‘take up space’ with distinct personalities and naming protocols (each piece named after/by Black people) ([mvrjoni.com About/Statement](https://www.mvrjoni.com/about)). She also embraces immersive, non-white-cube presentation (soil-covered floor, sculptures ‘growing’ from earth in SEED per Smithsonian ACM page), indicating a spatial/experiential approach beyond objects ([Anacostia Community Museum](https://anacostia.si.edu/s-e-e-d)).", "spiritualReligious": "No explicit religious affiliation surfaced in retrieved sources, but she references spirituality symbolically via earth/planet connections: SEED ‘connect[ing] with the spiritual and symbolic nature of our planet’ and using soil as a grounding medium for growth/self-care metaphors ([Anacostia Community Museum](https://anacostia.si.edu/s-e-e-d)).", "communityInvolvement": "Her stated aim is to ‘uplift the black community’ and make Black viewers feel ‘seen’ in museums and nontraditional spaces ([mvrjoni.com About/Statement](https://www.mvrjoni.com/about); [WMAR 2 News Baltimore](https://www.wmar2news.com/bridgingthegap/baltimore-artist-creates-sculptures-to-help-black-community-feel-seen)). She builds participatory elements (viewer prompt wall: ‘HOW DO YOU TRULY FEEL?’) and sources materials locally (beauty supply hair) in Baltimore ([Baltimore Beat](https://baltimorebeat.com/murjoni-merriweather-the-walk/)). CulturalDC programming for SEED includes an artist talk and a hands-on clay workshop led by Merriweather, suggesting public engagement/teaching activity ([CulturalDC](https://www.culturaldc.org/murjoni)).", "collaborationReadiness": "Demonstrated comfort with institutional and brand contexts: NFL Artist Replay Program (mentorship + Art Basel presentation) and museum exhibitions/residencies (BMA/JJC/MICA; Smithsonian ACM via CulturalDC) indicate partnership readiness while keeping mission intact ([WMAR 2 News Baltimore](https://www.wmar2news.com/bridgingthegap/baltimore-artist-creates-sculptures-to-help-black-community-feel-seen); [Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica); [Anacostia Community Museum](https://anacostia.si.edu/s-e-e-d)).", "personalValues": "Core values repeatedly foregrounded: Black self-love, dignity, confidence, and anti-stereotype advocacy; she frames the work as ‘for black people’ and a corrective to the historical dehumanization and ongoing marginalization of Black life ([mvrjoni.com About/Statement](https://www.mvrjoni.com/about)). She explicitly appreciates and centers Black women’s resilience as primary inspiration ([Ocean Africa](https://www.oceanafrica.io/articles/murjoni-merriweather-a-love-of-clay)).", "overallAlignment": "Overall alignment appears strong for a values-driven advisory prioritizing conviction, craft, and cultural depth: her practice is explicitly mission-led (representation and stereotype repair), materially and spatially intentional (hair culture, grills, immersive soil installations), and supported by credible residencies/museum validation ([mvrjoni.com About/Statement](https://www.mvrjoni.com/about); [Baltimore Museum of Art](https://artbma.org/about/press/release/bma-announces-murjoni-merriweather-and-rodney-jermaine-elliott-qrcky-selected-as-2025-jjc-summer-artists-in-residence-at-mica)). No meaningful character concerns emerged in the sources reviewed, though a deeper diligence pass would still include direct references checks and gallery/consignment history."}, "artistStatement": "“My work focuses on addressing and eliminating the negative stereotypes of blackness… erasing the European standards of beauty from blackness while also pushing and normalizing black culture… My pieces are created to take up space… Each piece has their own spirit and purpose… My work is for black people.” ([mvrjoni.com About/Statement](https://www.mvrjoni.com/about))", "redFlags": ["No substantiated controversies, disputes, or problematic associations were located in the searches performed; results primarily surfaced mainstream press, museum pages, and social posts ([search results set included CulturalDC + WMAR + BMA + Ocean Africa](https://www.wmar2news.com/bridgingthegap/baltimore-artist-creates-sculptures-to-help-black-community-feel-seen)).\n\nOpen diligence items (not red flags, but gaps): exhibition list is incomplete from public sources gathered (MutualArt exhibition page did not enumerate shows in extraction), and auction realized prices/estimates were not accessible from the retrieved page text (Christie’s/Artnet pages likely require interactive rendering or account access) ([MutualArt exhibitions](https://www.mutualart.com/Artist/Murjoni-Merriweather/235B5BD321B8BDAC/Exhibitions); [Christie’s lot page](https://onlineonly.christies.com/s/rosa-de-la-cruz-collection-online-sale/murjoni-merriweather-b-1996-35/228375); [Artnet](https://www.artnet.com/artists/murjoni-merriweather/))."]}}, "Kimmah Dennis": {"stage": "deep-dive", "updatedAt": "2026-03-16T03:46:00.000Z", "deepDive": {"status": "complete", "fullExhibitionHistory": ["Solo:\\n- Dreams from My Father, Temple University Rome Gallery, Rome, Italy, 2025\\n- (Recent solo noted at Trolley Barn Gallery, Poughkeepsie, NY ~2024 per AAR bio)\\n\\nGroup/Duo:\\n- The Duo Show (with Marielena Ferrer), Trolley Barn Gallery, Poughkeepsie, NY, Oct-Nov 2024\\n- American Academy in Rome Fellowship/Open Studios, Rome, Italy, 2024-2025\\n- New York Academy of Art, NYC, NY (date TBD)\\n- John David Mooney Foundation, (NJ?), (date TBD)\\n- University of Chicago, Chicago, IL (date TBD)\\n- Color Club, Chicago, IL\\n- Shine Studio, Newark, NJ\\n- Manufacturers Village, New Jersey\\n- Paul Robeson Gallery, New Jersey\\n- Philly Art Collective, Philadelphia, PA\\n\\n[AAR bio](https://aarome.org/open-studios/kimmah-dennis) [Trolley Barn](https://trolleybarn.org/exhibitions/)"], "secondaryMarket": "No auction results or secondary market sales found on Artsy, Christie's, Sotheby's searches. Primary market active: works available via Ross-Sutton Gallery (e.g., Dreams from My Father, 2025, $3,000; Legacy, 2025, $3,500). One work in charity auction: Silver Gala 2025 (50% to Silver Art Projects). Early career, no resale activity yet. [Artsy](https://www.artsy.net/artist/kimmah-dennis)", "socialMetrics": {"followers": "", "engagement": "", "collectorActivity": ""}, "pressClippings": [{"title": "I Hope We Feel Like This Forever-ever", "source": "F Newsmagazine", "url": "https://fnewsmagazine.com/2024/06/i-hope-we-feel-like-this-forever-ever/", "date": "June 2024", "excerpt": "\"My daily practice looks like me coming into the studio around like 4 p.m., 5 p.m., staying until, like, 2 a.m., 6 a.m.... My practice is about my family archive or the lack thereof... rediscovering my family archives.\" Describes her intense work ethic and personal themes.", "relevance": "Reveals work ethic, process rooted in family displacement, values of connectivity and identity as Black woman painter."}, {"title": "Kimmah Dennis Open Studios Profile", "source": "American Academy in Rome", "url": "https://aarome.org/open-studios/kimmah-dennis", "date": "November 2024", "excerpt": "\"Drawing on both existing and absent archives, her art reflects powerful narratives of governmental abuses, forced child recruitment, and the trauma of displacement—experiences rooted in her birth during the First Liberian Civil War.\"", "relevance": "Highlights process philosophy, personal values tied to heritage and trauma, multidisciplinary approach."}, {"title": "The Duo Show Exhibition", "source": "Trolley Barn Gallery", "url": "https://trolleybarn.org/exhibitions/", "date": "October-November 2024", "excerpt": "\"Capturing Echoes, Kimmah Dennis offers glimpses into the lives of African children subjected to the volatility of socio-political turmoil. Informed by her family’s wartime displacement...\"", "relevance": "Shows community/curatorial engagement, themes of displacement aligning with cultural depth."}, {"title": "Dreams from My Father Exhibition", "source": "Wanted in Rome", "url": "https://www.wantedinrome.com/whatson/black-history-month-at-temple-university-rome.html", "date": "February 2025", "excerpt": "\"In her solo exhibition, Dreams for My Father, interdisciplinary artist Kimmah Dennis presents a compelling exploration of migration, belonging, and identity.\"", "relevance": "Demonstrates international recognition, focus on migration narratives."}], "characterSignals": {"workEthic": "Intense daily studio practice: enters 4-5pm, works until 2-6am, repeats including weekends. No days off mentioned. [F Newsmagazine](https://fnewsmagazine.com/2024/06/i-hope-we-feel-like-this-forever-ever/)", "processPhilosophy": "Multidisciplinary (painting, drawing, collage, installation, photography); intuitive response to marks and materials; driven by existing/absent family archives, foraged elements like Roman wall fragments; rejects single medium to merge traditional/modern forms. [AAR](https://aarome.org/open-studios/kimmah-dennis)", "spiritualReligious": "No explicit references found.", "communityInvolvement": "5+ years arts education professional (teaching at Kelly Education, Entourage Yearbooks, SAIC Visiting Artist Coordinator); builds extended family through art interactions; cohort influences. [LinkedIn](https://www.linkedin.com/in/kimmah-dennis-03340b1b2) [F Newsmagazine](https://fnewsmagazine.com/2024/06/i-hope-we-feel-like-this-forever-ever/)", "collaborationReadiness": "Participates in group/duo shows (e.g., Duo Show with Marielena Ferrer, cohort inspirations like Lisa DeAbreu); positive institutional fellowships. No brand mentions but open to curators like Whitney director. [Trolley Barn](https://trolleybarn.org/exhibitions/)", "personalValues": "Family reconnection after displacement (born Liberian Civil War, family separated); African diaspora identity, political power of Black female figuration; heritage, migration, belonging. [F Newsmagazine](https://fnewsmagazine.com/2024/06/i-hope-we-feel-like-this-forever-ever/) [AAR](https://aarome.org/open-studios/kimmah-dennis)", "overallAlignment": "Kimmah Dennis exhibits strong conviction through trauma-informed personal narratives, masterful craft in mixed media explorations, and profound cultural depth via diaspora themes. Her disciplined practice and community focus align exceptionally well with values-driven advisory prizing authenticity and substance over hype."}, "artistStatement": "\"Drawing on both existing and absent archives, her art reflects powerful narratives of governmental abuses, forced child recruitment, and the trauma of displacement—experiences rooted in her birth during the First Liberian Civil War. These histories have profoundly shaped her artistic practice, driving her to reject the confines of a single medium. Instead, Dennis employs a multidisciplinary approach, combining painting, drawing, collage, and installation to merge traditional and modern forms on a single canvas.\" [American Academy in Rome](https://aarome.org/open-studios/kimmah-dennis)", "redFlags": ["None identified. Searches for controversies, disputes, or problems returned no relevant results. Consistent positive narrative across sources; emerging artist with prestigious fellowships and no hype-discrepancy."]}}, "Dana-Marie Bullock": {"stage": "deep-dive", "updatedAt": "2026-03-16T03:46:00.000Z", "deepDive": {"status": "complete", "fullExhibitionHistory": ["**Solo:** None listed.\\n\\n**Group:**\\n- 2025 Cross Dissolve, Dragon Crab Turtle, St Louis, MO\\n- 2025 One Nation New Symbols, National Gallery of Jamaica, Kingston, JA\\n- 2025 Inside/Out: Thesis Exhibition, Pratt Institute Gallery, Brooklyn Navy Yard, Brooklyn, NY\\n- 2023 Beyond Surface: Unveiling Materiality and Second Skin, Steuben Gallery, Brooklyn, NY\\n- 2023 Emerging As We Disappear (cur. Karen Weber), New York, NY\\n- 2023 A Woman's Work, Jac Forbes Contemporary, Malibu, CA\\n- 2022 Art Genesis: The Beginning of Legacy (cur. Mashonda Tifrere), Los Angeles, CA\\n- 2021 21 Piece Salute, Black Wall Street Gallery, New York, NY\\n- 2019 Summer Exhibition, National Gallery of Jamaica, Kingston, JA\\n\\nCurrently exhibited at Ministry of Culture, Gender, Entertainment, and Sport, Jamaica."], "secondaryMarket": "No auction results or secondary market activity found on Christie's, Sotheby's, Phillips, Heritage, or Artnet. Emerging artist; work available primary via Artsy profile and gallery shows. Possible inclusion in Silver Art Projects auction (charity, 2025), but no sales data.", "socialMetrics": {"followers": "", "engagement": "", "collectorActivity": ""}, "pressClippings": [{"title": "Pratt's MFA Exhibition Mirrors These Disjointive Times", "source": "Hyperallergic", "url": "https://hyperallergic.com/pratts-mfa-exhibition-mirrors-these-disjointive-times/", "date": "2025-05-05", "excerpt": "Dana-Marie Bullock portrays herself as dead in a mixed media sculpture placed within a mahogany casket in “Tod und Verklärung (Death and Transfiguration)\" (2025). As Bullock explained, \"I wanted to talk about generational trauma and loss through my own experience and my own body.\" The work contains several links to Jamaican mythology, gesturing towards an Indigenous magical tradition that is a source of healing.", "relevance": "Reveals artist's use of personal body and mythology to address generational trauma, showing depth in processing cultural and personal loss."}, {"title": "Meet Dana-Marie Bullock", "source": "CanvasRebel Magazine", "url": "https://canvasrebel.com/meet-dana-marie-bullock/", "date": "2025-03-27", "excerpt": "\"I am filled with curiosity and a particular purpose to continue to hone and develop my practice... I am on this quest to ask myself the tough questions and to take risks in order to find the answers.\" Describes developing performance despite voice disorder, adapting artistic practice.", "relevance": "Highlights resilience, risk-taking, and adaptive work ethic in face of disability; discusses familial influences and artistic lineage."}, {"title": "NGJ Summer Exhibition: Dana-Marie Bullock", "source": "National Gallery of Jamaica Blog", "url": "https://nationalgalleryofjamaica.wordpress.com/2019/09/03/ngj-summer-exhibition-dana-marie-bullock/", "date": "2019-09-03", "excerpt": "In “Scenes,” some may view the disjointed female body parts as an embodiment of the steady drip of oppression faced by females in society, with the bold eyes suggestive of not only fear and pain, but also society’s negligence in addressing these issues.", "relevance": "Early recognition of themes of gender oppression, indicating consistent focus on social issues from Jamaican perspective."}, {"title": "Dana-Marie Bullock | Artsy Profile", "source": "Artsy", "url": "https://www.artsy.net/artist/dana-marie-bullock", "date": "N/A", "excerpt": "Shaped by her fulfilling, yet often raw, experiences as a social worker in Jamaica, Bullock’s art is rooted in autobiography, social injustice and unconstrained imagination.", "relevance": "Connects background in social work to art addressing inequality, showing values-driven practice."}], "characterSignals": {"workEthic": "Demonstrates strong discipline through MFA at Pratt (2025, outstanding merit), multiple residencies (Silver Art Projects 2025, Ox-Bow 2024), and awards (Red Dot Best in Show 2018/2020). Pursues risky expansions like performance despite voice disorder, staying 'busy in the studio' asking tough questions.", "processPhilosophy": "Investigates body as site of cultural history via self-portraiture, familial memory, abstraction; disrupts canvas conventions with needlework, symbolic materials (John Crow beads, gauze) to blend painting/sculpture, embodying damage/resurrection.", "spiritualReligious": "Engages Jamaican mythology, Indigenous magical traditions for healing; references ancestral lineage, generational trauma; no explicit religious mentions.", "communityInvolvement": "Background in social work (BS University of West Indies); exhibitions at National Gallery of Jamaica; hurricane relief fund on Instagram; no formal teaching/mentorship noted.", "collaborationReadiness": "Residencies with mentors (Michelle Grabner, Mickalene Thomas, Jasmine Wahi); curated group shows; open to artistic lineage and queer/disabled artists' influences.", "personalValues": "Bodily autonomy, gender/trauma/loss, social injustice, racial/gender discrimination, medical injustice, Jamaican heritage, female resilience/fragility; family memory central.", "overallAlignment": "Bullock's character strongly aligns with values-driven advisory: profound conviction in personal/cultural narratives, masterful craft in interdisciplinary media, deep cultural exploration of Jamaican diaspora and disability. Her resilience transforms adversity into innovative art, embodying craft and depth."}, "artistStatement": "\"My practice investigates the body as a site of cultural identification and material history sewn into the flesh. Working primarily in painting, sculpture, and performance, my work draws from self-portraiture and familial memory in tandem with abstraction to engage with themes of gender, trauma, loss and Jamaican mythology. Breaking away from the traditional painting conventions of a tightly stretched canvas, I examine the medium and abstraction as a genre, capable of blurring the boundaries between painting and sculpture.\" [Artist website](https://www.danamariebullock.com/about)", "redFlags": ["None found. No gallery disputes, controversies, or inconsistent narratives. Positive coverage; personal disability (Spasmodic Dysphonia) integrated thoughtfully into practice."]}}, "Chidinma Dureke": {"stage": "deep-dive", "updatedAt": "2026-03-16T03:46:00.000Z", "deepDive": {"status": "complete", "fullExhibitionHistory": ["Solo: Spirit on Fire (date/location not specified, referenced 2026 revisit). Group: new.now. (Hamiltonian Artists, Washington DC, 2026); Diasporic Connections (Studio Gallery, Washington DC, 2024); The Peale Museum (Baltimore, MD, date TBD); Howard Community College (Columbia, MD, date TBD); Yale University (New Haven, CT, date TBD); Dwight Hall: Center for Public Service & Social Justice (New Haven, CT, date TBD); Asian Fusion Gallery (Washington DC, date TBD); Super Wonder Gallery (Toronto, Canada, date TBD). Film screenings: One of Them Days (Sony Pictures, 2024); Contours (Slamdance Film Festival, 2025). Hamiltonian Artists at Women-Led Galleries Now (2026)."], "secondaryMarket": "No auction results found on Artnet, Christie's, Sotheby's, Phillips, or Heritage. Primary market prices visible on Instagram: e.g., Behind The Paywall (2024, 48x72in) $3,250; Surface Life (2025, 40x31x5in) $1,200. No evidence of resale activity; emerging artist stage.", "socialMetrics": {"followers": "", "engagement": "", "collectorActivity": ""}, "pressClippings": [{"title": "Chidinma Dureke", "source": "Hamiltonian Artists", "url": "https://hamiltonianartists.org/fellows/chidinma-dureke/", "date": "2026", "excerpt": "Every painting in my body of work is rooted in my diasporic lived experience as a Nigerian-American woman raised in Prince George’s County, Maryland. I seek to recreate a spiritual or magical light in my work, a light that exposes the interior self.", "relevance": "Artist profile with full statement revealing deep personal values tied to heritage and spirituality; shows conviction in exploring hybrid identity."}, {"title": "‘Diasporic Connections’ at Studio Gallery", "source": "The Washington Post via Studio Gallery", "url": "https://www.studiogallerydc.com/jlkblog/in-the-washington-post-diasporic-connections", "date": "January 2024", "excerpt": "Chidinma Dureke paints realist portraits, some of which convey cultural identity by incorporating Nigerian consumer products. The latter wryly riffs on the popular notion that you are what you eat by including a nutrition information panel that’s not for the milk. It’s for people: a DNA breakdown of mixed African and European heritage.", "relevance": "Exhibition review praising innovative use of materials to explore cultural identity; highlights intellectual depth and cultural commentary."}, {"title": "Interview with Chidinma Dureke | 2023 Liu Shiming Art Grants Recipient", "source": "Liu Shiming Art Foundation (YouTube)", "url": "https://www.youtube.com/watch?v=JKe2mmi6uFg", "date": "June 2024", "excerpt": "Just being a grant recipient so far has made me want to create a space for other artists to as well so I've gotten into curatorial work... trying to find ways to create a safe space for other artist voices to be heard.", "relevance": "Direct quotes on community building and collaborations; demonstrates generosity and commitment to amplifying other voices."}, {"title": "Alumni Spotlight: Chidinma Dureke", "source": "Frostburg State University", "url": "https://www.frostburg.edu/profile/s25/alumni-spotlight-dureke.php", "date": "2025", "excerpt": "Selected as one of four production designers (from 1,500 nationwide applicants) for Issa Rae’s 2023 Find Your People Program... Designed ColorCreative’s Contours (2024) which screens at the 2025 Slamdance Film Festival.", "relevance": "Highlights professional achievements and collaborations with major figures, indicating strong work ethic and versatility."}], "characterSignals": {"workEthic": "Pursuing MFA while building multidisciplinary practice (painting, sculpture, production design); expanded from 2D to 3D via grants; consistent output of large-scale works; faculty at MICA shows dedication.", "processPhilosophy": "Roots work in personal diasporic experience, memory, imagination; uses color as symbolic light, newspaper/gel transfers for hybridity and archive; engages cinematography, space, bittersweet diaspora to create liminal psychological spaces.", "spiritualReligious": "Seeks to 'recreate a spiritual or magical light' exposing interior self; Igbo/Nigerian heritage influences; themes of rituals, monitoring spirits in titles.", "communityInvolvement": "Faculty at Maryland Institute College of Art; curatorial work in DC with government/public policy to create safe artist spaces; fellowships like ColorCreative emphasize community.", "collaborationReadiness": "Commissioned by Issa Rae/Denise Davis for Sony film One of Them Days (with SZA, Keke Palmer); production designer for ColorCreative, Amazon Prime, etc.; excited about film integrations.", "personalValues": "Diasporic dual identity (Nigerian-American), Black womanhood, family heritage (first-gen eldest daughter honoring parents' Masters degrees via MFA); amplifying other artists, cultural preservation.", "overallAlignment": "Chidinma Dureke exemplifies conviction through her deeply personal, heritage-rooted practice and consistent evolution. Her craft shines in innovative material use and large-scale works, while cultural depth is evident in explorations of hybridity and liminal spaces. She aligns exceptionally well with a values-driven advisory prizing these qualities, bolstered by teaching and collaborative spirit."}, "artistStatement": "\"Every painting in my body of work is rooted in my diasporic lived experience as a Nigerian-American woman raised in Prince George’s County, Maryland. Working partly from personal archival imagery and from my imagination and memory, I create large-scale oil paintings and newspaper collages of intimate scenes inspired by my dual identity. [...] I seek to recreate a spiritual or magical light in my work, a light that exposes the interior self, which cannot be seen under the natural sunlight along the East Coast of the United States.\" ([Hamiltonian Artists](https://hamiltonianartists.org/fellows/chidinma-dureke/))", "redFlags": ["None found. No controversies, disputes, gallery issues, or inconsistent narratives identified across searches and sources. Positive reception in press and fellowships."]}}, "Chayse Sampy": {"stage": "deep-dive", "updatedAt": "2026-03-16T03:46:00.000Z", "deepDive": {"status": "complete", "fullExhibitionHistory": ["**Solo:**\\n- Who Feels It, Knows It, Houston Museum of African American Culture, Houston, TX, 2025\\n- First solo show, Sanman Studios, Houston, TX, 2024\\n\\n**Group:**\\n- Context Projects, 2025\\n- Texas Biennial, 2024\\n- Pen + Brush, 2024\\n- FSU Museum of Fine Arts, 2023\\n- Contemporary Art Center, New Orleans, LA, 2023\\n- ArtFields, 2023\\n- African Diaspora Art Museum of Atlanta, Atlanta, GA, 2023\\n- Ritz Theater and Museum, 2023\\n- Nia Cultural Center, 2022\\n- New Art Dealers Alliance (NADA), 2024 (Warrior in the Garden featured)"], "secondaryMarket": "No auction results or secondary market activity found. Artsy confirms: 'There are currently no auction results for this artist.' Early-career artist primarily in primary market via galleries and direct sales.", "socialMetrics": {"followers": "", "engagement": "", "collectorActivity": ""}, "pressClippings": [{"title": "In the Studio with Chayse Sampy", "source": "Burnaway", "url": "https://burnaway.org/daily/in-the-studio-with-chayse-sampy/", "date": "2024-04-18", "excerpt": "My work deals with the absurd reality of Black life, intertwining history with storytelling and myth-making. I create worlds that illuminate the miraculous nature of Black existence, the magic we possess.", "relevance": "Reveals process philosophy rooted in myth-making and Black consciousness; emphasizes love ethic from bell hooks, signaling personal values of holistic practice."}, {"title": "Chayse Sampy: Who Feels It, Knows It", "source": "Glasstire", "url": "https://glasstire.com/events/2025/08/29/chayse-sampy-who-feels-it-knows-it/", "date": "2025-08-29", "excerpt": "Chayse Sampy’s Who Feels It, Knows It... drawing from the enduring spirit of Black resistance... her mixed media paintings are sculptural, functioning as monuments, memorials, and memories.", "relevance": "Highlights cultural depth and resilience themes; in dialogue with major artists like Arthur Jafa, showing artistic conviction."}, {"title": "Chayse Sampy - NXTHVN Profile", "source": "NXTHVN", "url": "https://www.nxthvn.com/residents/chayse-sampy/", "date": "Ongoing", "excerpt": "Sampy’s work investigates Black interiority, intergenerational memory, and cultural resilience through painting, collage, and installation.", "relevance": "Demonstrates consistent thematic focus on heritage and memory, aligning with values-driven craft."}, {"title": "New American Paintings Feature", "source": "New American Paintings", "url": "https://www.instagram.com/p/DJX7NgXvyJk/", "date": "2025-05-07", "excerpt": "CHAYSE SAMPY @chaysetheartist featured in New American Paintings West Issue No. 174.", "relevance": "Prestigious recognition indicates rising peer respect and dedication to craft."}], "characterSignals": {"workEthic": "Disciplined practitioner with shared downtown Houston studio; recent MFA (2023), active residencies, teaching as adjunct at University of Houston and Glassell School; consistent output with new projects into 2026.", "processPhilosophy": "Afro-surrealist mixed-media painter intertwining history, storytelling, myth-making; creates multidimensional worlds illuminating Black magic and consciousness; influenced by Black theorists (bell hooks love ethic, DuBois, Moten, Morrison) and artists (Jafa, Quinn, Mutu).", "spiritualReligious": "Explores ancestry (Louisiana/Texas ties), haunted Southern landscapes; blue symbolizes Middle Passage waters, celestial/mother waters, faith-based ancestral connections.", "communityInvolvement": "Teaching roles at university and art school; residencies like NXTHVN Cohort 07 foster collective growth; exhibitions in cultural institutions like HMAAC.", "collaborationReadiness": "Residencies (Sanman, Asia Society, NXTHVN); group shows (Texas Biennial, Pen+Brush); open to institutional partnerships as seen in museum solo show.", "personalValues": "Holistic love ethic; resourcefulness via 'craft' mediums; Black resistance, interiority, memory, resilience; ubuntu ('I AM BECAUSE YOU ARE').", "overallAlignment": "Chayse Sampy embodies conviction through intellectually rigorous, culturally rooted practice deeply engaged with Black theory and history. Her craft elevates mixed media to monumental expressions of resilience, aligning perfectly with values prizing depth, discipline, and communal impact over hype."}, "artistStatement": "\"My work deals with the absurd reality of Black life, intertwining history with storytelling and myth-making. I create worlds that illuminate the miraculous nature of Black existence, the magic we possess. [...] My creatures symbolize a Black consciousness, a neural network that connects us across space and time.\" ([Burnaway](https://burnaway.org/daily/in-the-studio-with-chayse-sampy/))", "redFlags": ["None identified. No controversies, disputes, or problematic associations found across searches. Consistent positive coverage; emerging artist with clean narrative focused on cultural depth."]}}, "Patrick Eugène": {"stage": "declined", "updatedAt": "2026-03-15T22:00:00.000Z"}} as unknown as Record<string, ArtistVettingState>;
-
-// Merge: seed data fills in any artist NOT already in localStorage
-for (const [name, state] of Object.entries(_SEEDED_VETTING)) {
-  if (!_artistVetting[name]) {
-    _artistVetting[name] = state;
-  } else if (_artistVetting[name].stage === "deep-dive" && !_artistVetting[name].deepDive && state.deepDive) {
-    // If user already moved to deep-dive but has no enrichment data, inject it
-    _artistVetting[name].deepDive = state.deepDive;
-  }
-}
-_vettingInitialized = true;
-saveVettingToStorage(_artistVetting);
-
-
-function getArtistStage(artistName: string): VettingStage {
-  return _artistVetting[artistName]?.stage || "scouted";
-}
-
-function getArtistDeepDive(artistName: string): DeepDiveData | undefined {
-  return _artistVetting[artistName]?.deepDive;
-}
-
-function updateVettingState(artistName: string, state: ArtistVettingState | null) {
-  if (state) {
-    _artistVetting[artistName] = state;
-  } else {
-    delete _artistVetting[artistName];
-  }
-  saveVettingToStorage(_artistVetting);
-}
-
-// Week tracking
-function getISOWeek(): string {
-  const now = new Date();
-  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
-}
-
-function getWeekDateRange(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((day + 6) % 7));
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return `${fmt(monday)} — ${fmt(sunday)}`;
-}
-
-const SCOUTED_ARTISTS_DATA: ScoutedArtist[] = [
-  { id: "b1-01", name: "Patrick Eugène", location: "Atlanta, GA", medium: "Oil on canvas", score: 82, priceRange: "$10K–$30K+", whyInteresting: "Dior collab signals brand/corporate appeal — directly relevant to Phase 1 buyer targets. Conviction over trends aligns with Taste Bible.", showsPress: "Where Do We Go From Here (Gallery 1957), 50 Pounds (Mariane Ibrahim), Dior Lady Art 2025", link: "", instagram: "https://www.instagram.com/patrickeugeneart/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Atlanta-based painter whose intuitive, ancestor-channeling process produces luminous figurative works. Haitian heritage and spiritual practice.", education: "Self-taught (began at 27 after banking career)", residencies: "", repStatus: "Mariane Ibrahim", unrepresented: false },
-  { id: "b1-02", name: "Darin Cooper", location: "Brooklyn, NY", medium: "Acrylic, collage, iron transfer, silkscreen on muslin", score: 79, priceRange: "Early market", whyInteresting: "Themes map directly onto brand/corporate storytelling for Phase 1 buyers.", showsPress: "AIN'T NO PLACE LIKE HOME (James Fuentes, 2023), Group shows at Bode, Grove Collective", link: "", instagram: "https://www.instagram.com/darincooperr/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Born in 2000, technique of dissolving acrylic on muslin is genuinely original. Themes of Black Southern culture, church, hip-hop, and cowboys.", education: "BFA, School of Visual Arts (SVA)", residencies: "", repStatus: "UTA / James Fuentes", unrepresented: false },
-  { id: "b1-03", name: "Chiderah Bosah", location: "Port Harcourt, Nigeria", medium: "Oil on canvas", score: 77, priceRange: "$5K–$15K", whyInteresting: "Price point is squarely in the sweet spot, work reads beautifully in corporate/commercial settings.", showsPress: "A Solemn Chronicle of Believers (Gallery 1957), 1-54 NY/Paris, Investec Cape Town", link: "", instagram: "https://www.instagram.com/chiderahbosah/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Nigerian painter whose muted, serene portraits capture quiet strength. Pale palette stands out.", education: "Self-taught", residencies: "", repStatus: "Gallery 1957, multi-gallery", unrepresented: false },
-  { id: "b1-04", name: "Kelechi Nwaneri", location: "Lagos, Nigeria", medium: "Mixed media (pencil, charcoal, acrylic, oil, watercolor, collage)", score: 76, priceRange: "$2K–$15K", whyInteresting: "Visual language is both deeply rooted and completely contemporary — the kind of conviction the Taste Bible prizes.", showsPress: "Red (Hjellegjerde Berlin), Finding Balance (Hjellegjerde London), 1-54, Art Dubai", link: "", instagram: "https://www.instagram.com/kaecyart/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Nigerian artist with unique fusion of West African symbolic traditions (Uli/Nsibidi/Adinkra) and contemporary surrealism.", education: "Self-taught (BA in Agricultural Extension)", residencies: "", repStatus: "Kristin Hjellegjerde, multi-gallery", unrepresented: false },
-  { id: "b1-05", name: "Agnes Waruguru", location: "Nairobi, Kenya", medium: "Painting, needlework, installation", score: 75, priceRange: "$400–several K", whyInteresting: "Prices currently low relative to CV — significant upside. Craft-meets-fine-art angle plays well with brand/corporate buyers.", showsPress: "60th Venice Biennale (2024), Stellenbosch Triennale, Casa Masaccio (Italy)", link: "", instagram: "https://www.instagram.com/waru_guru/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Venice Biennale artist at 30 who integrates beadwork and embroidery with abstract painting. Multi-sensory approach.", education: "BFA, Savannah College of Art and Design", residencies: "", repStatus: "Circle Art, Rele, Bode", unrepresented: false },
-  { id: "b1-06", name: "Bony Ramirez", location: "New Jersey / New York", medium: "Acrylic, colored pencil, oil pastel, sculpture", score: 74, priceRange: "$1.4K–$63K (auction)", whyInteresting: "Worth studying as a benchmark for the quality level Bernard Studia should target.", showsPress: "Jeffrey Deitch solo, Newark Museum solo, Modern Art Museum Fort Worth group", link: "", instagram: "https://www.instagram.com/bonyramirezz/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught. Taste calibration benchmark — exemplifies several Taste Bible axes but gallery infrastructure may be too established.", education: "Self-taught", residencies: "", repStatus: "Jeffrey Deitch, Ghebaly (STRONG)", unrepresented: false },
-  { id: "b1-07", name: "Cielo Félix-Hernández", location: "Brooklyn, NY", medium: "Oil on canvas with hibiscus-dyed satin", score: 73, priceRange: "Primary market", whyInteresting: "Diasporic nostalgia themes and vibrant palette have brand storytelling potential. Museum collection at 27.", showsPress: "sweet and sour (Sargent's Daughters), DOMESTICANX (El Museo del Barrio), Blum & Poe group show", link: "", instagram: "https://www.instagram.com/cielo__online/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Puerto Rican artist who dyes satin with actual hibiscus flowers and integrates into oil paintings. Genuine material honesty.", education: "BFA, Virginia Commonwealth University", residencies: "", repStatus: "Sargent's Daughters", unrepresented: false },
-  { id: "b1-08", name: "Omar Gabr", location: "Cairo, Egypt", medium: "Painting, khayameya tapestries, found objects", score: 71, priceRange: "Early market", whyInteresting: "Very early career with strong signals (1-54 top 10) — maximum upside if the work matures.", showsPress: "1-54 London (top 10), 1-54 Marrakech, AKAA Fair", link: "", instagram: "https://www.instagram.com/omargabrr/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Egyptian artist who survived childhood cancer. Satirical figurative work with traditional khayameya tapestry.", education: "Self-taught (commerce diploma)", residencies: "", repStatus: "Ubuntu Art Gallery (Cairo)", unrepresented: false },
-  { id: "b1-09", name: "Shakil Solanki", location: "Cape Town, South Africa", medium: "Oil-based monotype, gouache, painting", score: 70, priceRange: "$70–$1K", whyInteresting: "Aesthetic has strong corporate/brand appeal (luxury, hospitality). Priced below target but rising.", showsPress: "The Pearl Fishers (Everard Read), Yumeji's Theme (WHATIFTHEWORLD), Cape Town Opera commission", link: "", instagram: "https://www.instagram.com/shakilsolanki_studio/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Reimagines Persian/Hindu miniature traditions through contemporary queer lens. Decorative precision and cultural depth.", education: "BA Fine Art, University of Cape Town", residencies: "", repStatus: "Everard Read, THEFOURTH", unrepresented: false },
-  { id: "b1-10", name: "Reni Soares", location: "San Diego, CA", medium: "Acrylic on canvas", score: 66, priceRange: "$950–$2.7K", whyInteresting: "Most accessible price point — interesting for designer channel placement. Higher risk but cultural narrative has potential.", showsPress: "Saatchi Art Rising Stars 2025, The Other Art Fair (multiple cities)", link: "", instagram: "https://www.instagram.com/renisoaresart/", website: "", batch: "Batch #1", dateScouted: "2026-03-13", rating: "pending", practice: "Self-taught Cape Verdean painter with distinctive folded-canvas technique. Saatchi Rising Stars nod.", education: "Self-taught (BA in Business Administration)", residencies: "", repStatus: "Independent (Saatchi Art)", unrepresented: true },
-  { id: "b2-01", name: "Napoles Marty", location: "Connecticut / Rhode Island", medium: "Sculpture (charred wood), Drawing", score: 86, priceRange: "$5K–$15K", whyInteresting: "Extraordinary material honesty. Frieze LA Impact Prize 2026 signals institutional momentum without gallery gatekeeping.", showsPress: "Frieze LA Impact Prize solo (2026), James Cohan — NXTHVN Cohort 06 (2025), 12th Havana Biennial (2015)", link: "", instagram: "https://www.instagram.com/napoles_marty/", website: "napolesmarty.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Carves guardian and spirit figures from wood using chainsaws, then chars surfaces. Cuban heritage, migration, spirituality, and myth.", education: "National School of Fine Arts San Alejandro, Havana", residencies: "NXTHVN Fellow (2024-25), Int'l Ceramics Studio Hungary, Guttenberg Arts NJ", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b2-02", name: "Kristy Hughes", location: "USA", medium: "Sculpture, Mixed Media, Painting", score: 79, priceRange: "$5K–$15K", whyInteresting: "Strong emerging profile with cross-medium practice and material-driven approach.", showsPress: "", link: "", instagram: "https://www.instagram.com/kristybluejeans/", website: "kristyhughes.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Sculpture and mixed media practice exploring material transformation and identity.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b2-03", name: "Frantz Patrick Henry", location: "USA", medium: "Sculpture, Installation, Painting", score: 73, priceRange: "No public pricing", whyInteresting: "Strong diasporic narrative with installation work that offers advisory placement opportunities.", showsPress: "", link: "", instagram: "", website: "frantzpatrickhenry.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Sculpture and installation practice exploring Haitian diaspora, cultural memory, and material transformation.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b2-04", name: "Murjoni Merriweather", location: "USA", medium: "Ceramics, Sculpture, Video", score: 72, priceRange: "$5K–$7K", whyInteresting: "Christie's presence signals market validation while maintaining independence.", showsPress: "", link: "", instagram: "https://www.instagram.com/mvrjoni/", website: "mvrjoni.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Ceramics and sculpture practice exploring Black identity, domesticity, and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b2-05", name: "Kayla Mattes", location: "USA", medium: "Handwoven Tapestry, Textile", score: 66, priceRange: "$2K–$10K", whyInteresting: "Cross-medium practice bridging digital and analog with strong material honesty.", showsPress: "", link: "", instagram: "https://www.instagram.com/kaylamattes/", website: "kaylamattes.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Handwoven tapestry practice exploring digital culture through analog textile techniques.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b2-06", name: "Kimmah Dennis", location: "USA", medium: "Painting, Photography, Mixed Media", score: 64, priceRange: "$3K–$3.5K", whyInteresting: "Accessible price point with strong growth trajectory and culturally relevant themes.", showsPress: "", link: "", instagram: "https://www.instagram.com/kimmah_dennis/", website: "", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Painting and photography practice exploring Black womanhood, spirituality, and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b2-07", name: "Jaiquan Fayson", location: "USA", medium: "Oil Painting, Drawing, Portraiture", score: 63, priceRange: "$5K–$15K", whyInteresting: "Strong technical skill with figurative work that resonates with collector base.", showsPress: "", link: "", instagram: "https://www.instagram.com/jaiquan_fayson/", website: "jaiquanfayson.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Oil painting and drawing practice with focus on portraiture and Black figurative tradition.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b2-08", name: "Dana-Marie Bullock", location: "USA", medium: "Painting, Sculpture, Installation", score: 61, priceRange: "No public pricing", whyInteresting: "Cross-medium practice with installation work offering advisory placement opportunities.", showsPress: "", link: "", instagram: "https://www.instagram.com/danamariebullock/", website: "danamariebullock.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Painting and sculpture practice exploring identity, material transformation, and space.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b2-09", name: "Delaina Doshi", location: "USA", medium: "Fiber, Textile, Tesserae Quilts", score: 60, priceRange: "No public pricing", whyInteresting: "Material-driven practice with strong craft narrative and cross-medium approach.", showsPress: "", link: "", instagram: "https://www.instagram.com/delaina_doshi/", website: "delainadoshi.com", batch: "Batch #2", dateScouted: "2026-03-14", rating: "pending", practice: "Fiber and textile practice creating tesserae quilts that explore heritage and contemporary craft.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-01", name: "Malcolm Peacock", location: "New York", medium: "Performance, sculpture, time-based media, installation", score: 70, priceRange: "$10K–$20K", whyInteresting: "Strong diasporic narrative. Skowhegan alumni. Joan Mitchell Fellowship. Studio Museum residency — strong institutional pipeline.", showsPress: "Pass Carry Hold, MoMA PS1 (2024), a signal, a sprout, BMA (2025)", link: "", instagram: "https://www.instagram.com/imnotoneofyourlittlefriendsok/", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Explores Black emotional/psychic spaces via everyday actions (braiding, running); diasporic themes of intimacy/presence; monumental endurance-based installations.", education: "BFA VCU (2016); MFA Rutgers Mason Gross (2019)", residencies: "Studio Museum Harlem (2023-24); Skowhegan; Joan Mitchell Center; UPenn; Denniston Hill", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-02", name: "Esperanza Cortés", location: "Colombia / New York City", medium: "Sculpture, mixed media", score: 67, priceRange: "$6K–$10K", whyInteresting: "Major museum exhibition history signals significant upside. Sculptural/installation work offers advisory placement.", showsPress: "Smack Mellon Gallery, Neuberger Museum of Art, Bronx Museum of Art", link: "", instagram: "https://www.instagram.com/esperanzacortes11/", website: "esperanzacortes.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Multicultural Colombian-American artist creating organic sculptures exploring memory, injustice in mining, colonialism.", education: "N/A", residencies: "MacDowell 2025, residency in Knoxville TN", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-03", name: "Ami Park", location: "Bronx/Queens NY", medium: "Fiber/textile installation, yarn/rope sculpture", score: 64, priceRange: "$5K–$20K", whyInteresting: "Strong diasporic narrative. Material-driven practice with strong craft narrative. Saatchi Rising Star.", showsPress: "Clio Art Fair 2025, Bronx Museum AIM Biennial, Pen + Brush", link: "", instagram: "https://www.instagram.com/iam__ami_/", website: "ami-park.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Korean diasporic artist using immersive fiber works to explore mind-object vibrations, intergenerational craft inheritance.", education: "BFA Fashion Design Parsons 2016", residencies: "LMCC Governors Island, Prairie Ronde", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-04", name: "Hai-Wen Lin", location: "Elk Grove, CA", medium: "Mixed media, cyanotype textiles, kite sculptures, fiber", score: 63, priceRange: "$5K–$15K", whyInteresting: "2025 Burke Prize, Luminarts Fellow. Skowhegan alumni. Strong diasporic narrative.", showsPress: "Burke Prize exhibition at MAD Museum (2025-2026), solo at Prairie, Pittsburgh Glass Center", link: "", instagram: "https://www.instagram.com/hai_wen_lin/", website: "haiwenlin.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Taiwanese-American artist blending garment construction with flight engineering in poetic, performative kite-garments.", education: "MDes Fashion Body Garment SAIC (2023); BA Design/Psychology UC Davis (2016); Skowhegan", residencies: "Bemis Center Spring 2025; MacDowell; Lighthouse Works; Haystack; Ox-Bow", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-05", name: "sonia louise davis", location: "Harlem, NY", medium: "Mixed media soft painting, sculpture, textiles", score: 61, priceRange: "$5K–$15K", whyInteresting: "Strong emerging profile with material-driven practice based in Harlem.", showsPress: "", link: "", instagram: "https://www.instagram.com/sonia_louise_davis/", website: "sonialouisedavis.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Mixed media practice exploring material transformation through soft painting and textile techniques.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-06", name: "Zoë Pulley", location: "Brooklyn, NY", medium: "Mixed media, textiles, sculpture", score: 59, priceRange: "$5K–$15K", whyInteresting: "Material-driven practice with strong craft narrative.", showsPress: "", link: "", instagram: "https://www.instagram.com/zpulley/", website: "zoepulley.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Mixed media and textile practice exploring identity and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-07", name: "Chidinma Dureke", location: "Maryland, US", medium: "Painting, sculpture, mixed media", score: 58, priceRange: "$5K–$20K", whyInteresting: "Cross-medium practice with strong diasporic narrative.", showsPress: "", link: "", instagram: "https://www.instagram.com/art_isadanma/", website: "chidinma-dureke.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Painting and sculpture practice exploring Nigerian-American identity and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-08", name: "Rujuta Rao", location: "Goa, India", medium: "Sculpture, mixed media, installation", score: 57, priceRange: "$7K–$20K", whyInteresting: "Sculptural/installation work offers advisory placement opportunities. International perspective.", showsPress: "", link: "", instagram: "https://www.instagram.com/rujutarao/", website: "rujutarao.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Sculpture and mixed media practice exploring Indian contemporary art and material transformation.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-09", name: "Kaela Mei-Chee Chambers", location: "New York, NY", medium: "Interdisciplinary (installation, performance, sculpture)", score: 57, priceRange: "$5K–$20K", whyInteresting: "Cross-medium practice with strong conceptual depth.", showsPress: "", link: "", instagram: "https://www.instagram.com/kaelachambers/", website: "kaelachambers.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Interdisciplinary practice spanning installation, performance, and sculpture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-10", name: "Chayse Sampy", location: "Houston TX / New Haven CT", medium: "Mixed media painting, sculpture", score: 56, priceRange: "$5K–$20K", whyInteresting: "Strong emerging profile with growth potential.", showsPress: "", link: "", instagram: "https://www.instagram.com/chaysetheartist/", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Mixed media painting and sculpture exploring identity, culture, and material transformation.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-12", name: "Ayla Gizlice", location: "Raleigh, NC", medium: "Ceramics, sculpture", score: 55, priceRange: "$5K–$20K", whyInteresting: "Material-driven practice with multicultural background.", showsPress: "", link: "", instagram: "https://www.instagram.com/a_gizlice/", website: "ayla-gizlice.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Turkish-American ceramics and sculpture practice exploring cultural heritage and material transformation.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-13", name: "Farima Fooladi", location: "Iran / The Woodlands TX", medium: "Painting, mixed media", score: 54, priceRange: "$2K–$3K", whyInteresting: "Accessible price point with strong diasporic narrative.", showsPress: "", link: "", instagram: "https://www.instagram.com/farimafooladi/", website: "farimafooladi.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Iranian-American painting practice exploring diaspora, identity, and cultural memory.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-14", name: "Diego Borgsdorf Fuenzalida", location: "Los Angeles / Washington DC", medium: "Textile / fiber art", score: 54, priceRange: "$5K–$20K", whyInteresting: "Material-driven practice with strong craft narrative.", showsPress: "", link: "", instagram: "https://www.instagram.com/diegoborgsdorf/", website: "diegoborgsdorf.com", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Textile and fiber art practice exploring Latin American heritage and contemporary craft.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true },
-  { id: "b3-15", name: "chukwumaa", location: "Brooklyn, NY", medium: "Multidisciplinary sculpture, mixed media", score: 54, priceRange: "$5K–$20K", whyInteresting: "Cross-medium practice with strong conceptual depth based in Brooklyn.", showsPress: "", link: "", instagram: "https://www.instagram.com/chuki_now/", website: "", batch: "Batch #3", dateScouted: "2026-03-15", rating: "pending", practice: "Multidisciplinary sculpture and mixed media practice exploring identity and material culture.", education: "", residencies: "", repStatus: "Unrepresented", unrepresented: true }
-];
-
 function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
   const radius = (size - 4) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -1148,781 +968,447 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
   );
 }
 
-// Module-level rating store — survives React re-renders and component unmount/remount
-const _artistRatings: Record<string, "approved" | "declined" | "pending"> = {};
-let _ratingsInitialized = false;
+// ═══════════════════════════════════════════
+// ARTIST PIPELINE — GLOBAL SYNC SYSTEM
+// ═══════════════════════════════════════════
+// JSONBlob IDs
+// Pipeline API — proxied through Vite (dev) and Vercel rewrites (prod) to JSONBlob
+const SNAPSHOT_BLOB_URL = "/api/pipeline/snapshot"; // read: full sheet snapshot
+const WRITE_BLOB_URL = "/api/pipeline/changes"; // write: stage changes from dashboard
 
-function getPersistedArtists(): ScoutedArtist[] {
-  return SCOUTED_ARTISTS_DATA.map(a => ({
-    ...a,
-    rating: _artistRatings[a.id] || a.rating,
-  }));
+// Pipeline stages in order
+type VettingStage = "Scouted" | "Deep Dive" | "Shortlisted" | "In Conversation" | "Active" | "Declined";
+const PIPELINE_STAGES: VettingStage[] = ["Scouted", "Deep Dive", "Shortlisted", "In Conversation", "Active", "Declined"];
+const STAGE_COLORS: Record<VettingStage, string> = {
+  "Scouted": COLORS.textMuted,
+  "Deep Dive": COLORS.teal,
+  "Shortlisted": COLORS.gold,
+  "In Conversation": COLORS.purple,
+  "Active": COLORS.green,
+  "Declined": COLORS.chartRed,
+};
+
+interface PipelineArtist {
+  sheetRow: number;
+  dateScouted: string;
+  batch: string;
+  name: string;
+  location: string;
+  medium: string;
+  score: number;
+  priceRange: string;
+  whyInteresting: string;
+  showsPress: string;
+  link: string;
+  status: VettingStage;
+  antRating: string;
+  hasDeepDive: boolean;
+  deepDive: any | null;
 }
 
-// Sync a rating to the backend (fire-and-forget, non-blocking)
-function syncRatingToSheet(artistName: string, rating: string) {
-  fetch(`${API_BASE}/api/rate-artist`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ artistName, rating }),
-  }).catch(() => { /* silent — sheet sync is best-effort */ });
+// Module-level state — survives React re-renders
+let _pipelineArtists: PipelineArtist[] = [];
+let _pipelineLoaded = false;
+let _lastSyncTime: string | null = null;
+// Track local changes that haven't been confirmed by the Sheet yet
+const _pendingChanges: Record<string, VettingStage> = {};
+
+async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; snapshotAt: string } | null> {
+  try {
+    const res = await fetch(SNAPSHOT_BLOB_URL, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.artists || !Array.isArray(data.artists)) return null;
+    return { artists: data.artists, snapshotAt: data.snapshotAt };
+  } catch {
+    return null;
+  }
 }
 
-
-// ═══════════════════════════════════════════
-// BRIEF PANEL — Detailed artist brief
-// ═══════════════════════════════════════════
-function BriefPanel({ artist, onClose }: { artist: ScoutedArtist; onClose: () => void }) {
-  const scoreColor = artist.score >= 80 ? COLORS.green : artist.score >= 65 ? COLORS.gold : COLORS.coral;
-  
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      onClick={onClose}
-      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
-    >
-      <div
-        className="relative w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-xl border p-6"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "rgba(20,20,30,0.95)",
-          backdropFilter: "blur(40px)",
-          borderColor: `${COLORS.teal}30`,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-        }}
-      >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-lg border flex items-center justify-center transition-colors hover:bg-white/10"
-          style={{ borderColor: COLORS.borderSubtle }}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path d="M4 4L12 12M12 4L4 12" stroke={COLORS.textMuted} strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </button>
-
-        {/* Header */}
-        <div className="flex items-start gap-4 mb-5">
-          <ScoreRing score={artist.score} size={52} />
-          <div>
-            <h3 className="text-lg font-bold" style={{ color: COLORS.textPrimary }}>{artist.name}</h3>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs" style={{ color: COLORS.teal }}>{artist.medium}</span>
-              <span className="text-xs" style={{ color: COLORS.textFaint }}>|</span>
-              <span className="text-xs" style={{ color: COLORS.textMuted }}>{artist.location}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs font-medium tabular-nums" style={{ color: COLORS.gold }}>{artist.priceRange}</span>
-              <span className="text-[11px] px-1.5 py-px rounded" style={{ background: `${COLORS.teal}15`, color: COLORS.teal }}>{artist.batch}</span>
-              {artist.unrepresented && (
-                <span className="text-[11px] px-1.5 py-px rounded" style={{ background: `${COLORS.green}15`, color: COLORS.green }}>Unrepresented</span>
-              )}
-              {!artist.unrepresented && artist.repStatus && (
-                <span className="text-[11px] px-1.5 py-px rounded" style={{ background: `${COLORS.coral}15`, color: COLORS.coral }}>{artist.repStatus}</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Sections */}
-        {artist.practice && (
-          <div className="mb-4">
-            <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Practice</h4>
-            <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.practice}</p>
-          </div>
-        )}
-
-        <div className="mb-4">
-          <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Why This Artist</h4>
-          <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.whyInteresting}</p>
-        </div>
-
-        {artist.showsPress && (
-          <div className="mb-4">
-            <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Shows & Press</h4>
-            <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.showsPress}</p>
-          </div>
-        )}
-
-        {artist.education && (
-          <div className="mb-4">
-            <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Education</h4>
-            <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.education}</p>
-          </div>
-        )}
-
-        {artist.residencies && (
-          <div className="mb-4">
-            <h4 className="text-[11px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: COLORS.teal }}>Residencies</h4>
-            <p className="text-xs leading-relaxed" style={{ color: COLORS.textMuted }}>{artist.residencies}</p>
-          </div>
-        )}
-
-        {/* Links */}
-        <div className="flex items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: COLORS.borderSubtle }}>
-          {artist.instagram && (
-            <a href={artist.instagram} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.04]"
-              style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                <circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                <circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} />
-              </svg>
-              Instagram
-            </a>
-          )}
-          {artist.website && (
-            <a href={artist.website.startsWith("http") ? artist.website : `https://${artist.website}`} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.04]"
-              style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                <ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                <path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" />
-              </svg>
-              Website
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// ═══════════════════════════════════════════
-// DEEP DIVE PANEL — enriched artist research view
-// ═══════════════════════════════════════════
-function DeepDivePanel({ artist, deepDive, onClose, onShortlist }: { artist: ScoutedArtist; deepDive: DeepDiveData; onClose: () => void; onShortlist: () => void }) {
-  const stage = getArtistStage(artist.name);
-  const stageConf = STAGE_CONFIG[stage];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-end"
-      onClick={onClose}
-      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
-    >
-      <div
-        className="relative h-full w-full max-w-xl overflow-y-auto border-l"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "rgba(12,12,18,0.97)",
-          backdropFilter: "blur(40px)",
-          borderColor: `${COLORS.purple}30`,
-        }}
-      >
-        {/* Header */}
-        <div className="sticky top-0 z-10 px-6 pt-5 pb-4 border-b" style={{ background: "rgba(12,12,18,0.95)", borderColor: COLORS.borderSubtle }}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <ScoreRing score={artist.score} size={44} />
-              <div>
-                <h2 className="text-base font-bold" style={{ color: COLORS.textPrimary }}>{artist.name}</h2>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[11px]" style={{ color: COLORS.textMuted }}>{artist.location}</span>
-                  <span className="text-[11px] font-medium px-1.5 py-px rounded" style={{ background: `${stageConf.color}15`, color: stageConf.color }}>
-                    {stageConf.label}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg border flex items-center justify-center transition-colors hover:bg-white/[0.06]" style={{ borderColor: COLORS.borderSubtle }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke={COLORS.textFaint} strokeWidth="2" strokeLinecap="round" /></svg>
-            </button>
-          </div>
-          {/* Stage progress bar */}
-          <div className="flex items-center gap-1 mt-2">
-            {(["scouted", "deep-dive", "shortlisted", "in-conversation"] as VettingStage[]).map((s, i) => {
-              const conf = STAGE_CONFIG[s];
-              const isCurrent = s === stage;
-              const isPast = conf.order < STAGE_CONFIG[stage].order;
-              return (
-                <div key={s} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full h-1 rounded-full" style={{ background: isPast || isCurrent ? conf.color : COLORS.borderSubtle, opacity: isCurrent ? 1 : isPast ? 0.5 : 0.2 }} />
-                  <span className="text-[9px] font-medium" style={{ color: isCurrent ? conf.color : isPast ? COLORS.textMuted : COLORS.textFaint }}>{conf.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="px-6 py-5 flex flex-col gap-5">
-          {/* Basic info */}
-          <div className="rounded-lg border p-4" style={{ ...GLASS_ALT }}>
-            <div className="flex items-center gap-2 mb-2">
-              <AgentIcon type="palette" color={COLORS.teal} size={14} />
-              <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.teal }}>Artist Profile</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-[11px]">
-              <div><span style={{ color: COLORS.textFaint }}>Medium</span><p className="mt-0.5" style={{ color: COLORS.textPrimary }}>{artist.medium}</p></div>
-              <div><span style={{ color: COLORS.textFaint }}>Price Range</span><p className="mt-0.5" style={{ color: COLORS.gold }}>{artist.priceRange}</p></div>
-              <div><span style={{ color: COLORS.textFaint }}>Education</span><p className="mt-0.5" style={{ color: COLORS.textPrimary }}>{artist.education || "—"}</p></div>
-              <div><span style={{ color: COLORS.textFaint }}>Representation</span><p className="mt-0.5" style={{ color: artist.unrepresented ? COLORS.green : COLORS.textPrimary }}>{artist.repStatus || (artist.unrepresented ? "Unrepresented" : "—")}</p></div>
-            </div>
-            {artist.practice && <p className="text-[11px] leading-relaxed mt-3" style={{ color: COLORS.textMuted }}>{artist.practice}</p>}
-          </div>
-
-          {/* Deep dive loading state */}
-          {deepDive.status === "pending" && (
-            <div className="rounded-lg border p-6 flex flex-col items-center gap-3" style={{ ...GLASS_ALT, borderColor: `${COLORS.purple}20` }}>
-              <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: `${COLORS.purple}40`, borderTopColor: "transparent" }} />
-              <span className="text-xs font-medium" style={{ color: COLORS.purple }}>Researching artist...</span>
-              <span className="text-[11px]" style={{ color: COLORS.textFaint }}>Gathering press clippings, interviews, and character signals</span>
-            </div>
-          )}
-
-          {/* Deep dive complete content */}
-          {deepDive.status === "complete" && (
-            <>
-              {/* Character Signals — the key section */}
-              {deepDive.characterSignals && (
-                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT, borderColor: `${COLORS.purple}20` }}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <AgentIcon type="person" color={COLORS.purple} size={14} />
-                    <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.purple }}>Character Signals</span>
-                  </div>
-                  <div className="flex flex-col gap-2.5">
-                    {deepDive.characterSignals.workEthic && (
-                      <div className="text-[11px]">
-                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Work Ethic</span>
-                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.workEthic}</p>
-                      </div>
-                    )}
-                    {deepDive.characterSignals.processPhilosophy && (
-                      <div className="text-[11px]">
-                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Process & Philosophy</span>
-                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.processPhilosophy}</p>
-                      </div>
-                    )}
-                    {deepDive.characterSignals.spiritualReligious && (
-                      <div className="text-[11px]">
-                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Spiritual / Religious</span>
-                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.spiritualReligious}</p>
-                      </div>
-                    )}
-                    {deepDive.characterSignals.communityInvolvement && (
-                      <div className="text-[11px]">
-                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Community</span>
-                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.communityInvolvement}</p>
-                      </div>
-                    )}
-                    {deepDive.characterSignals.personalValues && (
-                      <div className="text-[11px]">
-                        <span className="font-medium" style={{ color: COLORS.textPrimary }}>Values</span>
-                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.characterSignals.personalValues}</p>
-                      </div>
-                    )}
-                    {deepDive.characterSignals.overallAlignment && (
-                      <div className="mt-1 p-2.5 rounded-md text-[11px]" style={{ background: `${COLORS.purple}08`, borderLeft: `2px solid ${COLORS.purple}40` }}>
-                        <span className="font-semibold" style={{ color: COLORS.purple }}>Alignment Assessment</span>
-                        <p className="mt-0.5 leading-relaxed" style={{ color: COLORS.textPrimary }}>{deepDive.characterSignals.overallAlignment}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Press & Interviews */}
-              {deepDive.pressClippings && deepDive.pressClippings.length > 0 && (
-                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT }}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <AgentIcon type="clipboard" color={COLORS.gold} size={14} />
-                    <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.gold }}>Press & Interviews</span>
-                    <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{deepDive.pressClippings.length}</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {deepDive.pressClippings.map((clip, i) => (
-                      <div key={i} className="p-2.5 rounded-md transition-colors" style={{ background: "rgba(255,255,255,0.02)", borderLeft: `2px solid ${COLORS.gold}25` }}>
-                        <div className="flex items-center gap-2">
-                          {clip.url ? (
-                            <a href={clip.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium hover:underline" style={{ color: COLORS.textPrimary }}>{clip.title}</a>
-                          ) : (
-                            <span className="text-[11px] font-medium" style={{ color: COLORS.textPrimary }}>{clip.title}</span>
-                          )}
-                          {clip.url && (
-                            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0 opacity-40"><path d="M3 1h6v6M9 1L4 6" stroke={COLORS.textMuted} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[11px]" style={{ color: COLORS.teal }}>{clip.source}</span>
-                          {clip.date && <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{clip.date}</span>}
-                        </div>
-                        <p className="text-[11px] leading-relaxed mt-1" style={{ color: COLORS.textMuted }}>{clip.excerpt}</p>
-                        {clip.relevance && <p className="text-[11px] mt-1 italic" style={{ color: COLORS.purple }}>{clip.relevance}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Exhibition History */}
-              {deepDive.fullExhibitionHistory && deepDive.fullExhibitionHistory.length > 0 && (
-                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT }}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <AgentIcon type="bars" color={COLORS.teal} size={14} />
-                    <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.teal }}>Exhibition History</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {deepDive.fullExhibitionHistory.map((show, i) => (
-                      <div key={i} className="flex items-start gap-2 text-[11px] py-1">
-                        <span className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: COLORS.teal }} />
-                        <span style={{ color: COLORS.textMuted }}>{show}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Secondary Market + Social */}
-              <div className="grid grid-cols-2 gap-3">
-                {deepDive.secondaryMarket && (
-                  <div className="rounded-lg border p-3" style={{ ...GLASS_ALT }}>
-                    <span className="text-[11px] font-semibold tracking-wider uppercase block mb-1.5" style={{ color: COLORS.gold }}>Secondary Market</span>
-                    <p className="text-[11px] leading-relaxed" style={{ color: COLORS.textMuted }}>{deepDive.secondaryMarket}</p>
-                  </div>
-                )}
-                {deepDive.socialMetrics && (
-                  <div className="rounded-lg border p-3" style={{ ...GLASS_ALT }}>
-                    <span className="text-[11px] font-semibold tracking-wider uppercase block mb-1.5" style={{ color: COLORS.teal }}>Social Presence</span>
-                    <div className="flex flex-col gap-1 text-[11px]">
-                      {deepDive.socialMetrics.followers && <div><span style={{ color: COLORS.textFaint }}>Followers: </span><span style={{ color: COLORS.textPrimary }}>{deepDive.socialMetrics.followers}</span></div>}
-                      {deepDive.socialMetrics.engagement && <div><span style={{ color: COLORS.textFaint }}>Engagement: </span><span style={{ color: COLORS.textPrimary }}>{deepDive.socialMetrics.engagement}</span></div>}
-                      {deepDive.socialMetrics.collectorActivity && <div><span style={{ color: COLORS.textFaint }}>Collector Activity: </span><span style={{ color: COLORS.textPrimary }}>{deepDive.socialMetrics.collectorActivity}</span></div>}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Red Flags */}
-              {deepDive.redFlags && deepDive.redFlags.length > 0 && (
-                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT, borderColor: `${COLORS.chartRed}20` }}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <svg width="14" height="14" viewBox="0 0 18 18" fill="none"><path d="M9 2L16 15H2L9 2Z" stroke={COLORS.chartRed} strokeWidth="1.5" strokeLinejoin="round" /><line x1="9" y1="7" x2="9" y2="10" stroke={COLORS.chartRed} strokeWidth="1.5" strokeLinecap="round" /><circle cx="9" cy="12.5" r="0.75" fill={COLORS.chartRed} /></svg>
-                    <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.chartRed }}>Red Flags</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {deepDive.redFlags.map((flag, i) => (
-                      <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
-                        <span className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: COLORS.chartRed }} />
-                        <span style={{ color: COLORS.textMuted }}>{flag}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Artist Statement */}
-              {deepDive.artistStatement && (
-                <div className="rounded-lg border p-4" style={{ ...GLASS_ALT }}>
-                  <span className="text-[11px] font-semibold tracking-wider uppercase block mb-2" style={{ color: COLORS.textMuted }}>Artist Statement</span>
-                  <p className="text-[11px] leading-relaxed italic" style={{ color: COLORS.textMuted }}>"{deepDive.artistStatement}"</p>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Actions */}
-          <div className="sticky bottom-0 pt-3 pb-5 flex items-center gap-3" style={{ background: "linear-gradient(to top, rgba(12,12,18,1) 80%, transparent)" }}>
-            {/* External links */}
-            <div className="flex items-center gap-1.5">
-              {artist.instagram && (
-                <a href={artist.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.04]" style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" /></svg>
-                  Instagram
-                </a>
-              )}
-              {artist.website && (
-                <a href={artist.website.startsWith("http") ? artist.website : `https://${artist.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[11px] font-medium transition-colors hover:bg-white/[0.04]" style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8" /><ellipse cx="12" cy="12" rx="4" ry="10" stroke="currentColor" strokeWidth="1.8" /><path d="M2 12h20" stroke="currentColor" strokeWidth="1.8" /></svg>
-                  Website
-                </a>
-              )}
-            </div>
-            <div className="flex-1" />
-            {/* Stage action button */}
-            {stage === "deep-dive" && deepDive.status === "complete" && (
-              <button
-                onClick={onShortlist}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold transition-all hover:brightness-110"
-                style={{ background: COLORS.gold, color: "#000" }}
-              >
-                <AgentIcon type="gem" color="#000" size={14} />
-                Move to Shortlist
-              </button>
-            )}
-            {stage === "shortlisted" && (
-              <button
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold transition-all hover:brightness-110"
-                style={{ background: COLORS.green, color: "#000" }}
-                title="Coming soon — outreach automation"
-              >
-                <AgentIcon type="send" color="#000" size={14} />
-                Draft Outreach
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════
-// ARCHIVE MODAL
-// ═══════════════════════════════════════════
-function ArchiveModal({ artists, onClose, onConfirm }: { artists: ScoutedArtist[]; onClose: () => void; onConfirm: () => void }) {
-  const approved = artists.filter(a => a.rating === "approved");
-  const declined = artists.filter(a => a.rating === "declined");
-  const pending = artists.filter(a => a.rating === "pending");
-  
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      onClick={onClose}
-      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
-    >
-      <div
-        className="relative w-full max-w-md rounded-xl border p-6"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "rgba(20,20,30,0.95)",
-          backdropFilter: "blur(40px)",
-          borderColor: `${COLORS.teal}30`,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-        }}
-      >
-        <h3 className="text-base font-bold mb-4" style={{ color: COLORS.textPrimary }}>Archive This Week</h3>
-        <p className="text-xs mb-4" style={{ color: COLORS.textMuted }}>
-          This will archive all decisions from the current week and sync to the Art Scout Master Sheet.
-        </p>
-        
-        <div className="flex flex-col gap-2 mb-5">
-          <div className="flex items-center justify-between text-xs">
-            <span style={{ color: COLORS.green }}>Approved</span>
-            <span className="font-semibold tabular-nums" style={{ color: COLORS.green }}>{approved.length}</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span style={{ color: COLORS.chartRed }}>Declined</span>
-            <span className="font-semibold tabular-nums" style={{ color: COLORS.chartRed }}>{declined.length}</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span style={{ color: COLORS.textFaint }}>Pending</span>
-            <span className="font-semibold tabular-nums" style={{ color: COLORS.textFaint }}>{pending.length}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2 rounded-lg border text-xs font-medium transition-colors hover:bg-white/[0.04]"
-            style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-colors"
-            style={{ background: COLORS.teal, color: "#000" }}
-          >
-            Confirm Archive
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+async function pushStageChange(artistName: string, newStage: VettingStage, sheetRow: number): Promise<boolean> {
+  try {
+    // Read current write blob
+    const readRes = await fetch(WRITE_BLOB_URL, { cache: "no-store" });
+    const current = readRes.ok ? await readRes.json() : { syncedAt: null, changes: [] };
+    
+    // Add/update the change
+    const changes = Array.isArray(current.changes) ? current.changes : [];
+    const existing = changes.findIndex((c: any) => c.artistName === artistName);
+    const change = {
+      artistName,
+      newStage,
+      sheetRow,
+      changedAt: new Date().toISOString(),
+    };
+    if (existing >= 0) {
+      changes[existing] = change;
+    } else {
+      changes.push(change);
+    }
+    
+    // Write back
+    const writeRes = await fetch(WRITE_BLOB_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        syncedAt: new Date().toISOString(),
+        changes,
+      }),
+    });
+    return writeRes.ok;
+  } catch {
+    return false;
+  }
 }
 
 function ScoutedArtistsReview() {
-  const [artists, setArtists] = useState<ScoutedArtist[]>(getPersistedArtists);
-  const [filter, setFilter] = useState<"all" | "scouted" | "deep-dive" | "shortlisted" | "in-conversation" | "declined">("all");
+  const [artists, setArtists] = useState<PipelineArtist[]>(_pipelineArtists);
+  const [filter, setFilter] = useState<"all" | VettingStage>("all");
   const [expanded, setExpanded] = useState(true);
-  const [syncing, setSyncing] = useState<string | null>(null);
-  const [briefArtist, setBriefArtist] = useState<ScoutedArtist | null>(null);
-  const [deepDiveArtist, setDeepDiveArtist] = useState<ScoutedArtist | null>(null);
-  const [showArchive, setShowArchive] = useState(false);
-  const [archiveToast, setArchiveToast] = useState(false);
-  const [sheetSyncing, setSheetSyncing] = useState(false);
-  const [syncToast, setSyncToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [, forceUpdate] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [expandedArtist, setExpandedArtist] = useState<string | null>(null);
+  const [changingStage, setChangingStage] = useState<string | null>(null);
+  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // On mount, fetch saved ratings AND vetting data from backend
-  useEffect(() => {
-    if (_ratingsInitialized) return;
-    _ratingsInitialized = true;
-    // Fetch legacy ratings
-    fetch(`${API_BASE}/api/artist-ratings`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.ratings) {
-          const r = data.ratings as Record<string, string>;
-          let changed = false;
-          for (const [name, status] of Object.entries(r)) {
-            if (status === "approved" || status === "declined") {
-              const match = SCOUTED_ARTISTS_DATA.find(
-                a => a.name.toLowerCase() === name.toLowerCase()
-              );
-              if (match && !_artistRatings[match.id]) {
-                _artistRatings[match.id] = status as "approved" | "declined";
-                changed = true;
-              }
-            }
-          }
-          if (changed) setArtists(getPersistedArtists());
-        }
-      })
-      .catch(() => {});
-    // Vetting data is loaded from localStorage on init (see loadVettingFromStorage above)
-    // Also try to merge any server-side vetting data (best effort)
-    if (!_vettingInitialized) {
-      _vettingInitialized = true;
-      fetch(`${API_BASE}/api/vetting`)
-        .then(r => r.json())
-        .then(data => {
-          if (data.success && data.vetting) {
-            // Merge server data into local — local takes precedence for stage, server for deep dive content
-            let changed = false;
-            for (const [name, serverState] of Object.entries(data.vetting as Record<string, ArtistVettingState>)) {
-              const local = _artistVetting[name];
-              if (!local) {
-                updateVettingState(name, serverState);
-                changed = true;
-              } else if (serverState.deepDive?.status === "complete" && local.deepDive?.status !== "complete") {
-                // Server has enriched data we don't have locally
-                updateVettingState(name, { ...local, deepDive: serverState.deepDive });
-                changed = true;
-              }
-            }
-            if (changed) forceUpdate(n => n + 1);
-          }
-        })
-        .catch(() => {});
+  // Load artists from JSONBlob on mount
+  const loadArtists = useCallback(async (showStatus = true) => {
+    if (showStatus) {
+      setSyncing(true);
+      setSyncStatus("syncing");
+    }
+    const snapshot = await fetchPipelineSnapshot();
+    if (snapshot && snapshot.artists.length > 0) {
+      // Apply any pending local changes on top of snapshot
+      const merged = snapshot.artists.map(a => ({
+        ...a,
+        status: (_pendingChanges[a.name] || a.status) as VettingStage,
+      }));
+      _pipelineArtists = merged;
+      _lastSyncTime = snapshot.snapshotAt;
+      _pipelineLoaded = true;
+      setArtists(merged);
+      if (showStatus) setSyncStatus("success");
+    } else if (!_pipelineLoaded) {
+      // Fallback — keep empty state but mark as loaded
+      _pipelineLoaded = true;
+      if (showStatus) setSyncStatus("error");
+    }
+    if (showStatus) {
+      setSyncing(false);
+      setTimeout(() => setSyncStatus("idle"), 3000);
     }
   }, []);
 
-  const advanceStage = (artistName: string, targetStage: VettingStage) => {
-    setSyncing(artistName);
-    const now = new Date().toISOString();
+  useEffect(() => {
+    if (!_pipelineLoaded) {
+      loadArtists(true);
+    }
+    // Auto-sync every 5 minutes
+    syncIntervalRef.current = setInterval(() => {
+      loadArtists(false);
+    }, 5 * 60 * 1000);
+    return () => {
+      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+    };
+  }, [loadArtists]);
 
-    // 1) Persist to localStorage IMMEDIATELY (survives refresh, deploys, anything)
-    if (targetStage === "scouted") {
-      updateVettingState(artistName, null); // remove = back to default
-    } else if (targetStage === "deep-dive") {
-      const existing = _artistVetting[artistName];
-      updateVettingState(artistName, {
-        stage: "deep-dive",
-        updatedAt: now,
-        deepDive: existing?.deepDive || { fetchedAt: now, status: "pending" },
-      });
+  const handleStageChange = async (artist: PipelineArtist, newStage: VettingStage) => {
+    if (artist.status === newStage) return;
+    setChangingStage(artist.name);
+    
+    // Optimistic update
+    _pendingChanges[artist.name] = newStage;
+    const updated = artists.map(a =>
+      a.name === artist.name ? { ...a, status: newStage } : a
+    );
+    _pipelineArtists = updated;
+    setArtists(updated);
+    
+    // Push to JSONBlob
+    const ok = await pushStageChange(artist.name, newStage, artist.sheetRow);
+    if (!ok) {
+      // Revert on failure
+      delete _pendingChanges[artist.name];
+      const reverted = artists.map(a =>
+        a.name === artist.name ? { ...a, status: artist.status } : a
+      );
+      _pipelineArtists = reverted;
+      setArtists(reverted);
     } else {
-      const existing = _artistVetting[artistName];
-      updateVettingState(artistName, { ...existing, stage: targetStage, updatedAt: now } as ArtistVettingState);
+      // Clear pending after successful push (cron will pick it up)
+      // Keep in _pendingChanges until next snapshot confirms it
     }
-
-    // 2) Update legacy rating state for UI
-    const match = SCOUTED_ARTISTS_DATA.find(a => a.name === artistName);
-    if (match) {
-      if (targetStage === "declined") {
-        _artistRatings[match.id] = "declined";
-        setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "declined" } : a));
-      } else if (targetStage === "scouted") {
-        delete _artistRatings[match.id];
-        setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "pending" } : a));
-      } else {
-        _artistRatings[match.id] = "approved";
-        setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "approved" } : a));
-      }
-    }
-
-    // 3) Fire-and-forget sync to server API (best effort, not required for persistence)
-    fetch(`${API_BASE}/api/vetting/advance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ artistName, targetStage }),
-    }).catch(() => {});
-
-    // 4) Sync legacy rating to Google Sheets via server
-    syncRatingToSheet(artistName, targetStage === "declined" ? "declined" : targetStage === "scouted" ? "pending" : "approved");
-
-    forceUpdate(n => n + 1);
-    setTimeout(() => setSyncing(null), 1200);
+    setChangingStage(null);
   };
 
-  const handleApprove = (artist: ScoutedArtist) => {
-    const currentStage = getArtistStage(artist.name);
-    if (currentStage === "scouted") {
-      // Approve = move to deep dive
-      advanceStage(artist.name, "deep-dive");
-    }
-  };
+  const filtered = filter === "all" ? artists : artists.filter(a => a.status === filter);
+  
+  // Count by stage
+  const counts: Record<string, number> = { all: artists.length };
+  for (const stage of PIPELINE_STAGES) {
+    counts[stage] = artists.filter(a => a.status === stage).length;
+  }
 
-  const handleDecline = (artist: ScoutedArtist) => {
-    const currentStage = getArtistStage(artist.name);
-    if (currentStage === "declined") {
-      // Undo decline
-      advanceStage(artist.name, "scouted");
-    } else {
-      advanceStage(artist.name, "declined");
-    }
-  };
-
-  const handleShortlist = (artist: ScoutedArtist) => {
-    advanceStage(artist.name, "shortlisted");
-    setDeepDiveArtist(null);
-  };
-
-  // ─── Sync all localStorage vetting states to Google Sheet via JSONBlob relay ───
-  const SYNC_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019cf4b1-c056-7145-8ce7-165cc8918236";
-
-  const handleSyncToSheet = async () => {
-    const allVetting = { ..._artistVetting };
-    const count = Object.keys(allVetting).length;
-
-    if (count === 0) {
-      setSyncToast({ type: "error", message: "No vetting data to sync. Approve or decline artists first." });
-      setTimeout(() => setSyncToast(null), 4000);
-      return;
-    }
-
-    setSheetSyncing(true);
-    setSyncToast(null);
-
+  const formatSyncTime = (iso: string | null) => {
+    if (!iso) return "never";
     try {
-      // Build stage counts for display
-      const stageCounts: Record<string, number> = {};
-      for (const state of Object.values(allVetting)) {
-        const s = (state as ArtistVettingState).stage || "scouted";
-        stageCounts[s] = (stageCounts[s] || 0) + 1;
-      }
-
-      // Write vetting state to JSONBlob relay (picked up by enrichment cron)
-      const payload = {
-        syncedAt: new Date().toISOString(),
-        source: "lifeos-dashboard",
-        vetting: allVetting,
-      };
-
-      const resp = await fetch(SYNC_BLOB_URL, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!resp.ok) throw new Error(`Sync relay returned ${resp.status}`);
-
-      // Build success message
-      const parts: string[] = [];
-      const displayMap: Record<string, string> = { "deep-dive": "deep dive", "shortlisted": "shortlisted", "in-conversation": "active", "declined": "declined", "scouted": "scouted" };
-      for (const [stage, n] of Object.entries(stageCounts)) {
-        parts.push(`${n} ${displayMap[stage] || stage}`);
-      }
-      const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-      setSyncToast({ type: "success", message: `${count} artist${count !== 1 ? "s" : ""} synced${detail}. Sheet update queued.` });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Sync failed";
-      setSyncToast({ type: "error", message: `Sync failed: ${msg}. Try again.` });
-    } finally {
-      setSheetSyncing(false);
-      setTimeout(() => setSyncToast(null), 6000);
+      const d = new Date(iso);
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return "just now";
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}h ago`;
+      return d.toLocaleDateString();
+    } catch {
+      return "unknown";
     }
   };
 
-  // Stage-based filtering
-  const getArtistsByStage = (stage: string) => {
-    if (stage === "all") return artists;
-    return artists.filter(a => getArtistStage(a.name) === stage);
+  // Stage selector dropdown for an artist
+  const StageSelector = ({ artist }: { artist: PipelineArtist }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      };
+      if (open) document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [open]);
+
+    return (
+      <div ref={ref} className="relative">
+        <button
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+          style={{
+            borderColor: `${STAGE_COLORS[artist.status]}40`,
+            color: STAGE_COLORS[artist.status],
+            background: `${STAGE_COLORS[artist.status]}10`,
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: STAGE_COLORS[artist.status] }} />
+          {artist.status}
+          {changingStage === artist.name ? (
+            <span className="animate-spin text-[10px]">&#9696;</span>
+          ) : (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}>
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+        {open && (
+          <div
+            className="absolute z-50 top-full left-0 mt-1 rounded-lg border py-1 min-w-[160px]"
+            style={{ ...GLASS, background: "rgba(20,20,30,0.95)", borderColor: COLORS.border, backdropFilter: "blur(20px)" }}
+          >
+            {PIPELINE_STAGES.map(stage => (
+              <button
+                key={stage}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStageChange(artist, stage);
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors hover:bg-white/[0.06]"
+                style={{ color: artist.status === stage ? STAGE_COLORS[stage] : COLORS.textSecondary }}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: STAGE_COLORS[stage], opacity: artist.status === stage ? 1 : 0.5 }} />
+                {stage}
+                {artist.status === stage && (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto">
+                    <path d="M2 6L5 9L10 3" stroke={STAGE_COLORS[stage]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
-  const stageCounts = {
-    all: artists.length,
-    scouted: artists.filter(a => getArtistStage(a.name) === "scouted").length,
-    "deep-dive": artists.filter(a => getArtistStage(a.name) === "deep-dive").length,
-    shortlisted: artists.filter(a => getArtistStage(a.name) === "shortlisted").length,
-    "in-conversation": artists.filter(a => getArtistStage(a.name) === "in-conversation").length,
-    declined: artists.filter(a => getArtistStage(a.name) === "declined").length,
+  // Deep dive expandable panel
+  const DeepDivePanel = ({ artist }: { artist: PipelineArtist }) => {
+    if (!artist.hasDeepDive || !artist.deepDive) return null;
+    const dd = artist.deepDive;
+    return (
+      <div className="mt-2 pt-2 border-t" style={{ borderColor: COLORS.borderSubtle }}>
+        {/* Character Signals */}
+        {dd.characterSignals && (
+          <div className="mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: COLORS.teal }}>Character Signals</div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {Object.entries(dd.characterSignals).filter(([k]) => k !== "overallAlignment").map(([key, val]) => (
+                <div key={key}>
+                  <span className="text-[10px] font-medium capitalize" style={{ color: COLORS.textMuted }}>
+                    {key.replace(/([A-Z])/g, ' $1').trim()}:
+                  </span>
+                  <p className="text-[10px] leading-snug" style={{ color: COLORS.textFaint }}>
+                    {String(val).substring(0, 120)}{String(val).length > 120 ? "..." : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {dd.characterSignals.overallAlignment && (
+              <div className="mt-1.5 p-2 rounded-md" style={{ background: `${COLORS.teal}08`, border: `1px solid ${COLORS.teal}15` }}>
+                <span className="text-[10px] font-semibold" style={{ color: COLORS.teal }}>Alignment: </span>
+                <span className="text-[10px]" style={{ color: COLORS.textMuted }}>
+                  {String(dd.characterSignals.overallAlignment).substring(0, 200)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        {/* Press Clippings */}
+        {dd.pressClippings && dd.pressClippings.length > 0 && (
+          <div className="mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: COLORS.gold }}>Press</div>
+            <div className="flex flex-col gap-1">
+              {dd.pressClippings.slice(0, 3).map((clip: any, i: number) => (
+                <div key={i} className="flex items-start gap-1.5">
+                  <span className="text-[10px] flex-shrink-0" style={{ color: COLORS.textFaint }}>{clip.source || "Source"}</span>
+                  {clip.url ? (
+                    <a href={clip.url} target="_blank" rel="noopener noreferrer" className="text-[10px] hover:underline" style={{ color: COLORS.teal }}>
+                      {clip.title || "Article"}
+                    </a>
+                  ) : (
+                    <span className="text-[10px]" style={{ color: COLORS.textMuted }}>{clip.title || "Article"}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Red Flags */}
+        {dd.redFlags && dd.redFlags.length > 0 && dd.redFlags[0] && (
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: COLORS.chartRed }}>Flags</div>
+            <p className="text-[10px]" style={{ color: COLORS.textFaint }}>
+              {String(dd.redFlags[0]).substring(0, 200)}
+            </p>
+          </div>
+        )}
+      </div>
+    );
   };
-
-  const filtered = getArtistsByStage(filter);
 
   return (
     <div className="mx-4 mb-3 rounded-lg border overflow-hidden" style={{ ...GLASS_ALT, borderColor: `${COLORS.teal}20` }}>
-      {/* Section header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 transition-colors hover:bg-white/[0.02]"
-      >
-        <div className="flex items-center gap-2.5">
+      {/* Section header with sync button */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-2.5 transition-colors hover:opacity-80"
+        >
           <AgentIcon type="telescope" color={COLORS.teal} size={14} />
-          <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.teal }}>Scouted Artists</span>
+          <span className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: COLORS.teal }}>Artist Pipeline</span>
           <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.teal}15`, color: COLORS.teal }}>{artists.length}</span>
-          {stageCounts.scouted > 0 && (
-            <span className="text-[11px] px-1.5 py-px rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{stageCounts.scouted} to review</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Mini stage pipeline indicators */}
-          {stageCounts["deep-dive"] > 0 && (
-            <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.purple}15`, color: COLORS.purple }}>{stageCounts["deep-dive"]} deep dive</span>
-          )}
-          {stageCounts.shortlisted > 0 && (
-            <span className="text-[11px] tabular-nums px-1.5 py-px rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{stageCounts.shortlisted} shortlisted</span>
-          )}
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="transition-transform duration-200" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
             <path d="M3 5.5L7 9.5L11 5.5" stroke={COLORS.teal} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
+        </button>
+        
+        {/* Sync controls */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] tabular-nums" style={{ color: COLORS.textFaint }}>
+            {syncStatus === "syncing" ? "syncing..." : `synced ${formatSyncTime(_lastSyncTime)}`}
+          </span>
+          <button
+            onClick={() => loadArtists(true)}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+            style={{
+              borderColor: syncStatus === "success" ? `${COLORS.green}40` : syncStatus === "error" ? `${COLORS.chartRed}40` : COLORS.borderSubtle,
+              color: syncStatus === "success" ? COLORS.green : syncStatus === "error" ? COLORS.chartRed : COLORS.textMuted,
+              opacity: syncing ? 0.5 : 1,
+            }}
+          >
+            <svg
+              width="12" height="12" viewBox="0 0 16 16" fill="none"
+              className={syncing ? "animate-spin" : ""}
+              style={{ animationDuration: "1s" }}
+            >
+              <path d="M14 8A6 6 0 1 1 8 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M8 2L10.5 4.5M8 2L5.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Sync
+          </button>
         </div>
-      </button>
+      </div>
 
       {/* Expandable content */}
-      <div className="overflow-hidden transition-all duration-300 ease-in-out" style={{ maxHeight: expanded ? "9999px" : "0px", opacity: expanded ? 1 : 0 }}>
-        {/* Stage filter tabs */}
-        <div className="flex items-center gap-1 px-4 pb-2 overflow-x-auto">
-          {([
-            { key: "all", label: "All" },
-            { key: "scouted", label: "Scouted" },
-            { key: "deep-dive", label: "Deep Dive" },
-            { key: "shortlisted", label: "Shortlisted" },
-            { key: "in-conversation", label: "Active" },
-            { key: "declined", label: "Declined" },
-          ] as { key: typeof filter; label: string }[]).map(f => {
-            const stConf = f.key !== "all" ? STAGE_CONFIG[f.key as VettingStage] : null;
-            const activeColor = stConf ? stConf.color : COLORS.teal;
-            return (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors whitespace-nowrap"
-                style={{
-                  background: filter === f.key ? `${activeColor}15` : "transparent",
-                  color: filter === f.key ? activeColor : COLORS.textFaint,
-                }}
-              >
-                {f.label} {stageCounts[f.key] > 0 && <span className="tabular-nums ml-0.5">({stageCounts[f.key]})</span>}
-              </button>
-            );
-          })}
+      <div className="overflow-hidden transition-all duration-300 ease-in-out" style={{ maxHeight: expanded ? "6000px" : "0px", opacity: expanded ? 1 : 0 }}>
+        {/* Pipeline stage summary bar */}
+        <div className="mx-4 mb-2 flex items-center gap-[2px] h-2 rounded-full overflow-hidden" style={{ background: COLORS.borderSubtle }}>
+          {PIPELINE_STAGES.filter(s => counts[s] > 0).map(stage => (
+            <div
+              key={stage}
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${(counts[stage] / artists.length) * 100}%`,
+                background: STAGE_COLORS[stage],
+                opacity: 0.8,
+                minWidth: counts[stage] > 0 ? "4px" : "0",
+              }}
+              title={`${stage}: ${counts[stage]}`}
+            />
+          ))}
         </div>
 
-        {/* Artist cards — scrollable */}
-        <div className="px-4 pb-3 flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: "520px", scrollbarWidth: "thin", scrollbarColor: `${COLORS.teal}30 transparent` }}>
-          {filtered.map((artist) => {
-            const stage = getArtistStage(artist.name);
-            const stageConf = STAGE_CONFIG[stage];
-            const deepDive = getArtistDeepDive(artist.name);
-
-            return (
-              <div
-                key={artist.id}
-                className="rounded-lg border p-3 flex gap-3 transition-all duration-200 group"
+        {/* Filter tabs — pipeline stages */}
+        <div className="flex items-center gap-1 px-4 pb-2 flex-wrap">
+          <button
+            onClick={() => setFilter("all")}
+            className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors"
+            style={{
+              background: filter === "all" ? `${COLORS.teal}15` : "transparent",
+              color: filter === "all" ? COLORS.teal : COLORS.textFaint,
+            }}
+          >
+            All {counts.all > 0 && <span className="tabular-nums ml-0.5">({counts.all})</span>}
+          </button>
+          {PIPELINE_STAGES.map(stage => (
+            counts[stage] > 0 && (
+              <button
+                key={stage}
+                onClick={() => setFilter(stage)}
+                className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors flex items-center gap-1"
                 style={{
-                  ...GLASS_ALT,
-                  borderColor: stage === "declined" ? `${COLORS.chartRed}20` : stage !== "scouted" ? `${stageConf.color}30` : COLORS.borderSubtle,
-                  opacity: stage === "declined" ? 0.5 : 1,
+                  background: filter === stage ? `${STAGE_COLORS[stage]}15` : "transparent",
+                  color: filter === stage ? STAGE_COLORS[stage] : COLORS.textFaint,
                 }}
               >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: STAGE_COLORS[stage], opacity: filter === stage ? 1 : 0.5 }} />
+                {stage}
+                <span className="tabular-nums">({counts[stage]})</span>
+              </button>
+            )
+          ))}
+        </div>
+
+        {/* Artist cards */}
+        <div className="px-4 pb-3 flex flex-col gap-1.5">
+          {filtered.length === 0 && (
+            <div className="text-center py-6 text-[11px]" style={{ color: COLORS.textFaint }}>
+              {syncing ? "Loading artists..." : "No artists in this stage"}
+            </div>
+          )}
+          {filtered.map((artist) => (
+            <div
+              key={`${artist.name}-${artist.sheetRow}`}
+              className="rounded-lg border p-3 transition-all duration-200 group"
+              style={{
+                ...GLASS_ALT,
+                borderColor: artist.status === "Active" ? `${COLORS.green}30` : artist.status === "Declined" ? `${COLORS.chartRed}20` : artist.status === "Shortlisted" ? `${COLORS.gold}20` : artist.status === "Deep Dive" ? `${COLORS.teal}20` : COLORS.borderSubtle,
+                opacity: artist.status === "Declined" ? 0.5 : 1,
+              }}
+            >
+              <div className="flex gap-3">
                 {/* Score ring */}
                 <div className="flex-shrink-0 pt-0.5">
                   <ScoreRing score={artist.score} size={40} />
@@ -1930,27 +1416,18 @@ function ScoutedArtistsReview() {
 
                 {/* Artist info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span
-                      className="text-xs font-semibold cursor-pointer hover:underline"
-                      style={{ color: COLORS.textPrimary }}
-                      onClick={(e) => { e.stopPropagation(); if (stage === "deep-dive" || stage === "shortlisted" || stage === "in-conversation") { setDeepDiveArtist(artist); } else { setBriefArtist(artist); } }}
-                    >
-                      {artist.name}
-                    </span>
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <span className="text-xs font-semibold" style={{ color: COLORS.textPrimary }}>{artist.name}</span>
                     <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.location}</span>
-                    {/* Stage badge */}
-                    <span className="text-[11px] font-medium px-1.5 py-px rounded flex items-center gap-1" style={{ background: `${stageConf.color}15`, color: stageConf.color }}>
-                      <AgentIcon type={stageConf.icon} color={stageConf.color} size={9} />
-                      {stageConf.label}
-                    </span>
-                    {syncing === artist.name && (
-                      <span className="text-[11px] font-medium px-1.5 py-px rounded animate-pulse" style={{ background: `${COLORS.teal}10`, color: COLORS.teal }}>syncing...</span>
+                    <StageSelector artist={artist} />
+                    {artist.hasDeepDive && (
+                      <span className="text-[10px] px-1.5 py-px rounded" style={{ background: `${COLORS.teal}10`, color: COLORS.teal }}>enriched</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[11px] font-medium" style={{ color: COLORS.teal }}>{artist.medium}</span>
                     <span className="text-[11px] tabular-nums" style={{ color: COLORS.gold }}>{artist.priceRange}</span>
+                    <span className="text-[10px]" style={{ color: COLORS.textFaint }}>{artist.batch}</span>
                   </div>
                   <p className="text-[11px] leading-relaxed mb-1" style={{ color: COLORS.textMuted }}>{artist.whyInteresting}</p>
                   <div className="flex items-center gap-2">
@@ -1958,151 +1435,60 @@ function ScoutedArtistsReview() {
                   </div>
                   {/* External links */}
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    {/* Brief / Deep Dive icon */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); if (stage === "deep-dive" || stage === "shortlisted" || stage === "in-conversation") { setDeepDiveArtist(artist); } else { setBriefArtist(artist); } }}
-                      className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
-                      style={{ borderColor: (stage === "deep-dive" || stage === "shortlisted") ? `${COLORS.purple}40` : COLORS.borderSubtle }}
-                      title={stage !== "scouted" && stage !== "declined" ? "View Deep Dive" : "View Brief"}
-                    >
-                      {(stage === "deep-dive" || stage === "shortlisted" || stage === "in-conversation") ? (
-                        <AgentIcon type="target" color={COLORS.purple} size={13} />
-                      ) : (
+                    {artist.link && artist.link.includes("instagram") && (
+                      <a
+                        href={artist.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                        style={{ borderColor: COLORS.borderSubtle }}
+                        title="Instagram"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                          <polyline points="14 2 14 8 20 8" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                          <line x1="16" y1="13" x2="8" y2="13" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                          <line x1="16" y1="17" x2="8" y2="17" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                          <rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                          <circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                          <circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} />
                         </svg>
-                      )}
-                    </button>
-                    {artist.instagram && (
-                      <a href={artist.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]" style={{ borderColor: COLORS.borderSubtle }} title="Instagram" onClick={(e) => e.stopPropagation()}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" /><circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" /><circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} /></svg>
                       </a>
                     )}
-                    {artist.website && (
-                      <a href={artist.website.startsWith("http") ? artist.website : `https://${artist.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]" style={{ borderColor: COLORS.borderSubtle }} title="Portfolio" onClick={(e) => e.stopPropagation()}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" /><ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" /><path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" /></svg>
+                    {artist.link && !artist.link.includes("instagram") && (
+                      <a
+                        href={artist.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                        style={{ borderColor: COLORS.borderSubtle }}
+                        title="Portfolio"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                          <ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                          <path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                        </svg>
                       </a>
+                    )}
+                    {/* Expand deep dive button */}
+                    {artist.hasDeepDive && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedArtist(expandedArtist === artist.name ? null : artist.name); }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+                        style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <path d="M1 3.5h8M1 5.5h6M1 7.5h4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+                        </svg>
+                        {expandedArtist === artist.name ? "Hide" : "Deep Dive"}
+                      </button>
                     )}
                   </div>
-                </div>
-
-                {/* Action buttons — context-aware */}
-                <div className="flex flex-col gap-1.5 flex-shrink-0 justify-center">
-                  {stage === "scouted" && (
-                    <>
-                      <button
-                        onClick={() => handleApprove(artist)}
-                        className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 hover:bg-white/[0.06]"
-                        style={{ background: "transparent", borderColor: COLORS.borderSubtle }}
-                        title="Approve — Start Deep Dive"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                          <path d="M2 8.5L6 12.5L14 4.5" stroke={COLORS.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDecline(artist)}
-                        className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 hover:bg-white/[0.06]"
-                        style={{ background: "transparent", borderColor: COLORS.borderSubtle }}
-                        title="Decline"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                          <path d="M4 4L12 12M12 4L4 12" stroke={COLORS.textFaint} strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      </button>
-                    </>
-                  )}
-                  {stage === "deep-dive" && (
-                    <button
-                      onClick={() => setDeepDiveArtist(artist)}
-                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 hover:bg-white/[0.06]"
-                      style={{ background: `${COLORS.purple}10`, borderColor: `${COLORS.purple}40` }}
-                      title="View Deep Dive"
-                    >
-                      <AgentIcon type="target" color={COLORS.purple} size={14} />
-                    </button>
-                  )}
-                  {stage === "shortlisted" && (
-                    <button
-                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
-                      style={{ background: `${COLORS.gold}10`, borderColor: `${COLORS.gold}40` }}
-                      title="Shortlisted"
-                    >
-                      <AgentIcon type="gem" color={COLORS.gold} size={14} />
-                    </button>
-                  )}
-                  {stage === "in-conversation" && (
-                    <button
-                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200"
-                      style={{ background: `${COLORS.green}10`, borderColor: `${COLORS.green}40` }}
-                      title="In Conversation"
-                    >
-                      <AgentIcon type="send" color={COLORS.green} size={14} />
-                    </button>
-                  )}
-                  {stage === "declined" && (
-                    <button
-                      onClick={() => handleDecline(artist)}
-                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 hover:bg-white/[0.06]"
-                      style={{ background: `${COLORS.chartRed}10`, borderColor: `${COLORS.chartRed}30` }}
-                      title="Undo Decline"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                        <path d="M2 8a6 6 0 1 1 1.8 4.3" stroke={COLORS.chartRed} strokeWidth="1.5" strokeLinecap="round" />
-                        <path d="M2 12V8h4" stroke={COLORS.chartRed} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                  )}
+                  {/* Deep dive expanded content */}
+                  {expandedArtist === artist.name && <DeepDivePanel artist={artist} />}
                 </div>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Week indicator */}
-        <div className="px-4 pb-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AgentIcon type="clock" color={COLORS.teal} size={10} />
-            <span className="text-[11px] font-medium" style={{ color: COLORS.teal }}>
-              Week {getISOWeek()}
-            </span>
-            <span className="text-[11px]" style={{ color: COLORS.textFaint }}>
-              {getWeekDateRange()}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSyncToSheet}
-              disabled={sheetSyncing}
-              className="text-[11px] font-medium px-2.5 py-1 rounded-md border transition-all duration-200 hover:bg-white/[0.04] flex items-center gap-1.5"
-              style={{
-                borderColor: sheetSyncing ? `${COLORS.purple}40` : COLORS.borderSubtle,
-                color: sheetSyncing ? COLORS.purple : COLORS.textMuted,
-                opacity: sheetSyncing ? 0.7 : 1,
-              }}
-            >
-              {sheetSyncing ? (
-                <svg width="10" height="10" viewBox="0 0 10 10" className="animate-spin">
-                  <circle cx="5" cy="5" r="4" stroke={COLORS.purple} strokeWidth="1.5" fill="none" strokeDasharray="12 8" />
-                </svg>
-              ) : (
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M5 1V9M5 1L2 4M5 1L8 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-              {sheetSyncing ? "Syncing..." : "Sync to Sheet"}
-            </button>
-            <button
-              onClick={() => setShowArchive(true)}
-              className="text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors hover:bg-white/[0.04]"
-              style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
-            >
-              Archive Week
-            </button>
-          </div>
+            </div>
+          ))}
         </div>
 
         {/* View on Google Sheets */}
@@ -2120,74 +1506,11 @@ function ScoutedArtistsReview() {
             View full Art Scout Master Sheet
           </a>
         </div>
-
-        {/* Brief panel modal — portaled to body */}
-        {briefArtist && createPortal(
-          <BriefPanel artist={briefArtist} onClose={() => setBriefArtist(null)} />,
-          document.body
-        )}
-
-        {/* Deep Dive panel — portaled to body */}
-        {deepDiveArtist && createPortal(
-          <DeepDivePanel
-            artist={deepDiveArtist}
-            deepDive={getArtistDeepDive(deepDiveArtist.name) || { fetchedAt: "", status: "pending" }}
-            onClose={() => setDeepDiveArtist(null)}
-            onShortlist={() => handleShortlist(deepDiveArtist)}
-          />,
-          document.body
-        )}
-
-        {/* Archive modal — portaled to body */}
-        {showArchive && createPortal(
-          <ArchiveModal
-            artists={artists}
-            onClose={() => setShowArchive(false)}
-            onConfirm={() => {
-              setShowArchive(false);
-              setArchiveToast(true);
-              setTimeout(() => setArchiveToast(false), 3000);
-            }}
-          />,
-          document.body
-        )}
-
-        {/* Archive toast — portaled to body */}
-        {archiveToast && createPortal(
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl border text-xs font-medium animate-fade-in-up"
-            style={{ background: "rgba(20,20,30,0.95)", borderColor: `${COLORS.teal}30`, color: COLORS.teal, boxShadow: "0 10px 30px rgba(0,0,0,0.4)" }}>
-            Week archived successfully. Decisions synced to Art Scout Master Sheet.
-          </div>,
-          document.body
-        )}
-
-        {/* Sync toast — portaled to body */}
-        {syncToast && createPortal(
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl border text-xs font-medium flex items-center gap-2"
-            style={{
-              background: "rgba(20,20,30,0.95)",
-              borderColor: syncToast.type === "success" ? `${COLORS.green}30` : `${COLORS.chartRed}30`,
-              color: syncToast.type === "success" ? COLORS.green : COLORS.chartRed,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
-            }}>
-            {syncToast.type === "success" ? (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M6 3.5V6.5M6 8V8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-            )}
-            {syncToast.message}
-          </div>,
-          document.body
-        )}
       </div>
     </div>
   );
 }
+
 
 // ═══════════════════════════════════════════
 // LANE GROUP (visual grouping of agents by lane)
