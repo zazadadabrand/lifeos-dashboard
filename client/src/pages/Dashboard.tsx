@@ -1625,6 +1625,8 @@ function ScoutedArtistsReview() {
   const [deepDiveArtist, setDeepDiveArtist] = useState<ScoutedArtist | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [archiveToast, setArchiveToast] = useState(false);
+  const [sheetSyncing, setSheetSyncing] = useState(false);
+  const [syncToast, setSyncToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [, forceUpdate] = useState(0);
 
   // On mount, fetch saved ratings AND vetting data from backend
@@ -1750,6 +1752,56 @@ function ScoutedArtistsReview() {
   const handleShortlist = (artist: ScoutedArtist) => {
     advanceStage(artist.name, "shortlisted");
     setDeepDiveArtist(null);
+  };
+
+  // ─── Sync all localStorage vetting states to Google Sheet via server ───
+  const handleSyncToSheet = async () => {
+    setSheetSyncing(true);
+    setSyncToast(null);
+
+    try {
+      // Read all vetting data from localStorage
+      const allVetting = { ..._artistVetting };
+      const count = Object.keys(allVetting).length;
+
+      if (count === 0) {
+        setSyncToast({ type: "error", message: "No vetting data to sync. Approve or decline artists first." });
+        setSheetSyncing(false);
+        setTimeout(() => setSyncToast(null), 4000);
+        return;
+      }
+
+      // POST to server bulk-sync endpoint
+      const resp = await fetch(`${API_BASE}/api/vetting/bulk-sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vetting: allVetting }),
+      });
+
+      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+
+      const data = await resp.json();
+      if (data.success) {
+        const stageInfo = data.stages || {};
+        const deepDiveCount = stageInfo["deep-dive"] || 0;
+        const shortlistedCount = stageInfo.shortlisted || 0;
+        const declinedCount = stageInfo.declined || 0;
+        const parts: string[] = [];
+        if (deepDiveCount > 0) parts.push(`${deepDiveCount} deep dive`);
+        if (shortlistedCount > 0) parts.push(`${shortlistedCount} shortlisted`);
+        if (declinedCount > 0) parts.push(`${declinedCount} declined`);
+        const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+        setSyncToast({ type: "success", message: `${data.artistCount} artist${data.artistCount !== 1 ? "s" : ""} synced${detail}. Sheet update queued.` });
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Sync failed";
+      setSyncToast({ type: "error", message: `Sync failed: ${msg}. Try again shortly.` });
+    } finally {
+      setSheetSyncing(false);
+      setTimeout(() => setSyncToast(null), 5000);
+    }
   };
 
   // Stage-based filtering
@@ -1995,13 +2047,36 @@ function ScoutedArtistsReview() {
               {getWeekDateRange()}
             </span>
           </div>
-          <button
-            onClick={() => setShowArchive(true)}
-            className="text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors hover:bg-white/[0.04]"
-            style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
-          >
-            Archive Week
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSyncToSheet}
+              disabled={sheetSyncing}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-md border transition-all duration-200 hover:bg-white/[0.04] flex items-center gap-1.5"
+              style={{
+                borderColor: sheetSyncing ? `${COLORS.purple}40` : COLORS.borderSubtle,
+                color: sheetSyncing ? COLORS.purple : COLORS.textMuted,
+                opacity: sheetSyncing ? 0.7 : 1,
+              }}
+            >
+              {sheetSyncing ? (
+                <svg width="10" height="10" viewBox="0 0 10 10" className="animate-spin">
+                  <circle cx="5" cy="5" r="4" stroke={COLORS.purple} strokeWidth="1.5" fill="none" strokeDasharray="12 8" />
+                </svg>
+              ) : (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M5 1V9M5 1L2 4M5 1L8 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+              {sheetSyncing ? "Syncing..." : "Sync to Sheet"}
+            </button>
+            <button
+              onClick={() => setShowArchive(true)}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors hover:bg-white/[0.04]"
+              style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+            >
+              Archive Week
+            </button>
+          </div>
         </div>
 
         {/* View on Google Sheets */}
@@ -2056,6 +2131,30 @@ function ScoutedArtistsReview() {
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl border text-xs font-medium animate-fade-in-up"
             style={{ background: "rgba(20,20,30,0.95)", borderColor: `${COLORS.teal}30`, color: COLORS.teal, boxShadow: "0 10px 30px rgba(0,0,0,0.4)" }}>
             Week archived successfully. Decisions synced to Art Scout Master Sheet.
+          </div>,
+          document.body
+        )}
+
+        {/* Sync toast — portaled to body */}
+        {syncToast && createPortal(
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl border text-xs font-medium flex items-center gap-2"
+            style={{
+              background: "rgba(20,20,30,0.95)",
+              borderColor: syncToast.type === "success" ? `${COLORS.green}30` : `${COLORS.chartRed}30`,
+              color: syncToast.type === "success" ? COLORS.green : COLORS.chartRed,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+            }}>
+            {syncToast.type === "success" ? (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M6 3.5V6.5M6 8V8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            )}
+            {syncToast.message}
           </div>,
           document.body
         )}
