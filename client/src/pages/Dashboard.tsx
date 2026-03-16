@@ -1232,68 +1232,386 @@ function ScoutedArtistsReview() {
     );
   };
 
-  // Deep dive expandable panel
-  const DeepDivePanel = ({ artist }: { artist: PipelineArtist }) => {
-    if (!artist.hasDeepDive || !artist.deepDive) return null;
+  // Helper to extract clean URL from markdown-style links like "[Source](url)"
+  const extractUrl = (raw: string) => {
+    if (!raw) return "";
+    const m = raw.match(/\]\((https?:\/\/[^)]+)\)/);
+    return m ? m[1] : raw.startsWith("http") ? raw : "";
+  };
+
+  // Solid card style for better readability (replaces frosted glass in slide-out)
+  const SOLID_CARD = {
+    background: "rgba(18,18,28,0.95)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  } as const;
+
+  // Parse representation status from deep dive data
+  const getRepresentation = (artist: PipelineArtist): { status: "unrepresented" | "represented" | "unknown"; detail: string } => {
     const dd = artist.deepDive;
+    if (!dd) return { status: "unknown", detail: "Pending research" };
+
+    // Check for representation field if it exists
+    if (dd.representation) {
+      const r = dd.representation;
+      if (typeof r === "string") {
+        const lower = r.toLowerCase();
+        if (lower.includes("unrep") || lower === "none" || lower === "unrepresented") return { status: "unrepresented", detail: r };
+        if (lower.includes("self") || lower.includes("independent")) return { status: "unrepresented", detail: r };
+        return { status: "represented", detail: r };
+      }
+      if (r.status) return { status: r.status === "unrepresented" ? "unrepresented" : "represented", detail: r.detail || r.galleries?.join(", ") || String(r.status) };
+    }
+
+    // Fallback: scan deep dive text for gallery representation signals
+    const allText = JSON.stringify(dd);
+    const repGalleries: string[] = [];
+    // Known major galleries
+    const majorGalleries = [
+      "Jeffrey Deitch", "Gagosian", "Pace", "Hauser & Wirth", "David Zwirner",
+      "Ghebaly", "Night Gallery", "Marianne Boesky", "Lehmann Maupin",
+      "Perrotin", "Lisson", "White Cube", "Gladstone", "Petzel",
+      "Casey Kaplan", "Jack Shainman", "Sean Kelly", "Ross-Sutton",
+    ];
+    for (const g of majorGalleries) {
+      if (allText.includes(g)) repGalleries.push(g);
+    }
+
+    // Check for explicit "represented by" language
+    const repMatch = allText.match(/represent(?:ed|s|ing)?\s+(?:by\s+)?([A-Z][^.,;"]{3,40})/i);
+    if (repMatch) {
+      const gallery = repMatch[1].trim();
+      if (!gallery.toLowerCase().includes("trauma") && !gallery.toLowerCase().includes("communit")) {
+        if (!repGalleries.includes(gallery)) repGalleries.push(gallery);
+      }
+    }
+
+    if (repGalleries.length > 0) {
+      return { status: "represented", detail: repGalleries.join(", ") + " (from exhibition/press data — verify)" };
+    }
+    return { status: "unknown", detail: "No gallery representation found in research — likely unrepresented" };
+  };
+
+  // ── Full slide-out deep dive panel ──
+  const DeepDiveSlideOut = ({ artist, onClose }: { artist: PipelineArtist; onClose: () => void }) => {
+    const dd = artist.deepDive;
+    const stageIndex = PIPELINE_STAGES.filter(s => s !== "Declined").indexOf(artist.status);
+    const stages = ["Scouted", "Deep Dive", "Shortlisted", "In Conversation"] as VettingStage[];
+    const rep = getRepresentation(artist);
+
+    // Next stage for the CTA button
+    const nextStageMap: Partial<Record<VettingStage, VettingStage>> = {
+      "Scouted": "Deep Dive",
+      "Deep Dive": "Shortlisted",
+      "Shortlisted": "In Conversation",
+      "In Conversation": "Active",
+    };
+    const nextStage = nextStageMap[artist.status];
+    const nextLabel = nextStage ? `Move to ${nextStage}` : null;
+
     return (
-      <div className="mt-2 pt-2 border-t" style={{ borderColor: COLORS.borderSubtle }}>
-        {/* Character Signals */}
-        {dd.characterSignals && (
-          <div className="mb-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: COLORS.teal }}>Character Signals</div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-              {Object.entries(dd.characterSignals).filter(([k]) => k !== "overallAlignment").map(([key, val]) => (
-                <div key={key}>
-                  <span className="text-[10px] font-medium capitalize" style={{ color: COLORS.textMuted }}>
-                    {key.replace(/([A-Z])/g, ' $1').trim()}:
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 z-[100] transition-opacity duration-300"
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+          onClick={onClose}
+        />
+        {/* Panel */}
+        <div
+          className="fixed top-0 right-0 z-[101] overflow-y-auto"
+          style={{
+            width: "min(520px, 90vw)",
+            height: "100vh",
+            background: "rgba(12,12,18,0.97)",
+            backdropFilter: "blur(40px) saturate(1.6)",
+            borderLeft: `1px solid ${COLORS.borderSubtle}`,
+            boxShadow: "-8px 0 40px rgba(0,0,0,0.5)",
+            animation: "slideInRight 0.3s ease-out",
+          }}
+        >
+          {/* Header */}
+          <div className="sticky top-0 z-10 px-6 pt-6 pb-4" style={{ background: "rgba(12,12,18,0.95)", borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
+            <div className="flex items-start gap-4">
+              <ScoreRing score={artist.score} size={56} />
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold" style={{ color: COLORS.textPrimary }}>{artist.name}</h2>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[13px]" style={{ color: COLORS.textMuted }}>{artist.location}</span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: `${STAGE_COLORS[artist.status]}15`, color: STAGE_COLORS[artist.status], border: `1px solid ${STAGE_COLORS[artist.status]}30` }}>
+                    {artist.status}
                   </span>
-                  <p className="text-[10px] leading-snug" style={{ color: COLORS.textFaint }}>
-                    {String(val).substring(0, 120)}{String(val).length > 120 ? "..." : ""}
-                  </p>
                 </div>
-              ))}
+              </div>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full flex items-center justify-center border transition-colors hover:bg-white/[0.06]"
+                style={{ borderColor: COLORS.borderSubtle }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M3 3L11 11M11 3L3 11" stroke={COLORS.textMuted} strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
             </div>
-            {dd.characterSignals.overallAlignment && (
-              <div className="mt-1.5 p-2 rounded-md" style={{ background: `${COLORS.teal}08`, border: `1px solid ${COLORS.teal}15` }}>
-                <span className="text-[10px] font-semibold" style={{ color: COLORS.teal }}>Alignment: </span>
-                <span className="text-[10px]" style={{ color: COLORS.textMuted }}>
-                  {String(dd.characterSignals.overallAlignment).substring(0, 200)}
-                </span>
+
+            {/* Stage progress bar */}
+            <div className="mt-4 flex items-center gap-0">
+              {stages.map((stage, i) => {
+                const isActive = i <= stageIndex;
+                const isCurrent = stage === artist.status;
+                return (
+                  <div key={stage} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full h-[3px] rounded-full transition-all duration-500"
+                      style={{
+                        background: isActive ? STAGE_COLORS[stage] : COLORS.borderSubtle,
+                        opacity: isActive ? 1 : 0.4,
+                      }}
+                    />
+                    <span
+                      className="text-[10px] font-medium"
+                      style={{ color: isCurrent ? STAGE_COLORS[stage] : isActive ? COLORS.textMuted : COLORS.textFaint }}
+                    >
+                      {stage}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Body content */}
+          <div className="px-6 py-5 flex flex-col gap-5">
+
+            {/* REPRESENTATION STATUS — primary callout */}
+            <div className="rounded-lg p-4 flex items-start gap-3" style={{
+              ...SOLID_CARD,
+              borderColor: rep.status === "unrepresented" ? `${COLORS.green}25` : rep.status === "represented" ? `${COLORS.coral}25` : `${COLORS.gold}25`,
+            }}>
+              <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5" style={{
+                background: rep.status === "unrepresented" ? `${COLORS.green}15` : rep.status === "represented" ? `${COLORS.coral}15` : `${COLORS.gold}15`,
+              }}>
+                {rep.status === "unrepresented" ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 8l3 3 5-6" stroke={COLORS.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                ) : rep.status === "represented" ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke={COLORS.coral} strokeWidth="1.8" strokeLinecap="round" /></svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke={COLORS.gold} strokeWidth="1.5" /><path d="M8 5.5v3M8 10.5v.5" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" /></svg>
+                )}
+              </div>
+              <div>
+                <div className="text-[11px] font-bold tracking-wider uppercase mb-1" style={{
+                  color: rep.status === "unrepresented" ? COLORS.green : rep.status === "represented" ? COLORS.coral : COLORS.gold,
+                }}>
+                  {rep.status === "unrepresented" ? "Unrepresented" : rep.status === "represented" ? "Represented" : "Representation Unknown"}
+                </div>
+                <div className="text-[12px] leading-relaxed" style={{ color: COLORS.textSecondary }}>{rep.detail}</div>
+              </div>
+            </div>
+
+            {/* ARTIST PROFILE card */}
+            <div className="rounded-lg p-5" style={{ ...SOLID_CARD, borderColor: `${COLORS.teal}18` }}>
+              <div className="flex items-center gap-2 mb-4">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke={COLORS.teal} strokeWidth="1.3" /><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={COLORS.teal} strokeWidth="1.3" strokeLinecap="round" /></svg>
+                <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.teal }}>Artist Profile</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                <div>
+                  <div className="text-[11px] font-medium mb-0.5" style={{ color: COLORS.textFaint }}>Medium</div>
+                  <div className="text-[13px]" style={{ color: COLORS.textPrimary }}>{artist.medium}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium mb-0.5" style={{ color: COLORS.textFaint }}>Price Range</div>
+                  <div className="text-[13px] font-medium" style={{ color: COLORS.gold }}>{artist.priceRange}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium mb-0.5" style={{ color: COLORS.textFaint }}>Shows / Press</div>
+                  <div className="text-[13px]" style={{ color: COLORS.textPrimary }}>{artist.showsPress || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium mb-0.5" style={{ color: COLORS.textFaint }}>Batch</div>
+                  <div className="text-[13px]" style={{ color: COLORS.textPrimary }}>{artist.batch} — {artist.dateScouted}</div>
+                </div>
+              </div>
+              {/* Why Interesting */}
+              <div className="mt-4 text-[12px] leading-relaxed" style={{ color: COLORS.textMuted }}>
+                {artist.whyInteresting}
+              </div>
+            </div>
+
+            {/* ENRICHMENT — only show if deep dive data exists */}
+            {dd ? (
+              <>
+                {/* Alignment Assessment */}
+                {dd.characterSignals?.overallAlignment && (
+                  <div className="rounded-lg border p-5" style={{ ...SOLID_CARD, borderColor: `${COLORS.teal}12` }}>
+                    <div className="text-[11px] font-bold tracking-wider uppercase mb-3" style={{ color: COLORS.teal }}>Alignment Assessment</div>
+                    <p className="text-[12px] leading-relaxed" style={{ color: COLORS.textSecondary }}>
+                      {String(dd.characterSignals.overallAlignment)}
+                    </p>
+                  </div>
+                )}
+
+                {/* Character Signals grid */}
+                {dd.characterSignals && (
+                  <div className="rounded-lg border p-5" style={{ ...SOLID_CARD, borderColor: `${COLORS.purple}12` }}>
+                    <div className="text-[11px] font-bold tracking-wider uppercase mb-3" style={{ color: COLORS.purple }}>Character Signals</div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                      {Object.entries(dd.characterSignals).filter(([k]) => k !== "overallAlignment").map(([key, val]) => (
+                        <div key={key}>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>
+                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                          </div>
+                          <p className="text-[11px] leading-snug" style={{ color: COLORS.textMuted }}>
+                            {String(val)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* PRESS & INTERVIEWS */}
+                {dd.pressClippings && dd.pressClippings.length > 0 && (
+                  <div className="rounded-lg border p-5" style={{ ...SOLID_CARD, borderColor: `${COLORS.gold}12` }}>
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke={COLORS.gold} strokeWidth="1.2" /><path d="M4 5h6M4 7.5h4" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" /></svg>
+                      <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.gold }}>Press & Interviews</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{dd.pressClippings.length}</span>
+                    </div>
+                    <div className="flex flex-col gap-4">
+                      {dd.pressClippings.map((clip: any, i: number) => {
+                        const cleanUrl = extractUrl(clip.url || "");
+                        return (
+                          <div key={i} className="pb-4" style={{ borderBottom: i < dd.pressClippings.length - 1 ? `1px solid ${COLORS.borderSubtle}` : "none" }}>
+                            <div className="flex items-start gap-2 mb-1">
+                              <span className="text-[13px] font-semibold" style={{ color: COLORS.textPrimary }}>{clip.title || "Article"}</span>
+                              {cleanUrl && (
+                                <a href={cleanUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 mt-0.5">
+                                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 1.5H10.5V8.5M10.5 1.5L1.5 10.5" stroke={COLORS.textFaint} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                </a>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[11px] font-semibold" style={{ color: COLORS.purple }}>{clip.source || "Source"}</span>
+                              {clip.date && <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{clip.date}</span>}
+                            </div>
+                            {clip.excerpt && (
+                              <p className="text-[11px] leading-relaxed mb-2" style={{ color: COLORS.textMuted }}>{clip.excerpt}</p>
+                            )}
+                            {clip.relevance && (
+                              <p className="text-[11px] leading-relaxed" style={{ color: COLORS.gold, fontStyle: "italic" }}>{clip.relevance}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Red Flags */}
+                {dd.redFlags && dd.redFlags.length > 0 && dd.redFlags[0] && (
+                  <div className="rounded-lg border p-5" style={{ ...SOLID_CARD, borderColor: `${COLORS.chartRed}15` }}>
+                    <div className="text-[11px] font-bold tracking-wider uppercase mb-2" style={{ color: COLORS.chartRed }}>Red Flags</div>
+                    {dd.redFlags.filter(Boolean).map((flag: string, i: number) => (
+                      <p key={i} className="text-[11px] leading-relaxed" style={{ color: COLORS.textMuted }}>{flag}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Exhibition History */}
+                {dd.fullExhibitionHistory && dd.fullExhibitionHistory.length > 0 && (
+                  <div className="rounded-lg border p-5" style={{ ...SOLID_CARD, borderColor: COLORS.borderSubtle }}>
+                    <div className="text-[11px] font-bold tracking-wider uppercase mb-3" style={{ color: COLORS.textMuted }}>Exhibition History</div>
+                    <div className="flex flex-col gap-1">
+                      {dd.fullExhibitionHistory.map((show: string, i: number) => (
+                        <p key={i} className="text-[11px] leading-snug" style={{ color: COLORS.textFaint }}>{show}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Artist Statement */}
+                {dd.artistStatement && (
+                  <div className="rounded-lg border p-5" style={{ ...SOLID_CARD, borderColor: COLORS.borderSubtle }}>
+                    <div className="text-[11px] font-bold tracking-wider uppercase mb-2" style={{ color: COLORS.textMuted }}>Artist Statement</div>
+                    <p className="text-[12px] leading-relaxed" style={{ color: COLORS.textSecondary, fontStyle: "italic" }}>{dd.artistStatement}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Loading / Researching state */
+              <div className="rounded-lg border p-8 flex flex-col items-center justify-center gap-3" style={{ ...SOLID_CARD, borderColor: COLORS.borderSubtle }}>
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="animate-spin" style={{ animationDuration: "2s" }}>
+                  <circle cx="16" cy="16" r="12" stroke={COLORS.borderSubtle} strokeWidth="3" />
+                  <path d="M16 4a12 12 0 0 1 12 12" stroke={COLORS.purple} strokeWidth="3" strokeLinecap="round" />
+                </svg>
+                <span className="text-[13px] font-medium" style={{ color: COLORS.purple }}>Researching artist...</span>
+                <span className="text-[11px]" style={{ color: COLORS.textFaint }}>Gathering press clippings, interviews, and character signals</span>
               </div>
             )}
           </div>
-        )}
-        {/* Press Clippings */}
-        {dd.pressClippings && dd.pressClippings.length > 0 && (
-          <div className="mb-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: COLORS.gold }}>Press</div>
-            <div className="flex flex-col gap-1">
-              {dd.pressClippings.slice(0, 3).map((clip: any, i: number) => (
-                <div key={i} className="flex items-start gap-1.5">
-                  <span className="text-[10px] flex-shrink-0" style={{ color: COLORS.textFaint }}>{clip.source || "Source"}</span>
-                  {clip.url ? (
-                    <a href={clip.url} target="_blank" rel="noopener noreferrer" className="text-[10px] hover:underline" style={{ color: COLORS.teal }}>
-                      {clip.title || "Article"}
-                    </a>
-                  ) : (
-                    <span className="text-[10px]" style={{ color: COLORS.textMuted }}>{clip.title || "Article"}</span>
-                  )}
-                </div>
-              ))}
-            </div>
+
+          {/* Bottom action bar — sticky */}
+          <div className="sticky bottom-0 px-6 py-4 flex items-center gap-3" style={{ background: "rgba(12,12,18,0.95)", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+            {/* Instagram / Portfolio link */}
+            {artist.link && (
+              <a
+                href={extractUrl(artist.link) || artist.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border text-[12px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+                style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+              >
+                {artist.link.includes("instagram") ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" /></svg>
+                    Instagram
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8" /><ellipse cx="12" cy="12" rx="4" ry="10" stroke="currentColor" strokeWidth="1.8" /><path d="M2 12h20" stroke="currentColor" strokeWidth="1.8" /></svg>
+                    Portfolio
+                  </>
+                )}
+              </a>
+            )}
+            <div className="flex-1" />
+            {/* Move to next stage CTA */}
+            {nextLabel && artist.status !== "Declined" && (
+              <button
+                onClick={() => { handleStageChange(artist, nextStage!); onClose(); }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[12px] font-semibold transition-all duration-200 hover:brightness-110"
+                style={{
+                  background: `linear-gradient(135deg, ${STAGE_COLORS[nextStage!]}, ${STAGE_COLORS[nextStage!]}cc)`,
+                  color: "#fff",
+                  boxShadow: `0 2px 12px ${STAGE_COLORS[nextStage!]}40`,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                {nextLabel}
+              </button>
+            )}
+            {/* Decline button */}
+            {artist.status !== "Declined" && (
+              <button
+                onClick={() => { handleStageChange(artist, "Declined"); onClose(); }}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-[11px] font-medium transition-all duration-200 hover:bg-red-500/10"
+                style={{ borderColor: `${COLORS.chartRed}30`, color: COLORS.chartRed }}
+              >
+                Decline
+              </button>
+            )}
           </div>
-        )}
-        {/* Red Flags */}
-        {dd.redFlags && dd.redFlags.length > 0 && dd.redFlags[0] && (
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: COLORS.chartRed }}>Flags</div>
-            <p className="text-[10px]" style={{ color: COLORS.textFaint }}>
-              {String(dd.redFlags[0]).substring(0, 200)}
-            </p>
-          </div>
-        )}
-      </div>
+        </div>
+
+        {/* Slide-in animation keyframe — injected once */}
+        <style>{`
+          @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+        `}</style>
+      </>
     );
   };
 
@@ -1469,22 +1787,20 @@ function ScoutedArtistsReview() {
                         </svg>
                       </a>
                     )}
-                    {/* Expand deep dive button */}
-                    {artist.hasDeepDive && (
+                    {/* Open deep dive slide-out */}
+                    {(artist.hasDeepDive || artist.status === "Deep Dive") && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); setExpandedArtist(expandedArtist === artist.name ? null : artist.name); }}
+                        onClick={(e) => { e.stopPropagation(); setExpandedArtist(artist.name); }}
                         className="flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
-                        style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
+                        style={{ borderColor: `${COLORS.teal}30`, color: COLORS.teal }}
                       >
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                           <path d="M1 3.5h8M1 5.5h6M1 7.5h4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
                         </svg>
-                        {expandedArtist === artist.name ? "Hide" : "Deep Dive"}
+                        Deep Dive
                       </button>
                     )}
                   </div>
-                  {/* Deep dive expanded content */}
-                  {expandedArtist === artist.name && <DeepDivePanel artist={artist} />}
                 </div>
               </div>
             </div>
@@ -1507,6 +1823,12 @@ function ScoutedArtistsReview() {
           </a>
         </div>
       </div>
+
+      {/* Deep Dive Slide-Out — rendered as portal-like overlay */}
+      {expandedArtist && (() => {
+        const a = artists.find(x => x.name === expandedArtist);
+        return a ? <DeepDiveSlideOut artist={a} onClose={() => setExpandedArtist(null)} /> : null;
+      })()}
     </div>
   );
 }
