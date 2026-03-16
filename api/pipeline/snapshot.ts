@@ -8,13 +8,27 @@ export default async function handler(req: Request) {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Accept',
       },
     });
   }
 
   try {
+    if (req.method === 'PUT') {
+      const body = await req.text();
+      const resp = await fetch(SNAPSHOT_BLOB, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body,
+      });
+      return new Response(JSON.stringify({ success: resp.ok }), {
+        status: resp.status,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
+    // GET
     const resp = await fetch(SNAPSHOT_BLOB, {
       headers: { 'Accept': 'application/json' },
     });
@@ -24,7 +38,7 @@ export default async function handler(req: Request) {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=30',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
   } catch (e) {
