@@ -38,7 +38,7 @@ export default async function handler(req: Request) {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=30',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
   } catch (e) {
