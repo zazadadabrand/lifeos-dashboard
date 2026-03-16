@@ -972,9 +972,9 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
 // ARTIST PIPELINE — GLOBAL SYNC SYSTEM
 // ═══════════════════════════════════════════
 // JSONBlob IDs
-// Pipeline API — proxied through Vite (dev) and Vercel rewrites (prod) to JSONBlob
-const SNAPSHOT_BLOB_URL = "/api/pipeline/snapshot"; // read: full sheet snapshot
-const WRITE_BLOB_URL = "/api/pipeline/changes"; // write: stage changes from dashboard
+// Pipeline API — direct JSONBlob access (CORS supported)
+const SNAPSHOT_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019cf4cc-d5b8-705a-97d6-502d72422549";
+const WRITE_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019cf4b1-c056-7145-8ce7-165cc8918236";
 
 // Pipeline stages in order
 type VettingStage = "Scouted" | "Deep Dive" | "Shortlisted" | "In Conversation" | "Active" | "Declined";
@@ -1015,7 +1015,7 @@ const _pendingChanges: Record<string, VettingStage> = {};
 
 async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; snapshotAt: string } | null> {
   try {
-    const res = await fetch(SNAPSHOT_BLOB_URL, { cache: "no-store" });
+    const res = await fetch(SNAPSHOT_BLOB_URL, { cache: "no-store", headers: { Accept: "application/json" } });
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.artists || !Array.isArray(data.artists)) return null;
@@ -1028,7 +1028,7 @@ async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; sna
 async function pushStageChange(artistName: string, newStage: VettingStage, sheetRow: number): Promise<boolean> {
   try {
     // Read current write blob
-    const readRes = await fetch(WRITE_BLOB_URL, { cache: "no-store" });
+    const readRes = await fetch(WRITE_BLOB_URL, { cache: "no-store", headers: { Accept: "application/json" } });
     const current = readRes.ok ? await readRes.json() : { syncedAt: null, changes: [] };
     
     // Add/update the change
@@ -1049,7 +1049,7 @@ async function pushStageChange(artistName: string, newStage: VettingStage, sheet
     // Write back
     const writeRes = await fetch(WRITE_BLOB_URL, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         syncedAt: new Date().toISOString(),
         changes,
