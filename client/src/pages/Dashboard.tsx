@@ -1018,11 +1018,32 @@ const _pendingChanges: Record<string, VettingStage> = {};
 
 async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; snapshotAt: string } | null> {
   try {
-    const res = await fetch(SNAPSHOT_BLOB_URL, { cache: "no-store", headers: { Accept: "application/json" } });
-    if (!res.ok) return null;
-    const data = await res.json();
+    // Fetch both snapshot and changes blobs in parallel
+    const [snapshotRes, changesRes] = await Promise.all([
+      fetch(SNAPSHOT_BLOB_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
+      fetch(WRITE_BLOB_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
+    ]);
+    if (!snapshotRes.ok) return null;
+    const data = await snapshotRes.json();
     if (!data.artists || !Array.isArray(data.artists)) return null;
-    return { artists: data.artists, snapshotAt: data.snapshotAt };
+
+    // Merge persisted changes on top of snapshot so reloads are consistent
+    let artists: PipelineArtist[] = data.artists;
+    if (changesRes.ok) {
+      try {
+        const changesData = await changesRes.json();
+        const changes: { artistName: string; newStage: VettingStage }[] = Array.isArray(changesData?.changes) ? changesData.changes : [];
+        if (changes.length > 0) {
+          const changeMap = new Map(changes.map(c => [c.artistName, c.newStage]));
+          artists = artists.map(a => {
+            const newStatus = changeMap.get(a.name);
+            return newStatus ? { ...a, status: newStatus } : a;
+          });
+        }
+      } catch { /* ignore parse errors on changes blob */ }
+    }
+
+    return { artists, snapshotAt: data.snapshotAt };
   } catch {
     return null;
   }
@@ -1062,6 +1083,21 @@ async function pushStageChange(artistName: string, newStage: VettingStage, sheet
   } catch {
     return false;
   }
+}
+
+// Write the full artist list (with current statuses) back to the snapshot blob
+// so reloads always reflect the latest state even before the cron reconciles.
+async function updateSnapshotBlob(artists: PipelineArtist[]) {
+  try {
+    await fetch(SNAPSHOT_BLOB_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        artists,
+        snapshotAt: new Date().toISOString(),
+      }),
+    });
+  } catch { /* fire-and-forget */ }
 }
 
 function ScoutedArtistsReview() {
@@ -1128,7 +1164,7 @@ function ScoutedArtistsReview() {
     _pipelineArtists = updated;
     setArtists(updated);
     
-    // Push to JSONBlob
+    // Push change to changes blob
     const ok = await pushStageChange(artist.name, newStage, artist.sheetRow);
     if (!ok) {
       // Revert on failure
@@ -1139,8 +1175,8 @@ function ScoutedArtistsReview() {
       _pipelineArtists = reverted;
       setArtists(reverted);
     } else {
-      // Clear pending after successful push (cron will pick it up)
-      // Keep in _pendingChanges until next snapshot confirms it
+      // Also update snapshot blob so it stays in sync for next reload
+      updateSnapshotBlob(_pipelineArtists);
     }
     setChangingStage(null);
   };
