@@ -4,6 +4,8 @@
   "outputDirectory": "dist/public",
   "framework": null,
   "rewrites": [
+    { "source": "/api/pipeline/snapshot", "destination": "https://jsonblob.com/api/jsonBlob/019cf4cc-d5b8-705a-97d6-502d72422549" },
+    { "source": "/api/pipeline/changes", "destination": "https://jsonblob.com/api/jsonBlob/019cf4b1-c056-7145-8ce7-165cc8918236" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
