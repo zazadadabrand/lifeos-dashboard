@@ -1017,9 +1017,25 @@ const STAGE_CONFIG: Record<VettingStage, { label: string; color: string; order: 
   "declined": { label: "Declined", color: COLORS.chartRed, order: 4, icon: "hub" },
 };
 
-// Global vetting state cache
-const _artistVetting: Record<string, ArtistVettingState> = {};
-let _vettingInitialized = false;
+// Global vetting state cache — persisted to localStorage
+const VETTING_LS_KEY = "lifeos-artist-vetting";
+
+function loadVettingFromStorage(): Record<string, ArtistVettingState> {
+  try {
+    const raw = localStorage.getItem(VETTING_LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+
+function saveVettingToStorage(data: Record<string, ArtistVettingState>) {
+  try {
+    localStorage.setItem(VETTING_LS_KEY, JSON.stringify(data));
+  } catch {}
+}
+
+const _artistVetting: Record<string, ArtistVettingState> = loadVettingFromStorage();
+let _vettingInitialized = Object.keys(_artistVetting).length > 0;
 
 function getArtistStage(artistName: string): VettingStage {
   return _artistVetting[artistName]?.stage || "scouted";
@@ -1027,6 +1043,15 @@ function getArtistStage(artistName: string): VettingStage {
 
 function getArtistDeepDive(artistName: string): DeepDiveData | undefined {
   return _artistVetting[artistName]?.deepDive;
+}
+
+function updateVettingState(artistName: string, state: ArtistVettingState | null) {
+  if (state) {
+    _artistVetting[artistName] = state;
+  } else {
+    delete _artistVetting[artistName];
+  }
+  saveVettingToStorage(_artistVetting);
 }
 
 // Week tracking
@@ -1628,61 +1653,79 @@ function ScoutedArtistsReview() {
         }
       })
       .catch(() => {});
-    // Fetch vetting data
+    // Vetting data is loaded from localStorage on init (see loadVettingFromStorage above)
+    // Also try to merge any server-side vetting data (best effort)
     if (!_vettingInitialized) {
       _vettingInitialized = true;
       fetch(`${API_BASE}/api/vetting`)
         .then(r => r.json())
         .then(data => {
           if (data.success && data.vetting) {
-            Object.assign(_artistVetting, data.vetting);
-            forceUpdate(n => n + 1);
+            // Merge server data into local — local takes precedence for stage, server for deep dive content
+            let changed = false;
+            for (const [name, serverState] of Object.entries(data.vetting as Record<string, ArtistVettingState>)) {
+              const local = _artistVetting[name];
+              if (!local) {
+                updateVettingState(name, serverState);
+                changed = true;
+              } else if (serverState.deepDive?.status === "complete" && local.deepDive?.status !== "complete") {
+                // Server has enriched data we don't have locally
+                updateVettingState(name, { ...local, deepDive: serverState.deepDive });
+                changed = true;
+              }
+            }
+            if (changed) forceUpdate(n => n + 1);
           }
         })
         .catch(() => {});
     }
   }, []);
 
-  const advanceStage = async (artistName: string, targetStage: VettingStage) => {
+  const advanceStage = (artistName: string, targetStage: VettingStage) => {
     setSyncing(artistName);
-    try {
-      const resp = await fetch(`${API_BASE}/api/vetting/advance`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ artistName, targetStage }),
+    const now = new Date().toISOString();
+
+    // 1) Persist to localStorage IMMEDIATELY (survives refresh, deploys, anything)
+    if (targetStage === "scouted") {
+      updateVettingState(artistName, null); // remove = back to default
+    } else if (targetStage === "deep-dive") {
+      const existing = _artistVetting[artistName];
+      updateVettingState(artistName, {
+        stage: "deep-dive",
+        updatedAt: now,
+        deepDive: existing?.deepDive || { fetchedAt: now, status: "pending" },
       });
-      const data = await resp.json();
-      if (data.success) {
-        if (data.vetting) {
-          _artistVetting[artistName] = data.vetting;
-        } else {
-          delete _artistVetting[artistName];
-        }
-        // Sync legacy ratings too
-        if (targetStage === "declined") {
-          const match = SCOUTED_ARTISTS_DATA.find(a => a.name === artistName);
-          if (match) {
-            _artistRatings[match.id] = "declined";
-            setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "declined" } : a));
-          }
-        } else if (targetStage === "scouted") {
-          const match = SCOUTED_ARTISTS_DATA.find(a => a.name === artistName);
-          if (match) {
-            delete _artistRatings[match.id];
-            setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "pending" } : a));
-          }
-        } else {
-          const match = SCOUTED_ARTISTS_DATA.find(a => a.name === artistName);
-          if (match) {
-            _artistRatings[match.id] = "approved";
-            setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "approved" } : a));
-          }
-        }
-        // Also sync to legacy endpoint
-        syncRatingToSheet(artistName, targetStage === "declined" ? "declined" : targetStage === "scouted" ? "pending" : "approved");
-        forceUpdate(n => n + 1);
+    } else {
+      const existing = _artistVetting[artistName];
+      updateVettingState(artistName, { ...existing, stage: targetStage, updatedAt: now } as ArtistVettingState);
+    }
+
+    // 2) Update legacy rating state for UI
+    const match = SCOUTED_ARTISTS_DATA.find(a => a.name === artistName);
+    if (match) {
+      if (targetStage === "declined") {
+        _artistRatings[match.id] = "declined";
+        setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "declined" } : a));
+      } else if (targetStage === "scouted") {
+        delete _artistRatings[match.id];
+        setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "pending" } : a));
+      } else {
+        _artistRatings[match.id] = "approved";
+        setArtists(prev => prev.map(a => a.id === match.id ? { ...a, rating: "approved" } : a));
       }
-    } catch {}
+    }
+
+    // 3) Fire-and-forget sync to server API (best effort, not required for persistence)
+    fetch(`${API_BASE}/api/vetting/advance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artistName, targetStage }),
+    }).catch(() => {});
+
+    // 4) Sync legacy rating to Google Sheets via server
+    syncRatingToSheet(artistName, targetStage === "declined" ? "declined" : targetStage === "scouted" ? "pending" : "approved");
+
+    forceUpdate(n => n + 1);
     setTimeout(() => setSyncing(null), 1200);
   };
 
