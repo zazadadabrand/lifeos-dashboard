@@ -673,7 +673,7 @@ const LANES: Lane[] = [
     color: COLORS.coral,
     icon: "briefcase",
     description: "Bernard Studia ops, content strategy, distribution",
-    status: "planned",
+    status: "active",
     agents: [
       {
         id: "dot",
@@ -1973,6 +1973,9 @@ function LaneGroup({ lane, delay }: { lane: Lane; delay: number }) {
       {/* Family ideas pipeline — Family lane only */}
       {lane.id === "family" && <FamilyIdeasPipeline />}
 
+      {/* Business pipeline — full section */}
+      {lane.id === "business" && <BusinessPipeline />}
+
       {/* Collapsible deliverables */}
       <DeliverablesList laneName={lane.name} laneColor={lane.color} />
     </div>
@@ -2111,6 +2114,1258 @@ async function updateFamilySnapshotBlob(ideas: FamilyIdea[]) {
     });
   } catch { /* fire-and-forget */ }
 }
+
+type DealPhase = "short" | "medium" | "long" | "cross";
+type DealStage = "Lead" | "Proposal" | "Negotiation" | "Signed" | "Active" | "Closed" | "Lost";
+const DEAL_STAGES: DealStage[] = ["Lead", "Proposal", "Negotiation", "Signed", "Active", "Closed", "Lost"];
+const DEAL_STAGE_COLORS: Record<DealStage, string> = {
+  "Lead": COLORS.textMuted,
+  "Proposal": COLORS.purple,
+  "Negotiation": COLORS.gold,
+  "Signed": COLORS.teal,
+  "Active": COLORS.green,
+  "Closed": COLORS.textFaint,
+  "Lost": COLORS.chartRed,
+};
+
+type DealType = "Retainer" | "Project" | "Advisory" | "Grant" | "Commission" | "Job" | "Vendor";
+const DEAL_TYPES: DealType[] = ["Retainer", "Project", "Advisory", "Grant", "Commission", "Job", "Vendor"];
+
+const PHASE_META: Record<DealPhase, { label: string; range: string; color: string; description: string }> = {
+  short: { label: "Short Term", range: "0–60 Days", color: COLORS.coral, description: "Digital Marketing Services — campaigns, clipping, grants, retainers" },
+  medium: { label: "Mid Term", range: "60–90 Days", color: COLORS.purple, description: "Expansion — clipping scale, advisory commissions, FIFA vendor play" },
+  long: { label: "Long Term", range: "90+ Days", color: COLORS.teal, description: "Recurring revenue — clipping base, larger grants, advisory pipeline" },
+  cross: { label: "Cross-Cutting", range: "Ongoing", color: COLORS.gold, description: "Job upgrade — salary delta, not counted in $100K target" },
+};
+
+// Clipping tier reference — CONFIDENTIAL wholesale costs hidden
+const CLIPPING_TIERS: Record<string, { client: number; net: number }> = {
+  "Starter": { client: 5000, net: 2000 },
+  "Growth": { client: 7500, net: 3000 },
+  "Scale": { client: 10000, net: 4000 },
+  "Enterprise": { client: 15000, net: 6000 },
+};
+
+interface BusinessDeal {
+  id: string;
+  name: string;
+  client: string;
+  description: string;
+  phase: DealPhase;
+  stage: DealStage;
+  type: DealType;
+  tier: string;
+  monthlyValue: number;
+  netMargin: number;
+  addedAt: string;
+  notes: string;
+  dueDate: string;
+  contactName: string;
+  contactEmail: string;
+  nextAction: string;
+  revenuePath?: string;
+  gross?: number;
+  marginPercent?: number;
+  grantName?: string;
+  grantDeadline?: string;
+  applicationStatus?: string;
+  company?: string;
+  role?: string;
+  salaryRange?: string;
+  interviewStage?: string;
+}
+
+// ─── Revenue Paths (static from v4.2 plan) ───
+interface RevenuePath {
+  id: string;
+  name: string;
+  shortName: string;
+  phase: DealPhase;
+  projectedGross: number;
+  projectedNet: number;
+  marginPercent: number;
+  description: string;
+  icon: string;
+  milestones: string[];
+}
+
+const REVENUE_PATHS: RevenuePath[] = [
+  {
+    id: "clipping",
+    name: "Content Clipping",
+    shortName: "Clipping",
+    phase: "short",
+    projectedGross: 28000,
+    projectedNet: 11000,
+    marginPercent: 40,
+    description: "White-label content syndication to podcasters & creators. Outsourced fulfillment, pure sales play.",
+    icon: "📋",
+    milestones: ["Build pitch deck", "ID 15-20 targets", "Close 3-4 clients at $5K-$7.5K"],
+  },
+  {
+    id: "cityOfDavid",
+    name: "City of David",
+    shortName: "CoD",
+    phase: "short",
+    projectedGross: 8000,
+    projectedNet: 6800,
+    marginPercent: 85,
+    description: "Existing relationship — digital strategy, social management, content production retainer.",
+    icon: "🏛",
+    milestones: ["Follow up proposal", "Close Month 1 retainer", "Deliver first month"],
+  },
+  {
+    id: "grants",
+    name: "Strategic Grants",
+    shortName: "Grants",
+    phase: "short",
+    projectedGross: 16000,
+    projectedNet: 16000,
+    marginPercent: 100,
+    description: "Volume grant strategy — 7-10 applications. Bonus revenue, not backbone.",
+    icon: "📝",
+    milestones: ["Submit Verizon + SBIG (Week 1)", "Creative Capital by April 2", "Comcast RISE (May)", "Track 7-10 apps"],
+  },
+  {
+    id: "jobUpgrade",
+    name: "Job Upgrade",
+    shortName: "Job",
+    phase: "cross",
+    projectedGross: 10000,
+    projectedNet: 10000,
+    marginPercent: 100,
+    description: "Target $150K-$200K+ remote Director/VP digital marketing. Prorated salary delta.",
+    icon: "💼",
+    milestones: ["Update resume + LinkedIn", "Apply 3-5 roles/week", "Interview rounds", "Negotiate offer"],
+  },
+  {
+    id: "artAdvisory",
+    name: "Art Advisory",
+    shortName: "Art",
+    phase: "medium",
+    projectedGross: 10000,
+    projectedNet: 9000,
+    marginPercent: 90,
+    description: "Commission-based sales from represented emerging artists. 25-35% commission on $30K+ annual.",
+    icon: "🎨",
+    milestones: ["Art advisory outreach", "Private showings", "Close first commission"],
+  },
+  {
+    id: "fifa",
+    name: "FIFA Vendor Packages",
+    shortName: "FIFA",
+    phase: "medium",
+    projectedGross: 10000,
+    projectedNet: 8500,
+    marginPercent: 85,
+    description: "Atlanta FIFA World Cup 2026 — digital readiness packages for vendors. Seasonal play.",
+    icon: "⚽",
+    milestones: ["Register as FIFA vendor", "Build digital readiness packages", "Pitch to vendors"],
+  },
+];
+
+// ─── Waterfall Data (static) ───
+const WATERFALL_DATA = [
+  { stream: "Content Clipping (3-4)", bucket: "Short", gross: 28000, margin: 40, net: 11000 },
+  { stream: "City of David Close", bucket: "Short", gross: 8000, margin: 85, net: 6800 },
+  { stream: "Grant Blitz (2-3 wins)", bucket: "Short", gross: 16000, margin: 100, net: 16000 },
+  { stream: "Clipping Expansion (4-5)", bucket: "Mid", gross: 35000, margin: 40, net: 14000 },
+  { stream: "CoD Retainer (mo 2-3)", bucket: "Mid", gross: 8000, margin: 85, net: 6800 },
+  { stream: "Art Advisory Commissions", bucket: "Mid", gross: 10000, margin: 90, net: 9000 },
+  { stream: "FIFA Vendor Packages", bucket: "Mid", gross: 10000, margin: 85, net: 8500 },
+  { stream: "Job Salary Delta", bucket: "Cross", gross: 10000, margin: 100, net: 10000 },
+  { stream: "Recurring Clipping (mo 4)", bucket: "Long", gross: 45000, margin: 40, net: 18000 },
+  { stream: "Larger Grant Payouts", bucket: "Long", gross: 9000, margin: 100, net: 9000 },
+  { stream: "Art Advisory Pipeline", bucket: "Long", gross: 10000, margin: 90, net: 9000 },
+];
+
+const BUCKET_COLORS: Record<string, string> = { Short: COLORS.coral, Mid: COLORS.purple, Cross: COLORS.gold, Long: COLORS.teal };
+
+// ─── Sprint Calendar (static) ───
+const SPRINT_WEEKS = [
+  { week: "1-2", focus: "Foundation + Grant Blitz", actions: "Submit Verizon+SBIG, build pitch deck, ID targets, follow up CoD, begin job search", cumGross: 8000, phase: "short" as DealPhase },
+  { week: "3-4", focus: "Clipping Outbound Blitz", actions: "DMs, calls, networking. Creative Capital by Apr 2. Close 1-2 clip clients. 3-5 roles/week", cumGross: 16000, phase: "short" as DealPhase },
+  { week: "5-6", focus: "First Campaigns + Scale", actions: "Fulfill first campaigns, testimonials, close clients 2-3, Verizon decision, interviews begin", cumGross: 34000, phase: "short" as DealPhase },
+  { week: "7-8", focus: "Ramp + Close", actions: "Close client 4 at higher tier, SBIG decision, register FIFA vendor, art advisory outreach", cumGross: 52000, phase: "short" as DealPhase },
+  { week: "9-10", focus: "Mid-Term Expansion", actions: "Expand clipping to 4-5 clients, pitch FIFA packages, art advisory showings, job interviews", cumGross: 82000, phase: "medium" as DealPhase },
+  { week: "11-12", focus: "Acceleration", actions: "Close FIFA clients, art commissions, CoD renewal, tier upgrades, job offer stage", cumGross: 125000, phase: "medium" as DealPhase },
+  { week: "13+", focus: "Long-Term Foundation", actions: "Recurring base 6-8 clients ($45K/mo gross), larger grant payouts, art expansion", cumGross: 189000, phase: "long" as DealPhase },
+];
+
+// ─── Risk Matrix (static) ───
+const RISK_ITEMS = [
+  { risk: "PIP at Get Engaged escalates", impact: "HIGH", likelihood: "Medium", mitigation: "Job upgrade path is the hedge", color: COLORS.chartRed },
+  { risk: "Clipping clients hard to acquire", impact: "HIGH", likelihood: "Low-Med", mitigation: "Lead with guaranteed view counts, 20% conversion", color: COLORS.chartRed },
+  { risk: "Time constraint (FT + Studia)", impact: "HIGH", likelihood: "High", mitigation: "Clipping outsourced, grants batch-writable", color: COLORS.chartRed },
+  { risk: "Grant rejection rate >70%", impact: "MED", likelihood: "Med-High", mitigation: "Volume strategy: 7-10 apps. Grants = bonus revenue", color: COLORS.gold },
+  { risk: "Over-concentration at Starter tier", impact: "MED", likelihood: "Medium", mitigation: "Lead sales with Growth as anchor tier", color: COLORS.gold },
+  { risk: "Art sales cycle too long", impact: "LOW", likelihood: "Medium", mitigation: "Shifts to long-term bucket. Not critical path", color: COLORS.teal },
+];
+
+// ─── Scenario Data (static) ───
+const SCENARIOS = [
+  { name: "Conservative", gross: 90000, net: 55000, color: COLORS.textMuted, detail: "2 clip clients at $5K, 1 grant win, no FIFA, no art, no job switch" },
+  { name: "Target", gross: 189000, net: 117350, color: COLORS.green, detail: "All paths execute. 3-4 clips → 6-8. 3 grant wins. Job at $165K+" },
+  { name: "Stretch", gross: 250000, net: 155000, color: COLORS.gold, detail: "8+ clients at $10K+, FIFA $25K+, job at $200K+, Creative Capital" },
+];
+
+// ─── Priority Matrix (static) ───
+const PRIORITY_ITEMS = [
+  { rank: 1, activity: "Content Clipping (sales)", rate: "$667-$2,000/hr", hours: "2-3 hrs/client", color: COLORS.coral },
+  { rank: 2, activity: "Grant Applications", rate: "$500-$2,000/hr", hours: "5-10 hrs each", color: COLORS.green },
+  { rank: 3, activity: "Job Search / Interviews", rate: "$200-$700/hr", hours: "30-50 hrs total", color: COLORS.gold },
+  { rank: 4, activity: "Art Advisory", rate: "$150-$500/hr", hours: "Variable", color: COLORS.purple },
+  { rank: 5, activity: "FIFA Vendor Packages", rate: "$125-$250/hr", hours: "15-25 hrs", color: COLORS.teal },
+  { rank: 6, activity: "City of David Retainer", rate: "$100-$175/hr", hours: "15-20 hrs/mo", color: COLORS.textMuted },
+];
+
+let _businessDeals: BusinessDeal[] = [];
+let _businessLoaded = false;
+let _businessLastSync: string | null = null;
+
+async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapshotAt: string } | null> {
+  try {
+    const [snapshotRes, changesRes] = await Promise.all([
+      fetch(BUSINESS_SNAPSHOT_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
+      fetch(BUSINESS_CHANGES_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
+    ]);
+    if (!snapshotRes.ok) return null;
+    const data = await snapshotRes.json();
+    if (!data.deals || !Array.isArray(data.deals)) return null;
+
+    let deals: BusinessDeal[] = data.deals;
+    if (changesRes.ok) {
+      try {
+        const changesData = await changesRes.json();
+        const changes: any[] = Array.isArray(changesData?.changes) ? changesData.changes : [];
+        if (changes.length > 0) {
+          const stageMap = new Map(changes.filter((c: any) => c.type === "stage").map((c: any) => [c.dealId, c.newStage]));
+          const newDeals: BusinessDeal[] = changes.filter((c: any) => c.type === "add").map((c: any) => c.deal);
+          deals = deals.map(d => {
+            const newStage = stageMap.get(d.id);
+            return newStage ? { ...d, stage: newStage } : d;
+          });
+          const existingIds = new Set(deals.map(d => d.id));
+          for (const nd of newDeals) {
+            if (!existingIds.has(nd.id)) deals.push(nd);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    return { deals, snapshotAt: data.snapshotAt };
+  } catch {
+    return null;
+  }
+}
+
+async function pushBusinessChange(change: any): Promise<boolean> {
+  try {
+    const readRes = await fetch(BUSINESS_CHANGES_URL, { cache: "no-store", headers: { Accept: "application/json" } });
+    const current = readRes.ok ? await readRes.json() : { syncedAt: null, changes: [] };
+    const changes = Array.isArray(current.changes) ? current.changes : [];
+
+    if (change.type === "stage") {
+      const existing = changes.findIndex((c: any) => c.type === "stage" && c.dealId === change.dealId);
+      if (existing >= 0) changes[existing] = change;
+      else changes.push(change);
+    } else {
+      changes.push(change);
+    }
+
+    const writeRes = await fetch(BUSINESS_CHANGES_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ syncedAt: new Date().toISOString(), changes }),
+    });
+    return writeRes.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function updateBusinessSnapshotBlob(deals: BusinessDeal[]) {
+  try {
+    await fetch(BUSINESS_SNAPSHOT_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ deals, snapshotAt: new Date().toISOString() }),
+    });
+  } catch { /* fire-and-forget */ }
+}
+
+type BizTab = "pipeline" | "paths" | "waterfall" | "sprint" | "risks";
+
+function BusinessPipeline() {
+  const [deals, setDeals] = useState<BusinessDeal[]>(_businessDeals);
+  const [activeTab, setActiveTab] = useState<BizTab>("pipeline");
+  const [phaseFilter, setPhaseFilter] = useState<"all" | DealPhase>("all");
+  const [stageFilter, setStageFilter] = useState<"all" | DealStage>("all");
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [changingStage, setChangingStage] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [expandedDeal, setExpandedDeal] = useState<string | null>(null);
+  const [expandedPath, setExpandedPath] = useState<string | null>(null);
+  // Add form state
+  const [newName, setNewName] = useState("");
+  const [newClient, setNewClient] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newPhase, setNewPhase] = useState<DealPhase>("short");
+  const [newType, setNewType] = useState<DealType>("Retainer");
+  const [newTier, setNewTier] = useState("Growth");
+  const [newMonthlyValue, setNewMonthlyValue] = useState("");
+  const [newDueDate, setNewDueDate] = useState("");
+  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadDeals = useCallback(async (showStatus = true) => {
+    if (showStatus) { setSyncing(true); setSyncStatus("syncing"); }
+    const snapshot = await fetchBusinessSnapshot();
+    if (snapshot) {
+      _businessDeals = snapshot.deals;
+      _businessLastSync = snapshot.snapshotAt;
+      _businessLoaded = true;
+      setDeals(snapshot.deals);
+      if (showStatus) setSyncStatus("success");
+    } else if (!_businessLoaded) {
+      _businessLoaded = true;
+      if (showStatus) setSyncStatus("error");
+    }
+    if (showStatus) { setSyncing(false); setTimeout(() => setSyncStatus("idle"), 3000); }
+  }, []);
+
+  useEffect(() => {
+    if (!_businessLoaded) loadDeals(true);
+    syncIntervalRef.current = setInterval(() => loadDeals(false), 5 * 60 * 1000);
+    return () => { if (syncIntervalRef.current) clearInterval(syncIntervalRef.current); };
+  }, [loadDeals]);
+
+  const handleStageChange = async (deal: BusinessDeal, newStage: DealStage) => {
+    if (deal.stage === newStage) return;
+    setChangingStage(deal.id);
+    const updated = deals.map(d => d.id === deal.id ? { ...d, stage: newStage } : d);
+    _businessDeals = updated;
+    setDeals(updated);
+    const ok = await pushBusinessChange({ type: "stage", dealId: deal.id, newStage, changedAt: new Date().toISOString() });
+    if (!ok) {
+      const reverted = deals.map(d => d.id === deal.id ? { ...d, stage: deal.stage } : d);
+      _businessDeals = reverted;
+      setDeals(reverted);
+    } else {
+      updateBusinessSnapshotBlob(updated);
+    }
+    setChangingStage(null);
+  };
+
+  const handleAddDeal = async () => {
+    if (!newName.trim()) return;
+    const tierData = CLIPPING_TIERS[newTier] || { client: 0, net: 0 };
+    const mv = newMonthlyValue ? parseInt(newMonthlyValue) : (newPhase === "short" ? tierData.client : 0);
+    const nm = newPhase === "short" ? tierData.net : Math.round(mv * 0.4);
+    const deal: BusinessDeal = {
+      id: `deal-${Date.now()}`,
+      name: newName.trim(),
+      client: newClient.trim(),
+      description: newDescription.trim(),
+      phase: newPhase,
+      stage: "Lead",
+      type: newType,
+      tier: newPhase === "short" ? newTier : "",
+      monthlyValue: mv,
+      netMargin: nm,
+      addedAt: new Date().toISOString(),
+      notes: "",
+      dueDate: newDueDate,
+      contactName: "",
+      contactEmail: "",
+      nextAction: "",
+    };
+    const updated = [...deals, deal];
+    _businessDeals = updated;
+    setDeals(updated);
+    setShowAddForm(false);
+    setNewName(""); setNewClient(""); setNewDescription(""); setNewPhase("short"); setNewType("Retainer"); setNewTier("Growth"); setNewMonthlyValue(""); setNewDueDate("");
+    const ok = await pushBusinessChange({ type: "add", deal, changedAt: new Date().toISOString() });
+    if (ok) updateBusinessSnapshotBlob(updated);
+  };
+
+  // ─── Computed values ───
+  const activeDeals = deals.filter(d => d.stage !== "Lost" && d.stage !== "Closed");
+  const totalMonthly = activeDeals.reduce((s, d) => s + d.monthlyValue, 0);
+  const totalNet = activeDeals.reduce((s, d) => s + d.netMargin, 0);
+  const closedDeals = deals.filter(d => d.stage === "Closed" || d.stage === "Active");
+  const realizedGross = closedDeals.reduce((s, d) => s + d.monthlyValue, 0);
+  const realizedNet = closedDeals.reduce((s, d) => s + d.netMargin, 0);
+  const pipelineByPhase = (phase: DealPhase) => activeDeals.filter(d => d.phase === phase);
+  const formatCurrency = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : `$${n}`;
+  const formatSyncTime = (iso: string | null) => {
+    if (!iso) return "never";
+    try {
+      const d = new Date(iso);
+      const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (diffMin < 1) return "just now";
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}h ago`;
+      return d.toLocaleDateString();
+    } catch { return "unknown"; }
+  };
+
+  const filtered = deals
+    .filter(d => phaseFilter === "all" ? true : d.phase === phaseFilter)
+    .filter(d => stageFilter === "all" ? true : d.stage === stageFilter);
+
+  const counts: Record<string, number> = { all: deals.length };
+  for (const stage of DEAL_STAGES) counts[stage] = deals.filter(d => d.stage === stage).length;
+
+  // Tab definitions
+  const TABS: { id: BizTab; label: string; icon: JSX.Element }[] = [
+    { id: "pipeline", label: "Deals", icon: <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="7" y="1" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="1" y="7" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="7" y="7" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.2"/></svg> },
+    { id: "paths", label: "Paths", icon: <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 10L5 2L8 7L11 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+    { id: "waterfall", label: "Waterfall", icon: <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="7" width="2" height="4" fill="currentColor" opacity="0.5"/><rect x="4" y="4" width="2" height="7" fill="currentColor" opacity="0.7"/><rect x="7" y="1" width="2" height="10" fill="currentColor" opacity="0.9"/><rect x="10" y="5" width="2" height="6" fill="currentColor"/></svg> },
+    { id: "sprint", label: "Sprint", icon: <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/><path d="M6 3v3l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg> },
+    { id: "risks", label: "Risks", icon: <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L11 10H1L6 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M6 5v2M6 8.5v0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg> },
+  ];
+
+  // ─── Stage Selector ───
+  const DealStageSelector = ({ deal }: { deal: BusinessDeal }) => {
+    const [open, setOpen] = useState(false);
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (btnRef.current?.contains(e.target as Node)) return;
+        if (menuRef.current?.contains(e.target as Node)) return;
+        setOpen(false);
+      };
+      if (open) document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [open]);
+    useEffect(() => {
+      if (open && btnRef.current) {
+        const rect = btnRef.current.getBoundingClientRect();
+        setMenuPos({ top: rect.bottom + 4, left: rect.left });
+      }
+    }, [open]);
+    return (
+      <>
+        <button
+          ref={btnRef}
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
+          style={{
+            borderColor: `${DEAL_STAGE_COLORS[deal.stage]}40`,
+            color: DEAL_STAGE_COLORS[deal.stage],
+            background: `${DEAL_STAGE_COLORS[deal.stage]}10`,
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: DEAL_STAGE_COLORS[deal.stage] }} />
+          {deal.stage}
+          {changingStage === deal.id ? (
+            <span className="animate-spin text-[10px]">&#9696;</span>
+          ) : (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}>
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+        {open && menuPos && ReactDOM.createPortal(
+          <div
+            ref={menuRef}
+            className="fixed rounded-lg border py-1 min-w-[160px] shadow-xl"
+            style={{ top: menuPos.top, left: menuPos.left, zIndex: 9999, background: "rgba(20,20,30,0.97)", borderColor: COLORS.border, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
+          >
+            {DEAL_STAGES.map(stage => (
+              <button
+                key={stage}
+                onClick={(e) => { e.stopPropagation(); handleStageChange(deal, stage); setOpen(false); }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors hover:bg-white/[0.06]"
+                style={{ color: deal.stage === stage ? DEAL_STAGE_COLORS[stage] : COLORS.textSecondary }}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: DEAL_STAGE_COLORS[stage], opacity: deal.stage === stage ? 1 : 0.5 }} />
+                {stage}
+                {deal.stage === stage && (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto">
+                    <path d="M2 6L5 9L10 3" stroke={DEAL_STAGE_COLORS[stage]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+      </>
+    );
+  };
+
+  // ─── Deal Slide-Out ───
+  const DealSlideOut = ({ deal, onClose }: { deal: BusinessDeal; onClose: () => void }) => {
+    const phase = PHASE_META[deal.phase];
+    const stagesForProgress: DealStage[] = ["Lead", "Proposal", "Negotiation", "Signed", "Active", "Closed"];
+    const stageIndex = stagesForProgress.indexOf(deal.stage);
+    const nextStageMap: Partial<Record<DealStage, DealStage>> = { "Lead": "Proposal", "Proposal": "Negotiation", "Negotiation": "Signed", "Signed": "Active", "Active": "Closed" };
+    const nextStage = nextStageMap[deal.stage];
+    const nextLabel = nextStage ? `Move to ${nextStage}` : null;
+    const relatedPath = REVENUE_PATHS.find(p => p.id === deal.revenuePath);
+    const fCur = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : `$${n}`;
+
+    return (
+      <>
+        <div className="fixed inset-0 z-[100] transition-opacity duration-300" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+        <div className="fixed top-0 right-0 z-[101] overflow-y-auto" style={{ width: "min(520px, 90vw)", height: "100vh", background: "rgba(12,12,18,0.97)", backdropFilter: "blur(40px) saturate(1.6)", borderLeft: `1px solid ${COLORS.borderSubtle}`, boxShadow: "-8px 0 40px rgba(0,0,0,0.5)", animation: "slideInRight 0.3s ease-out" }}>
+          {/* Header */}
+          <div className="sticky top-0 z-10 px-6 pt-6 pb-4" style={{ background: "rgba(12,12,18,0.95)", borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0" style={{ background: `${phase.color}15`, color: phase.color }}>
+                {deal.type === "Grant" ? "📝" : deal.type === "Job" ? "💼" : deal.type === "Vendor" ? "⚽" : deal.type === "Advisory" ? "🎨" : "$"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold" style={{ color: COLORS.textPrimary }}>{deal.name}</h2>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${phase.color}15`, color: phase.color }}>{phase.label}</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{deal.type}</span>
+                  {deal.tier && <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{deal.tier} Tier</span>}
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: `${DEAL_STAGE_COLORS[deal.stage]}15`, color: DEAL_STAGE_COLORS[deal.stage], border: `1px solid ${DEAL_STAGE_COLORS[deal.stage]}30` }}>{deal.stage}</span>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center border transition-colors hover:bg-white/[0.06]" style={{ borderColor: COLORS.borderSubtle }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3L11 11M11 3L3 11" stroke={COLORS.textMuted} strokeWidth="1.5" strokeLinecap="round" /></svg>
+              </button>
+            </div>
+            {/* Stage progress bar */}
+            <div className="mt-4 flex items-center gap-0">
+              {stagesForProgress.map((stage, i) => {
+                const isActive = i <= stageIndex;
+                const isCurrent = stage === deal.stage;
+                return (
+                  <div key={stage} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="w-full h-[3px] rounded-full transition-all duration-500" style={{ background: isActive ? DEAL_STAGE_COLORS[stage] : COLORS.borderSubtle, opacity: isActive ? 1 : 0.4 }} />
+                    <span className="text-[9px] font-medium" style={{ color: isCurrent ? DEAL_STAGE_COLORS[stage] : isActive ? COLORS.textMuted : COLORS.textFaint }}>{stage}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* Body */}
+          <div className="px-6 py-5 flex flex-col gap-5">
+            {/* Revenue card */}
+            <div className="rounded-lg p-5" style={{ background: "rgba(18,18,28,0.95)", border: `1px solid ${phase.color}18` }}>
+              <div className="flex items-center gap-2 mb-3">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke={phase.color} strokeWidth="1.3" /><path d="M8 5v6M6 6.5h4M6 9.5h4" stroke={phase.color} strokeWidth="1" strokeLinecap="round" /></svg>
+                <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: phase.color }}>Revenue</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                {deal.monthlyValue > 0 && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Value</div>
+                    <div className="text-xl font-bold tabular-nums" style={{ color: COLORS.green }}>{fCur(deal.monthlyValue)}</div>
+                  </div>
+                )}
+                {deal.netMargin > 0 && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Net Take-Home</div>
+                    <div className="text-xl font-bold tabular-nums" style={{ color: COLORS.gold }}>{fCur(deal.netMargin)}</div>
+                  </div>
+                )}
+                {deal.tier && CLIPPING_TIERS[deal.tier] && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Tier</div>
+                    <div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.tier} — 40% margin</div>
+                  </div>
+                )}
+                {deal.client && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Client</div>
+                    <div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.client}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Related Revenue Path */}
+            {relatedPath && (
+              <div className="rounded-lg p-4" style={{ background: `${PHASE_META[relatedPath.phase].color}06`, border: `1px solid ${PHASE_META[relatedPath.phase].color}15` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm">{relatedPath.icon}</span>
+                  <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: PHASE_META[relatedPath.phase].color }}>Revenue Path: {relatedPath.name}</span>
+                </div>
+                <p className="text-[12px] mb-2" style={{ color: COLORS.textMuted }}>{relatedPath.description}</p>
+                <div className="flex items-center gap-4">
+                  <span className="text-[10px]" style={{ color: COLORS.textFaint }}>Projected: <span className="font-semibold" style={{ color: COLORS.green }}>{fCur(relatedPath.projectedGross)}</span> gross</span>
+                  <span className="text-[10px]" style={{ color: COLORS.textFaint }}>Margin: {relatedPath.marginPercent}%</span>
+                </div>
+              </div>
+            )}
+
+            {/* Grant-specific info */}
+            {deal.type === "Grant" && (deal.grantDeadline || deal.applicationStatus) && (
+              <div className="rounded-lg p-4" style={{ background: `${COLORS.green}06`, border: `1px solid ${COLORS.green}15` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.green }}>Grant Details</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {deal.grantDeadline && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Deadline</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.grantDeadline}</div></div>}
+                  {deal.applicationStatus && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Status</div><div className="text-[13px] font-medium" style={{ color: COLORS.gold }}>{deal.applicationStatus}</div></div>}
+                </div>
+              </div>
+            )}
+
+            {/* Job-specific info */}
+            {deal.type === "Job" && (deal.company || deal.role || deal.salaryRange) && (
+              <div className="rounded-lg p-4" style={{ background: `${COLORS.gold}06`, border: `1px solid ${COLORS.gold}15` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.gold }}>Job Details</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {deal.company && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Company</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.company}</div></div>}
+                  {deal.role && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Role</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.role}</div></div>}
+                  {deal.salaryRange && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Salary Range</div><div className="text-[13px] font-medium" style={{ color: COLORS.green }}>{deal.salaryRange}</div></div>}
+                  {deal.interviewStage && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Stage</div><div className="text-[13px] font-medium" style={{ color: COLORS.purple }}>{deal.interviewStage}</div></div>}
+                </div>
+              </div>
+            )}
+
+            {/* Overview */}
+            <div className="rounded-lg border p-5" style={{ background: "rgba(18,18,28,0.95)", border: `1px solid ${COLORS.teal}12` }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.teal }}>Overview</span>
+              </div>
+              {deal.description && <p className="text-[13px] leading-relaxed mb-3" style={{ color: COLORS.textSecondary }}>{deal.description}</p>}
+              <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                {deal.dueDate && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Target Close</div>
+                    <div className="text-[13px]" style={{ color: COLORS.textPrimary }}>{new Date(deal.dueDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
+                  </div>
+                )}
+                {deal.nextAction && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5" style={{ color: COLORS.textFaint }}>Next Action</div>
+                    <div className="text-[13px] font-medium" style={{ color: COLORS.coral }}>{deal.nextAction}</div>
+                  </div>
+                )}
+              </div>
+              {deal.notes && (
+                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+                  <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: COLORS.textFaint }}>Notes</div>
+                  <p className="text-[12px] leading-relaxed" style={{ color: COLORS.textMuted }}>{deal.notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3 pt-2" style={{ borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+              {nextLabel && (
+                <button onClick={() => { handleStageChange(deal, nextStage!); onClose(); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[12px] font-semibold transition-colors hover:brightness-110"
+                  style={{ background: DEAL_STAGE_COLORS[nextStage!], color: "#000" }}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  {nextLabel}
+                </button>
+              )}
+              {deal.stage !== "Lost" && deal.stage !== "Closed" && (
+                <button onClick={() => { handleStageChange(deal, "Lost"); onClose(); }}
+                  className="px-4 py-2.5 rounded-lg text-[12px] font-medium transition-colors hover:bg-white/[0.06]"
+                  style={{ color: COLORS.chartRed, border: `1px solid ${COLORS.chartRed}30` }}>
+                  Lost
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  // ─── Revenue Path Slide-Out ───
+  const PathSlideOut = ({ path, onClose }: { path: RevenuePath; onClose: () => void }) => {
+    const pc = PHASE_META[path.phase].color;
+    const pathDeals = deals.filter(d => d.revenuePath === path.id);
+    const realGross = pathDeals.filter(d => d.stage === "Active" || d.stage === "Closed").reduce((s, d) => s + d.monthlyValue, 0);
+    const progress = path.projectedGross > 0 ? Math.min((realGross / path.projectedGross) * 100, 100) : 0;
+
+    return (
+      <>
+        <div className="fixed inset-0 z-[100]" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+        <div className="fixed top-0 right-0 z-[101] overflow-y-auto" style={{ width: "min(520px, 90vw)", height: "100vh", background: "rgba(12,12,18,0.97)", backdropFilter: "blur(40px) saturate(1.6)", borderLeft: `1px solid ${COLORS.borderSubtle}`, boxShadow: "-8px 0 40px rgba(0,0,0,0.5)", animation: "slideInRight 0.3s ease-out" }}>
+          <div className="px-6 pt-6 pb-4" style={{ borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style={{ background: `${pc}15` }}>{path.icon}</div>
+              <div className="flex-1">
+                <h2 className="text-lg font-bold" style={{ color: COLORS.textPrimary }}>{path.name}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${pc}15`, color: pc }}>{PHASE_META[path.phase].label}</span>
+                  <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{path.marginPercent}% margin</span>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center border hover:bg-white/[0.06]" style={{ borderColor: COLORS.borderSubtle }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3L11 11M11 3L3 11" stroke={COLORS.textMuted} strokeWidth="1.5" strokeLinecap="round" /></svg>
+              </button>
+            </div>
+            {/* Progress */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COLORS.textFaint }}>Progress</span>
+                <span className="text-[11px] font-semibold tabular-nums" style={{ color: COLORS.green }}>{formatCurrency(realGross)} / {formatCurrency(path.projectedGross)}</span>
+              </div>
+              <div className="w-full h-[4px] rounded-full overflow-hidden" style={{ background: COLORS.borderSubtle }}>
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: pc }} />
+              </div>
+            </div>
+          </div>
+          <div className="px-6 py-5 flex flex-col gap-5">
+            <p className="text-[13px] leading-relaxed" style={{ color: COLORS.textSecondary }}>{path.description}</p>
+
+            {/* Projections */}
+            <div className="rounded-lg p-4" style={{ background: `${pc}06`, border: `1px solid ${pc}15` }}>
+              <div className="text-[11px] font-bold tracking-wider uppercase mb-3" style={{ color: pc }}>Projected Revenue</div>
+              <div className="grid grid-cols-3 gap-4">
+                <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Gross</div><div className="text-base font-bold" style={{ color: COLORS.textPrimary }}>{formatCurrency(path.projectedGross)}</div></div>
+                <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Net</div><div className="text-base font-bold" style={{ color: COLORS.green }}>{formatCurrency(path.projectedNet)}</div></div>
+                <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Margin</div><div className="text-base font-bold" style={{ color: COLORS.gold }}>{path.marginPercent}%</div></div>
+              </div>
+            </div>
+
+            {/* Milestones */}
+            <div className="rounded-lg p-4" style={{ background: "rgba(18,18,28,0.95)", border: `1px solid rgba(255,255,255,0.08)` }}>
+              <div className="text-[11px] font-bold tracking-wider uppercase mb-3" style={{ color: COLORS.teal }}>Key Milestones</div>
+              <div className="flex flex-col gap-2">
+                {path.milestones.map((m, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-[10px] font-bold" style={{ background: `${pc}15`, color: pc }}>{i + 1}</div>
+                    <span className="text-[12px]" style={{ color: COLORS.textSecondary }}>{m}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Linked deals */}
+            {pathDeals.length > 0 && (
+              <div className="rounded-lg p-4" style={{ background: "rgba(18,18,28,0.95)", border: `1px solid rgba(255,255,255,0.08)` }}>
+                <div className="text-[11px] font-bold tracking-wider uppercase mb-3" style={{ color: COLORS.coral }}>Linked Deals ({pathDeals.length})</div>
+                {pathDeals.map(d => (
+                  <div key={d.id} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
+                    <div>
+                      <span className="text-[12px] font-medium" style={{ color: COLORS.textPrimary }}>{d.name}</span>
+                      {d.client && <span className="text-[10px] ml-2" style={{ color: COLORS.textFaint }}>{d.client}</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-semibold" style={{ color: COLORS.green }}>{formatCurrency(d.monthlyValue)}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${DEAL_STAGE_COLORS[d.stage]}15`, color: DEAL_STAGE_COLORS[d.stage] }}>{d.stage}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  // ═══════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════
+  return (
+    <div className="px-4 pb-3">
+      <div className="rounded-xl border overflow-hidden" style={{ ...GLASS, borderColor: GLASS.borderColor }}>
+
+        {/* ─── Header ─── */}
+        <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: COLORS.borderSubtle }}>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: COLORS.coral }}>Business & Revenue</span>
+            <span className="text-[10px] tabular-nums" style={{ color: COLORS.textFaint }}>synced {formatSyncTime(_businessLastSync)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => loadDeals(true)} disabled={syncing}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+              style={{ background: syncStatus === "success" ? `${COLORS.green}20` : syncStatus === "error" ? `${COLORS.chartRed}20` : "rgba(255,255,255,0.06)",
+                color: syncStatus === "success" ? COLORS.green : syncStatus === "error" ? COLORS.chartRed : COLORS.textMuted,
+                border: "none", cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.6 : 1 }}>
+              {syncing ? "Syncing..." : syncStatus === "success" ? "Synced" : syncStatus === "error" ? "Retry" : "Sync"}
+            </button>
+          </div>
+        </div>
+
+        {/* ─── KPI Strip ─── */}
+        <div className="px-4 py-3 border-b grid grid-cols-4 gap-2" style={{ borderColor: COLORS.borderSubtle, background: "rgba(255,255,255,0.02)" }}>
+          <div className="rounded-lg p-2.5 text-center" style={{ background: `${COLORS.coral}08`, border: `1px solid ${COLORS.coral}12` }}>
+            <div className="text-[10px] font-bold tracking-wider uppercase mb-0.5" style={{ color: COLORS.coral }}>Pipeline</div>
+            <div className="text-base font-bold tabular-nums" style={{ color: COLORS.textPrimary }}>{formatCurrency(totalMonthly)}</div>
+            <div className="text-[10px]" style={{ color: COLORS.textFaint }}>{activeDeals.length} active</div>
+          </div>
+          <div className="rounded-lg p-2.5 text-center" style={{ background: `${COLORS.green}08`, border: `1px solid ${COLORS.green}12` }}>
+            <div className="text-[10px] font-bold tracking-wider uppercase mb-0.5" style={{ color: COLORS.green }}>Net Pipeline</div>
+            <div className="text-base font-bold tabular-nums" style={{ color: COLORS.green }}>{formatCurrency(totalNet)}</div>
+            <div className="text-[10px]" style={{ color: COLORS.textFaint }}>take-home</div>
+          </div>
+          <div className="rounded-lg p-2.5 text-center" style={{ background: `${COLORS.gold}08`, border: `1px solid ${COLORS.gold}12` }}>
+            <div className="text-[10px] font-bold tracking-wider uppercase mb-0.5" style={{ color: COLORS.gold }}>Realized</div>
+            <div className="text-base font-bold tabular-nums" style={{ color: realizedNet > 0 ? COLORS.gold : COLORS.textMuted }}>{formatCurrency(realizedNet)}</div>
+            <div className="text-[10px]" style={{ color: COLORS.textFaint }}>{closedDeals.length} closed</div>
+          </div>
+          <div className="rounded-lg p-2.5 text-center" style={{ background: `${COLORS.teal}08`, border: `1px solid ${COLORS.teal}12` }}>
+            <div className="text-[10px] font-bold tracking-wider uppercase mb-0.5" style={{ color: COLORS.teal }}>$100K Goal</div>
+            <div className="text-base font-bold tabular-nums" style={{ color: COLORS.teal }}>{Math.round((realizedNet / 100000) * 100)}%</div>
+            <div className="text-[10px]" style={{ color: COLORS.textFaint }}>{formatCurrency(realizedNet)} / $100K</div>
+          </div>
+        </div>
+
+        {/* ─── Goal Progress Bar ─── */}
+        <div className="px-4 py-2 border-b flex items-center gap-3" style={{ borderColor: COLORS.borderSubtle }}>
+          <span className="text-[10px] font-bold tracking-wider uppercase whitespace-nowrap" style={{ color: COLORS.gold }}>$100K</span>
+          <div className="flex-1 h-[5px] rounded-full overflow-hidden" style={{ background: COLORS.borderSubtle }}>
+            <div className="h-full rounded-full transition-all duration-700" style={{
+              width: `${Math.min((realizedNet / 100000) * 100, 100)}%`,
+              background: `linear-gradient(to right, ${COLORS.coral}, ${COLORS.gold}, ${COLORS.green})`,
+            }} />
+          </div>
+          <span className="text-[10px] tabular-nums font-semibold" style={{ color: COLORS.textFaint }}>{formatCurrency(realizedNet)}</span>
+        </div>
+
+        {/* ─── Tab Nav ─── */}
+        <div className="px-4 py-2 border-b flex items-center gap-1" style={{ borderColor: COLORS.borderSubtle }}>
+          {TABS.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+              style={{
+                background: activeTab === tab.id ? `${COLORS.coral}15` : "transparent",
+                color: activeTab === tab.id ? COLORS.coral : COLORS.textMuted,
+                border: activeTab === tab.id ? `1px solid ${COLORS.coral}30` : "1px solid transparent",
+                cursor: "pointer",
+              }}>
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ═══ TAB: Pipeline (Deals) ═══ */}
+        {activeTab === "pipeline" && (
+          <>
+            {/* Add deal + filters */}
+            <div className="px-4 py-2 flex items-center justify-between border-b" style={{ borderColor: COLORS.borderSubtle }}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button onClick={() => setPhaseFilter("all")}
+                  className="text-[11px] font-medium px-2 py-1 rounded-full transition-all"
+                  style={{ background: phaseFilter === "all" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
+                    color: phaseFilter === "all" ? COLORS.textPrimary : COLORS.textMuted,
+                    border: `1px solid ${phaseFilter === "all" ? COLORS.border : "transparent"}`, cursor: "pointer" }}>
+                  All {counts.all}
+                </button>
+                {(["short", "medium", "long", "cross"] as DealPhase[]).map(phase => {
+                  const phaseCount = deals.filter(d => d.phase === phase).length;
+                  if (phaseCount === 0 && phaseFilter !== phase) return null;
+                  return (
+                    <button key={phase} onClick={() => setPhaseFilter(phaseFilter === phase ? "all" : phase)}
+                      className="text-[11px] font-medium px-2 py-1 rounded-full transition-all"
+                      style={{ background: phaseFilter === phase ? `${PHASE_META[phase].color}20` : "rgba(255,255,255,0.04)",
+                        color: phaseFilter === phase ? PHASE_META[phase].color : COLORS.textMuted,
+                        border: `1px solid ${phaseFilter === phase ? `${PHASE_META[phase].color}40` : "transparent"}`, cursor: "pointer" }}>
+                      {PHASE_META[phase].label} {phaseCount}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={() => setShowAddForm(!showAddForm)} className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+                style={{ background: showAddForm ? `${COLORS.coral}30` : `${COLORS.coral}15`, color: COLORS.coral, border: "none", cursor: "pointer" }}>
+                {showAddForm ? "Cancel" : "+ Deal"}
+              </button>
+            </div>
+
+            {/* Add form */}
+            {showAddForm && (
+              <div className="px-4 py-3 border-b" style={{ borderColor: COLORS.borderSubtle, background: "rgba(255,255,255,0.02)" }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                  <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Deal name"
+                    className="text-sm px-3 py-2 rounded-lg border outline-none w-full"
+                    style={{ background: "rgba(255,255,255,0.05)", borderColor: COLORS.borderSubtle, color: COLORS.textPrimary }} />
+                  <input value={newClient} onChange={e => setNewClient(e.target.value)} placeholder="Client name"
+                    className="text-sm px-3 py-2 rounded-lg border outline-none w-full"
+                    style={{ background: "rgba(255,255,255,0.05)", borderColor: COLORS.borderSubtle, color: COLORS.textPrimary }} />
+                </div>
+                <input value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Description (optional)"
+                  className="text-sm px-3 py-2 rounded-lg border outline-none w-full mb-2"
+                  style={{ background: "rgba(255,255,255,0.05)", borderColor: COLORS.borderSubtle, color: COLORS.textPrimary }} />
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(["short", "medium", "long", "cross"] as DealPhase[]).map(p => (
+                    <button key={p} onClick={() => setNewPhase(p)}
+                      className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
+                      style={{ background: newPhase === p ? `${PHASE_META[p].color}25` : "rgba(255,255,255,0.04)",
+                        color: newPhase === p ? PHASE_META[p].color : COLORS.textMuted,
+                        border: `1px solid ${newPhase === p ? `${PHASE_META[p].color}40` : COLORS.borderSubtle}`, cursor: "pointer" }}>
+                      {PHASE_META[p].label}
+                    </button>
+                  ))}
+                  <span className="w-px h-4 mx-1" style={{ background: COLORS.borderSubtle }} />
+                  {DEAL_TYPES.map(t => (
+                    <button key={t} onClick={() => setNewType(t)}
+                      className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
+                      style={{ background: newType === t ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)",
+                        color: newType === t ? COLORS.textPrimary : COLORS.textMuted,
+                        border: `1px solid ${newType === t ? COLORS.border : COLORS.borderSubtle}`, cursor: "pointer" }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {newPhase === "short" && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: COLORS.textFaint }}>Tier:</span>
+                    {Object.keys(CLIPPING_TIERS).map(tier => (
+                      <button key={tier} onClick={() => setNewTier(tier)}
+                        className="text-[11px] font-medium px-2 py-1 rounded-md transition-all"
+                        style={{ background: newTier === tier ? `${COLORS.coral}20` : "rgba(255,255,255,0.04)",
+                          color: newTier === tier ? COLORS.coral : COLORS.textMuted,
+                          border: `1px solid ${newTier === tier ? `${COLORS.coral}35` : COLORS.borderSubtle}`, cursor: "pointer" }}>
+                        {tier} ({formatCurrency(CLIPPING_TIERS[tier].client)})
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mt-2">
+                  {newPhase !== "short" && (
+                    <input value={newMonthlyValue} onChange={e => setNewMonthlyValue(e.target.value)} placeholder="Value ($)"
+                      className="text-[11px] px-2.5 py-1.5 rounded-lg border outline-none w-28"
+                      style={{ background: "rgba(255,255,255,0.05)", borderColor: COLORS.borderSubtle, color: COLORS.textPrimary }} />
+                  )}
+                  <input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)}
+                    className="text-[11px] px-2 py-1 rounded-lg border outline-none"
+                    style={{ background: "rgba(255,255,255,0.05)", borderColor: COLORS.borderSubtle, color: COLORS.textMuted, colorScheme: "dark" }} />
+                  <button onClick={handleAddDeal} disabled={!newName.trim()}
+                    className="text-[11px] font-semibold px-3 py-1.5 rounded-lg ml-auto transition-all"
+                    style={{ background: newName.trim() ? COLORS.coral : `${COLORS.coral}30`, color: newName.trim() ? "#000" : COLORS.textMuted, border: "none", cursor: newName.trim() ? "pointer" : "not-allowed" }}>
+                    Add
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Deals list */}
+            <div className="max-h-[500px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+              {filtered.length === 0 && (
+                <div className="px-4 py-8 text-center">
+                  <span className="text-sm" style={{ color: COLORS.textMuted }}>No deals yet. Add one above.</span>
+                </div>
+              )}
+              {(["short", "medium", "long", "cross"] as DealPhase[]).map(phase => {
+                const phaseDeals = filtered.filter(d => d.phase === phase);
+                if (phaseDeals.length === 0) return null;
+                return (
+                  <div key={phase}>
+                    {phaseFilter === "all" && (
+                      <div className="px-4 py-2 flex items-center gap-2" style={{ background: `${PHASE_META[phase].color}06`, borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
+                        <div className="w-1 h-4 rounded-full" style={{ background: PHASE_META[phase].color }} />
+                        <span className="text-[10px] font-bold tracking-wider uppercase" style={{ color: PHASE_META[phase].color }}>{PHASE_META[phase].label}</span>
+                        <span className="text-[10px]" style={{ color: COLORS.textFaint }}>{PHASE_META[phase].range}</span>
+                        <span className="text-[10px] ml-auto tabular-nums font-medium" style={{ color: COLORS.textFaint }}>{phaseDeals.length} deal{phaseDeals.length !== 1 ? "s" : ""}</span>
+                      </div>
+                    )}
+                    {phaseDeals.map(deal => {
+                      const daysUntilDue = deal.dueDate ? Math.ceil((new Date(deal.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+                      const isUrgent = daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 7;
+                      return (
+                        <div key={deal.id} className="px-4 py-3 border-b flex items-start gap-3 transition-all cursor-pointer hover:bg-white/[0.02]"
+                          onClick={() => setExpandedDeal(deal.id)}
+                          style={{ borderColor: COLORS.borderSubtle, opacity: changingStage === deal.id ? 0.5 : 1, background: isUrgent ? "rgba(224,104,64,0.04)" : "transparent" }}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="text-sm font-medium" style={{ color: COLORS.textPrimary }}>{deal.name}</span>
+                              {deal.client && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{deal.client}</span>}
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: `${PHASE_META[deal.phase].color}18`, color: PHASE_META[deal.phase].color }}>{deal.type}</span>
+                              {deal.tier && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{deal.tier}</span>}
+                              {deal.monthlyValue > 0 && <span className="text-[10px] font-semibold tabular-nums" style={{ color: COLORS.green }}>{formatCurrency(deal.monthlyValue)}</span>}
+                              {daysUntilDue !== null && daysUntilDue >= 0 && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: isUrgent ? `${COLORS.coral}20` : "rgba(255,255,255,0.06)", color: isUrgent ? COLORS.coral : COLORS.textFaint }}>
+                                  {daysUntilDue === 0 ? "Today" : daysUntilDue === 1 ? "Tomorrow" : `${daysUntilDue}d`}
+                                </span>
+                              )}
+                              {daysUntilDue !== null && daysUntilDue < 0 && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: `${COLORS.chartRed}15`, color: COLORS.chartRed }}>Overdue</span>
+                              )}
+                            </div>
+                            {deal.description && <p className="text-[11px] mb-1.5" style={{ color: COLORS.textMuted, lineHeight: "1.4" }}>{deal.description}</p>}
+                            {deal.nextAction && <p className="text-[10px] font-medium mb-1.5" style={{ color: COLORS.coral }}>Next: {deal.nextAction}</p>}
+                            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                              <DealStageSelector deal={deal} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* ═══ TAB: Revenue Paths ═══ */}
+        {activeTab === "paths" && (
+          <div className="max-h-[600px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+            {/* Scenario strip */}
+            <div className="px-4 py-3 border-b grid grid-cols-3 gap-2" style={{ borderColor: COLORS.borderSubtle, background: "rgba(255,255,255,0.02)" }}>
+              {SCENARIOS.map(s => (
+                <div key={s.name} className="rounded-lg p-2.5" style={{ background: `${s.color}08`, border: `1px solid ${s.color}15` }}>
+                  <div className="text-[10px] font-bold tracking-wider uppercase mb-0.5" style={{ color: s.color }}>{s.name}</div>
+                  <div className="text-sm font-bold tabular-nums" style={{ color: s.color }}>{formatCurrency(s.net)} net</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: COLORS.textFaint }}>{s.detail}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Revenue paths */}
+            {(["short", "medium", "cross", "long"] as DealPhase[]).map(phase => {
+              const phasePaths = REVENUE_PATHS.filter(p => p.phase === phase);
+              if (phasePaths.length === 0) return null;
+              const phaseTotal = phasePaths.reduce((s, p) => s + p.projectedNet, 0);
+              return (
+                <div key={phase}>
+                  <div className="px-4 py-2 flex items-center gap-2" style={{ background: `${PHASE_META[phase].color}06`, borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
+                    <div className="w-1 h-4 rounded-full" style={{ background: PHASE_META[phase].color }} />
+                    <span className="text-[10px] font-bold tracking-wider uppercase" style={{ color: PHASE_META[phase].color }}>{PHASE_META[phase].label}</span>
+                    <span className="text-[10px]" style={{ color: COLORS.textFaint }}>{PHASE_META[phase].range}</span>
+                    <span className="text-[10px] ml-auto tabular-nums font-semibold" style={{ color: COLORS.green }}>{formatCurrency(phaseTotal)} net</span>
+                  </div>
+                  {phasePaths.map(path => {
+                    const pathDeals = deals.filter(d => d.revenuePath === path.id);
+                    const realized = pathDeals.filter(d => d.stage === "Active" || d.stage === "Closed").reduce((s, d) => s + d.monthlyValue, 0);
+                    const progress = path.projectedGross > 0 ? Math.min((realized / path.projectedGross) * 100, 100) : 0;
+                    const pc = PHASE_META[path.phase].color;
+                    return (
+                      <div key={path.id} className="px-4 py-3 border-b cursor-pointer transition-all hover:bg-white/[0.02]"
+                        onClick={() => setExpandedPath(path.id)}
+                        style={{ borderColor: COLORS.borderSubtle }}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg">{path.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[13px] font-semibold" style={{ color: COLORS.textPrimary }}>{path.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${pc}15`, color: pc }}>{path.marginPercent}%</span>
+                              {pathDeals.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{pathDeals.length} deals</span>}
+                            </div>
+                            <p className="text-[11px] mb-2" style={{ color: COLORS.textMuted }}>{path.description}</p>
+                            {/* Progress bar */}
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ background: COLORS.borderSubtle }}>
+                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: pc }} />
+                              </div>
+                              <span className="text-[10px] tabular-nums font-semibold whitespace-nowrap" style={{ color: COLORS.green }}>
+                                {formatCurrency(realized)} / {formatCurrency(path.projectedGross)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-sm font-bold tabular-nums" style={{ color: COLORS.green }}>{formatCurrency(path.projectedNet)}</div>
+                            <div className="text-[10px]" style={{ color: COLORS.textFaint }}>net target</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+
+            {/* Priority Matrix */}
+            <div className="px-4 py-3">
+              <div className="text-[10px] font-bold tracking-wider uppercase mb-2" style={{ color: COLORS.gold }}>Priority Matrix — Net $/Hour</div>
+              <div className="rounded-lg overflow-hidden border" style={{ borderColor: COLORS.borderSubtle }}>
+                {PRIORITY_ITEMS.map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 border-b last:border-b-0" style={{ borderColor: COLORS.borderSubtle }}>
+                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: `${item.color}15`, color: item.color }}>#{item.rank}</span>
+                    <span className="flex-1 text-[11px] font-medium" style={{ color: COLORS.textPrimary }}>{item.activity}</span>
+                    <span className="text-[10px] font-semibold tabular-nums" style={{ color: item.color }}>{item.rate}</span>
+                    <span className="text-[10px]" style={{ color: COLORS.textFaint }}>{item.hours}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ TAB: Waterfall ═══ */}
+        {activeTab === "waterfall" && (
+          <div className="max-h-[600px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+            {/* Summary strip */}
+            <div className="px-4 py-3 border-b grid grid-cols-3 gap-3" style={{ borderColor: COLORS.borderSubtle, background: "rgba(255,255,255,0.02)" }}>
+              <div className="text-center">
+                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COLORS.textFaint }}>Total Gross</div>
+                <div className="text-lg font-bold tabular-nums" style={{ color: COLORS.textPrimary }}>$189K</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COLORS.textFaint }}>Blended Margin</div>
+                <div className="text-lg font-bold tabular-nums" style={{ color: COLORS.gold }}>~62%</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COLORS.textFaint }}>Net Take-Home</div>
+                <div className="text-lg font-bold tabular-nums" style={{ color: COLORS.green }}>$117K</div>
+              </div>
+            </div>
+
+            {/* Visual waterfall bars */}
+            <div className="px-4 py-3 border-b" style={{ borderColor: COLORS.borderSubtle }}>
+              <div className="flex flex-col gap-1.5">
+                {WATERFALL_DATA.map((item, i) => {
+                  const maxGross = Math.max(...WATERFALL_DATA.map(d => d.gross));
+                  const barWidth = (item.gross / maxGross) * 100;
+                  const bc = BUCKET_COLORS[item.bucket] || COLORS.textMuted;
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="w-[130px] flex-shrink-0 text-right pr-2">
+                        <span className="text-[10px] font-medium" style={{ color: COLORS.textSecondary }}>{item.stream}</span>
+                      </div>
+                      <div className="flex-1 flex items-center gap-2">
+                        <div className="flex-1 h-[14px] rounded-sm overflow-hidden" style={{ background: COLORS.borderSubtle }}>
+                          <div className="h-full rounded-sm flex items-center transition-all duration-500" style={{ width: `${barWidth}%`, background: `${bc}40` }}>
+                            <div className="h-full rounded-sm" style={{ width: `${(item.net / item.gross) * 100}%`, background: bc }} />
+                          </div>
+                        </div>
+                        <span className="text-[10px] tabular-nums font-semibold whitespace-nowrap w-12 text-right" style={{ color: bc }}>{formatCurrency(item.net)}</span>
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: `${bc}15`, color: bc }}>{item.bucket}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Legend */}
+              <div className="flex items-center gap-3 mt-3 pt-2" style={{ borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+                <div className="flex items-center gap-1"><div className="w-3 h-2 rounded-sm" style={{ background: COLORS.coral }} /><span className="text-[9px]" style={{ color: COLORS.textFaint }}>Short</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-2 rounded-sm" style={{ background: COLORS.purple }} /><span className="text-[9px]" style={{ color: COLORS.textFaint }}>Mid</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-2 rounded-sm" style={{ background: COLORS.gold }} /><span className="text-[9px]" style={{ color: COLORS.textFaint }}>Cross</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-2 rounded-sm" style={{ background: COLORS.teal }} /><span className="text-[9px]" style={{ color: COLORS.textFaint }}>Long</span></div>
+                <span className="text-[9px] ml-2" style={{ color: COLORS.textFaint }}>Solid = Net  |  Faded = Gross</span>
+              </div>
+            </div>
+
+            {/* Waterfall table */}
+            <div className="px-4 py-3">
+              <div className="rounded-lg overflow-hidden border" style={{ borderColor: COLORS.borderSubtle }}>
+                <div className="grid grid-cols-5 gap-0 px-3 py-1.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+                  <span className="text-[9px] font-bold uppercase tracking-wider col-span-2" style={{ color: COLORS.textFaint }}>Stream</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-right" style={{ color: COLORS.textFaint }}>Gross</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-right" style={{ color: COLORS.textFaint }}>Margin</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-right" style={{ color: COLORS.textFaint }}>Net</span>
+                </div>
+                {WATERFALL_DATA.map((item, i) => (
+                  <div key={i} className="grid grid-cols-5 gap-0 px-3 py-1.5 border-t" style={{ borderColor: COLORS.borderSubtle }}>
+                    <span className="text-[11px] col-span-2" style={{ color: COLORS.textSecondary }}>{item.stream}</span>
+                    <span className="text-[11px] tabular-nums text-right" style={{ color: COLORS.textMuted }}>{formatCurrency(item.gross)}</span>
+                    <span className="text-[11px] tabular-nums text-right" style={{ color: COLORS.textFaint }}>{item.margin}%</span>
+                    <span className="text-[11px] tabular-nums text-right font-semibold" style={{ color: COLORS.green }}>{formatCurrency(item.net)}</span>
+                  </div>
+                ))}
+                <div className="grid grid-cols-5 gap-0 px-3 py-2 border-t" style={{ borderColor: COLORS.border, background: `${COLORS.green}06` }}>
+                  <span className="text-[11px] font-bold col-span-2" style={{ color: COLORS.textPrimary }}>TOTAL</span>
+                  <span className="text-[11px] font-bold tabular-nums text-right" style={{ color: COLORS.textPrimary }}>$189K</span>
+                  <span className="text-[11px] font-bold tabular-nums text-right" style={{ color: COLORS.gold }}>~62%</span>
+                  <span className="text-[11px] font-bold tabular-nums text-right" style={{ color: COLORS.green }}>$117K</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ TAB: Sprint Calendar ═══ */}
+        {activeTab === "sprint" && (
+          <div className="max-h-[600px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+            <div className="px-4 py-3 border-b" style={{ borderColor: COLORS.borderSubtle, background: "rgba(255,255,255,0.02)" }}>
+              <div className="text-[10px] font-bold tracking-wider uppercase mb-1" style={{ color: COLORS.gold }}>90-Day Sprint Calendar</div>
+              <p className="text-[11px]" style={{ color: COLORS.textFaint }}>Week-by-week execution plan — 15-20 hrs/week alongside GE role</p>
+            </div>
+            {SPRINT_WEEKS.map((week, i) => {
+              const pc = PHASE_META[week.phase].color;
+              const progressPct = Math.min((week.cumGross / 189000) * 100, 100);
+              return (
+                <div key={i} className="px-4 py-3 border-b" style={{ borderColor: COLORS.borderSubtle }}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-14 flex-shrink-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: pc }}>Week</div>
+                      <div className="text-lg font-bold tabular-nums" style={{ color: pc }}>{week.week}</div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[12px] font-semibold mb-1" style={{ color: COLORS.textPrimary }}>{week.focus}</div>
+                      <p className="text-[11px] mb-2" style={{ color: COLORS.textMuted, lineHeight: "1.4" }}>{week.actions}</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ background: COLORS.borderSubtle }}>
+                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%`, background: `linear-gradient(to right, ${COLORS.coral}, ${pc})` }} />
+                        </div>
+                        <span className="text-[10px] tabular-nums font-semibold whitespace-nowrap" style={{ color: COLORS.green }}>{formatCurrency(week.cumGross)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ═══ TAB: Risks ═══ */}
+        {activeTab === "risks" && (
+          <div className="max-h-[600px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+            <div className="px-4 py-3 border-b" style={{ borderColor: COLORS.borderSubtle, background: "rgba(255,255,255,0.02)" }}>
+              <div className="text-[10px] font-bold tracking-wider uppercase mb-1" style={{ color: COLORS.chartRed }}>Risk Matrix & Mitigation</div>
+              <p className="text-[11px]" style={{ color: COLORS.textFaint }}>Monitor threats across all revenue paths</p>
+            </div>
+            {RISK_ITEMS.map((item, i) => (
+              <div key={i} className="px-4 py-3 border-b" style={{ borderColor: COLORS.borderSubtle }}>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${item.color}15` }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M7 1L13 12H1L7 1Z" stroke={item.color} strokeWidth="1.3" strokeLinejoin="round" />
+                      <path d="M7 5.5v2.5M7 9.5v0" stroke={item.color} strokeWidth="1.2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[12px] font-semibold" style={{ color: COLORS.textPrimary }}>{item.risk}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: `${item.color}15`, color: item.color }}>{item.impact}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>Likelihood: {item.likelihood}</span>
+                    </div>
+                    <p className="text-[11px]" style={{ color: COLORS.textMuted }}>Mitigation: {item.mitigation}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Optional: Quiet Consulting */}
+            <div className="px-4 py-3 border-b" style={{ borderColor: COLORS.borderSubtle, background: `${COLORS.purple}04` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold tracking-wider uppercase" style={{ color: COLORS.purple }}>Optional: Quiet Consulting</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>Not in $100K target</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg p-2.5" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${COLORS.borderSubtle}` }}>
+                  <div className="text-[10px] font-semibold mb-0.5" style={{ color: COLORS.textPrimary }}>Advisory Retainer</div>
+                  <div className="text-[10px]" style={{ color: COLORS.textFaint }}>$3,500/mo — 10-12 hrs</div>
+                </div>
+                <div className="rounded-lg p-2.5" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${COLORS.borderSubtle}` }}>
+                  <div className="text-[10px] font-semibold mb-0.5" style={{ color: COLORS.textPrimary }}>Project Sprint</div>
+                  <div className="text-[10px]" style={{ color: COLORS.textFaint }}>$5K-$7K — 4-week scope</div>
+                </div>
+              </div>
+              <div className="text-[10px] mt-2" style={{ color: COLORS.textFaint }}>Upside: $13K gross / $12K net if warm lead appears. Only through trusted referrals.</div>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* ─── Slide-Out Portals ─── */}
+      {expandedDeal && (() => {
+        const deal = deals.find(x => x.id === expandedDeal);
+        return deal ? <DealSlideOut deal={deal} onClose={() => setExpandedDeal(null)} /> : null;
+      })()}
+      {expandedPath && (() => {
+        const path = REVENUE_PATHS.find(p => p.id === expandedPath);
+        return path ? <PathSlideOut path={path} onClose={() => setExpandedPath(null)} /> : null;
+      })()}
+    </div>
+  );
+}
+
 
 function FamilyIdeasPipeline() {
   const [ideas, setIdeas] = useState<FamilyIdea[]>(_familyIdeas);
@@ -3774,8 +5029,8 @@ function TLDRDigest() {
     icon: "briefcase",
     label: "Business",
     color: COLORS.coral,
-    status: "Planned",
-    detail: "Studio Admin + Content Engine queued for v1.1",
+    status: "Active",
+    detail: "Pipeline active — 6 deals across 6 revenue paths",
     lane: "Business",
   });
 
