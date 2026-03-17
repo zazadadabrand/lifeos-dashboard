@@ -972,8 +972,10 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
 // ═══════════════════════════════════════════
 // ARTIST PIPELINE — GLOBAL SYNC SYSTEM
 // ═══════════════════════════════════════════
-// JSONBlob IDs
-// Pipeline API — proxied via Vercel Edge Functions (JSONBlob lacks CORS)
+// Direct JSONBlob URLs (CORS-safe from any origin)
+const JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019cfa10-d033-7e2e-abb8-e71299184f97";
+const JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019cfa10-d1b2-7c2c-a1c1-933fb5230183";
+// Proxied API paths (Vercel edge functions) — used as primary, direct JSONBlob as fallback
 const SNAPSHOT_BLOB_URL = "/api/pipeline/snapshot";
 const WRITE_BLOB_URL = "/api/pipeline/changes";
 
@@ -1016,20 +1018,28 @@ let _lastSyncTime: string | null = null;
 // Track local changes that haven't been confirmed by the Sheet yet
 const _pendingChanges: Record<string, VettingStage> = {};
 
+// Helper: try fetching from a URL, return null on any failure
+async function tryFetch(url: string): Promise<Response | null> {
+  try {
+    const res = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
+    if (res.ok) return res;
+    return null;
+  } catch { return null; }
+}
+
 async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; snapshotAt: string } | null> {
   try {
-    // Fetch both snapshot and changes blobs in parallel
-    const [snapshotRes, changesRes] = await Promise.all([
-      fetch(SNAPSHOT_BLOB_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
-      fetch(WRITE_BLOB_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
-    ]);
-    if (!snapshotRes.ok) return null;
+    // Try proxy first, then direct JSONBlob as fallback
+    const snapshotRes = await tryFetch(SNAPSHOT_BLOB_URL) || await tryFetch(JSONBLOB_SNAPSHOT);
+    const changesRes = await tryFetch(WRITE_BLOB_URL) || await tryFetch(JSONBLOB_CHANGES);
+
+    if (!snapshotRes) return null;
     const data = await snapshotRes.json();
     if (!data.artists || !Array.isArray(data.artists)) return null;
 
     // Merge persisted changes on top of snapshot so reloads are consistent
     let artists: PipelineArtist[] = data.artists;
-    if (changesRes.ok) {
+    if (changesRes) {
       try {
         const changesData = await changesRes.json();
         const changes: { artistName: string; newStage: VettingStage }[] = Array.isArray(changesData?.changes) ? changesData.changes : [];
@@ -1051,9 +1061,9 @@ async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; sna
 
 async function pushStageChange(artistName: string, newStage: VettingStage, sheetRow: number): Promise<boolean> {
   try {
-    // Read current write blob
-    const readRes = await fetch(WRITE_BLOB_URL, { cache: "no-store", headers: { Accept: "application/json" } });
-    const current = readRes.ok ? await readRes.json() : { syncedAt: null, changes: [] };
+    // Read current write blob — try proxy, then direct
+    const readRes = await tryFetch(WRITE_BLOB_URL) || await tryFetch(JSONBLOB_CHANGES);
+    const current = readRes ? await readRes.json() : { syncedAt: null, changes: [] };
     
     // Add/update the change
     const changes = Array.isArray(current.changes) ? current.changes : [];
@@ -1070,16 +1080,14 @@ async function pushStageChange(artistName: string, newStage: VettingStage, sheet
       changes.push(change);
     }
     
-    // Write back
-    const writeRes = await fetch(WRITE_BLOB_URL, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        syncedAt: new Date().toISOString(),
-        changes,
-      }),
-    });
-    return writeRes.ok;
+    // Write back — try proxy first, then direct JSONBlob
+    const payload = JSON.stringify({ syncedAt: new Date().toISOString(), changes });
+    const headers = { "Content-Type": "application/json", Accept: "application/json" };
+    let writeRes = await fetch(WRITE_BLOB_URL, { method: "PUT", headers, body: payload }).catch(() => null);
+    if (!writeRes || !writeRes.ok) {
+      writeRes = await fetch(JSONBLOB_CHANGES, { method: "PUT", headers, body: payload }).catch(() => null);
+    }
+    return writeRes?.ok ?? false;
   } catch {
     return false;
   }
@@ -1088,15 +1096,14 @@ async function pushStageChange(artistName: string, newStage: VettingStage, sheet
 // Write the full artist list (with current statuses) back to the snapshot blob
 // so reloads always reflect the latest state even before the cron reconciles.
 async function updateSnapshotBlob(artists: PipelineArtist[]) {
+  const payload = JSON.stringify({ artists, snapshotAt: new Date().toISOString() });
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
   try {
-    await fetch(SNAPSHOT_BLOB_URL, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        artists,
-        snapshotAt: new Date().toISOString(),
-      }),
-    });
+    // Try proxy first, then direct JSONBlob
+    let res = await fetch(SNAPSHOT_BLOB_URL, { method: "PUT", headers, body: payload }).catch(() => null);
+    if (!res || !res.ok) {
+      await fetch(JSONBLOB_SNAPSHOT, { method: "PUT", headers, body: payload }).catch(() => {});
+    }
   } catch { /* fire-and-forget */ }
 }
 
@@ -1634,7 +1641,7 @@ function ScoutedArtistsReview() {
                   )}
                   {webUrl && !webUrl.includes("instagram") && (
                     <a
-                      href={webUrl}
+                      href={webUrl.startsWith("http") ? webUrl : `https://${webUrl}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-2.5 rounded-lg border text-[12px] font-medium transition-all duration-200 hover:bg-white/[0.04]"
@@ -1849,7 +1856,7 @@ function ScoutedArtistsReview() {
                           )}
                           {webUrl && !webUrl.includes("instagram") && (
                             <a
-                              href={webUrl}
+                              href={webUrl.startsWith("http") ? webUrl : `https://${webUrl}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
@@ -2046,16 +2053,16 @@ let _familyLastSync: string | null = null;
 
 async function fetchFamilySnapshot(): Promise<{ ideas: FamilyIdea[]; snapshotAt: string } | null> {
   try {
-    const [snapshotRes, changesRes] = await Promise.all([
-      fetch(FAMILY_SNAPSHOT_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
-      fetch(FAMILY_CHANGES_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
-    ]);
-    if (!snapshotRes.ok) return null;
+    // Family pipeline only has proxy routes (Vercel), no direct JSONBlob yet
+    const snapshotRes = await tryFetch(FAMILY_SNAPSHOT_URL);
+    const changesRes = await tryFetch(FAMILY_CHANGES_URL);
+
+    if (!snapshotRes) return null;
     const data = await snapshotRes.json();
     if (!data.ideas || !Array.isArray(data.ideas)) return null;
 
     let ideas: FamilyIdea[] = data.ideas;
-    if (changesRes.ok) {
+    if (changesRes) {
       try {
         const changesData = await changesRes.json();
         const changes: any[] = Array.isArray(changesData?.changes) ? changesData.changes : [];
@@ -2082,8 +2089,8 @@ async function fetchFamilySnapshot(): Promise<{ ideas: FamilyIdea[]; snapshotAt:
 
 async function pushFamilyChange(change: any): Promise<boolean> {
   try {
-    const readRes = await fetch(FAMILY_CHANGES_URL, { cache: "no-store", headers: { Accept: "application/json" } });
-    const current = readRes.ok ? await readRes.json() : { syncedAt: null, changes: [] };
+    const readRes = await tryFetch(FAMILY_CHANGES_URL);
+    const current = readRes ? await readRes.json() : { syncedAt: null, changes: [] };
     const changes = Array.isArray(current.changes) ? current.changes : [];
 
     if (change.type === "status") {
@@ -2098,8 +2105,8 @@ async function pushFamilyChange(change: any): Promise<boolean> {
       method: "PUT",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ syncedAt: new Date().toISOString(), changes }),
-    });
-    return writeRes.ok;
+    }).catch(() => null);
+    return writeRes?.ok ?? false;
   } catch {
     return false;
   }
@@ -2111,7 +2118,7 @@ async function updateFamilySnapshotBlob(ideas: FamilyIdea[]) {
       method: "PUT",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ ideas, snapshotAt: new Date().toISOString() }),
-    });
+    }).catch(() => {});
   } catch { /* fire-and-forget */ }
 }
 
@@ -2319,22 +2326,29 @@ const PRIORITY_ITEMS = [
   { rank: 6, activity: "City of David Retainer", rate: "$100-$175/hr", hours: "15-20 hrs/mo", color: COLORS.textMuted },
 ];
 
+// Direct JSONBlob URLs for business pipeline (CORS-safe from any origin)
+const BIZ_JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019cf9f2-9b92-7ea3-9756-7c79e04f3116";
+const BIZ_JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019cf9f2-ad2d-73e5-ad98-24e81efa3e98";
+// Proxied API paths — used as primary, direct JSONBlob as fallback
+const BUSINESS_SNAPSHOT_URL = "/api/business/snapshot";
+const BUSINESS_CHANGES_URL = "/api/business/changes";
+
 let _businessDeals: BusinessDeal[] = [];
 let _businessLoaded = false;
 let _businessLastSync: string | null = null;
 
 async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapshotAt: string } | null> {
   try {
-    const [snapshotRes, changesRes] = await Promise.all([
-      fetch(BUSINESS_SNAPSHOT_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
-      fetch(BUSINESS_CHANGES_URL, { cache: "no-store", headers: { Accept: "application/json" } }),
-    ]);
-    if (!snapshotRes.ok) return null;
+    // Try proxy first, then direct JSONBlob as fallback
+    const snapshotRes = await tryFetch(BUSINESS_SNAPSHOT_URL) || await tryFetch(BIZ_JSONBLOB_SNAPSHOT);
+    const changesRes = await tryFetch(BUSINESS_CHANGES_URL) || await tryFetch(BIZ_JSONBLOB_CHANGES);
+
+    if (!snapshotRes) return null;
     const data = await snapshotRes.json();
     if (!data.deals || !Array.isArray(data.deals)) return null;
 
     let deals: BusinessDeal[] = data.deals;
-    if (changesRes.ok) {
+    if (changesRes) {
       try {
         const changesData = await changesRes.json();
         const changes: any[] = Array.isArray(changesData?.changes) ? changesData.changes : [];
@@ -2361,8 +2375,9 @@ async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapsho
 
 async function pushBusinessChange(change: any): Promise<boolean> {
   try {
-    const readRes = await fetch(BUSINESS_CHANGES_URL, { cache: "no-store", headers: { Accept: "application/json" } });
-    const current = readRes.ok ? await readRes.json() : { syncedAt: null, changes: [] };
+    // Read current changes — try proxy, then direct
+    const readRes = await tryFetch(BUSINESS_CHANGES_URL) || await tryFetch(BIZ_JSONBLOB_CHANGES);
+    const current = readRes ? await readRes.json() : { syncedAt: null, changes: [] };
     const changes = Array.isArray(current.changes) ? current.changes : [];
 
     if (change.type === "stage") {
@@ -2373,24 +2388,28 @@ async function pushBusinessChange(change: any): Promise<boolean> {
       changes.push(change);
     }
 
-    const writeRes = await fetch(BUSINESS_CHANGES_URL, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ syncedAt: new Date().toISOString(), changes }),
-    });
-    return writeRes.ok;
+    // Write back — try proxy first, then direct JSONBlob
+    const payload = JSON.stringify({ syncedAt: new Date().toISOString(), changes });
+    const headers = { "Content-Type": "application/json", Accept: "application/json" };
+    let writeRes = await fetch(BUSINESS_CHANGES_URL, { method: "PUT", headers, body: payload }).catch(() => null);
+    if (!writeRes || !writeRes.ok) {
+      writeRes = await fetch(BIZ_JSONBLOB_CHANGES, { method: "PUT", headers, body: payload }).catch(() => null);
+    }
+    return writeRes?.ok ?? false;
   } catch {
     return false;
   }
 }
 
 async function updateBusinessSnapshotBlob(deals: BusinessDeal[]) {
+  const payload = JSON.stringify({ deals, snapshotAt: new Date().toISOString() });
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
   try {
-    await fetch(BUSINESS_SNAPSHOT_URL, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ deals, snapshotAt: new Date().toISOString() }),
-    });
+    // Try proxy first, then direct JSONBlob
+    let res = await fetch(BUSINESS_SNAPSHOT_URL, { method: "PUT", headers, body: payload }).catch(() => null);
+    if (!res || !res.ok) {
+      await fetch(BIZ_JSONBLOB_SNAPSHOT, { method: "PUT", headers, body: payload }).catch(() => {});
+    }
   } catch { /* fire-and-forget */ }
 }
 
