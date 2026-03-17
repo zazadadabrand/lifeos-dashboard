@@ -1838,11 +1838,13 @@ function ScoutedArtistsReview() {
                   <div className="flex items-center gap-2">
                     <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{artist.showsPress}</span>
                   </div>
-                  {/* External links — show both IG and website when available */}
-                  <div className="flex items-center gap-1.5 mt-1.5">
+                  {/* External links — visible labels with IG handle and website domain */}
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     {(() => {
                       const igUrl = artist.instagram || (artist.link?.includes("instagram") ? artist.link.split(" | ")[0] : "");
                       const webUrl = artist.website || (artist.link && !artist.link.includes("instagram") ? artist.link.split(" | ")[0] : artist.link?.split(" | ").find((u: string) => !u.includes("instagram")) || "");
+                      const igHandle = igUrl ? (igUrl.startsWith("@") ? igUrl : `@${igUrl.replace(/https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "")}`) : "";
+                      const webDomain = webUrl ? webUrl.replace(/^https?:\/\//, "").replace(/\/$/, "") : "";
                       return (
                         <>
                           {igUrl && (
@@ -1850,16 +1852,16 @@ function ScoutedArtistsReview() {
                               href={igUrl.startsWith("http") ? igUrl : `https://www.instagram.com/${igUrl.replace(/^@/, "")}/`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
-                              style={{ borderColor: COLORS.borderSubtle }}
-                              title="Instagram"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                              style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                <rect x="2" y="2" width="20" height="20" rx="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                                <circle cx="12" cy="12" r="5" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                                <circle cx="17.5" cy="6.5" r="1.2" fill={COLORS.textFaint} />
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                                <rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="1.8" />
+                                <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8" />
+                                <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
                               </svg>
+                              {igHandle}
                             </a>
                           )}
                           {webUrl && !webUrl.includes("instagram") && (
@@ -1867,16 +1869,16 @@ function ScoutedArtistsReview() {
                               href={webUrl.startsWith("http") ? webUrl : `https://${webUrl}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
-                              style={{ borderColor: COLORS.borderSubtle }}
-                              title="Portfolio"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+                              style={{ borderColor: COLORS.borderSubtle, color: COLORS.textMuted }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                <circle cx="12" cy="12" r="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                                <ellipse cx="12" cy="12" rx="4" ry="10" stroke={COLORS.textFaint} strokeWidth="1.8" />
-                                <path d="M2 12h20" stroke={COLORS.textFaint} strokeWidth="1.8" />
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8" />
+                                <ellipse cx="12" cy="12" rx="4" ry="10" stroke="currentColor" strokeWidth="1.8" />
+                                <path d="M2 12h20" stroke="currentColor" strokeWidth="1.8" />
                               </svg>
+                              {webDomain}
                             </a>
                           )}
                         </>
