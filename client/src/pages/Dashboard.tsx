@@ -970,14 +970,19 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
 }
 
 // ═══════════════════════════════════════════
+// PIPELINE API BASE — resolves to proxy path after deploy_website replaces __PORT_5000__
+// ═══════════════════════════════════════════
+const PIPE_API = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
+
+// ═══════════════════════════════════════════
 // ARTIST PIPELINE — GLOBAL SYNC SYSTEM
 // ═══════════════════════════════════════════
-// Direct JSONBlob URLs (CORS-safe from any origin)
+// Direct JSONBlob URLs (CORS-safe when not in sandboxed iframe)
 const JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019cfa10-d033-7e2e-abb8-e71299184f97";
 const JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019cfa10-d1b2-7c2c-a1c1-933fb5230183";
-// Proxied API paths (Vercel edge functions) — used as primary, direct JSONBlob as fallback
-const SNAPSHOT_BLOB_URL = "/api/pipeline/snapshot";
-const WRITE_BLOB_URL = "/api/pipeline/changes";
+// Proxied API paths — routed through Express on port 5000 → JSONBlob
+const SNAPSHOT_BLOB_URL = `${PIPE_API}/api/pipeline/snapshot`;
+const WRITE_BLOB_URL = `${PIPE_API}/api/pipeline/changes`;
 
 // Pipeline stages in order
 type VettingStage = "Scouted" | "Deep Dive" | "Shortlisted" | "In Conversation" | "Active" | "Declined";
@@ -1019,11 +1024,14 @@ let _lastSyncTime: string | null = null;
 const _pendingChanges: Record<string, VettingStage> = {};
 
 // Helper: try fetching from a URL, return null on any failure
+// Also rejects non-JSON responses (e.g. SPA fallback returning index.html)
 async function tryFetch(url: string): Promise<Response | null> {
   try {
     const res = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
-    if (res.ok) return res;
-    return null;
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("json")) return null;
+    return res;
   } catch { return null; }
 }
 
@@ -1993,8 +2001,8 @@ function LaneGroup({ lane, delay }: { lane: Lane; delay: number }) {
 // ═══════════════════════════════════════════
 // FAMILY IDEAS PIPELINE — GLOBAL SYNC SYSTEM
 // ═══════════════════════════════════════════
-const FAMILY_SNAPSHOT_URL = "/api/family/snapshot";
-const FAMILY_CHANGES_URL = "/api/family/changes";
+const FAMILY_SNAPSHOT_URL = `${PIPE_API}/api/family/snapshot`;
+const FAMILY_CHANGES_URL = `${PIPE_API}/api/family/changes`;
 
 type FamilyIdeaStage = "Idea" | "Approved" | "Shortlisted" | "Planned" | "Done" | "Declined";
 const FAMILY_STAGES: FamilyIdeaStage[] = ["Idea", "Approved", "Shortlisted", "Planned", "Done", "Declined"];
@@ -2329,9 +2337,9 @@ const PRIORITY_ITEMS = [
 // Direct JSONBlob URLs for business pipeline (CORS-safe from any origin)
 const BIZ_JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019cf9f2-9b92-7ea3-9756-7c79e04f3116";
 const BIZ_JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019cf9f2-ad2d-73e5-ad98-24e81efa3e98";
-// Proxied API paths — used as primary, direct JSONBlob as fallback
-const BUSINESS_SNAPSHOT_URL = "/api/business/snapshot";
-const BUSINESS_CHANGES_URL = "/api/business/changes";
+// Proxied API paths — routed through Express on port 5000 → JSONBlob
+const BUSINESS_SNAPSHOT_URL = `${PIPE_API}/api/business/snapshot`;
+const BUSINESS_CHANGES_URL = `${PIPE_API}/api/business/changes`;
 
 let _businessDeals: BusinessDeal[] = [];
 let _businessLoaded = false;
