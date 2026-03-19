@@ -977,10 +977,7 @@ const PIPE_API = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 // ═══════════════════════════════════════════
 // ARTIST PIPELINE — GLOBAL SYNC SYSTEM
 // ═══════════════════════════════════════════
-// Direct JSONBlob URLs (CORS-safe when not in sandboxed iframe)
-const JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019d0383-2640-745f-84c7-25cb0c2b5c22";
-const JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019d0383-29d9-701c-9d19-80d8ad7b90b0";
-// Proxied API paths — routed through Express on port 5000 → JSONBlob
+// API paths — Vercel edge functions backed by Upstash Redis (no expiry, no fallback needed)
 const SNAPSHOT_BLOB_URL = `${PIPE_API}/api/pipeline/snapshot`;
 const WRITE_BLOB_URL = `${PIPE_API}/api/pipeline/changes`;
 
@@ -1037,9 +1034,8 @@ async function tryFetch(url: string): Promise<Response | null> {
 
 async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; snapshotAt: string } | null> {
   try {
-    // Try proxy first, then direct JSONBlob as fallback
-    const snapshotRes = await tryFetch(SNAPSHOT_BLOB_URL) || await tryFetch(JSONBLOB_SNAPSHOT);
-    const changesRes = await tryFetch(WRITE_BLOB_URL) || await tryFetch(JSONBLOB_CHANGES);
+    const snapshotRes = await tryFetch(SNAPSHOT_BLOB_URL);
+    const changesRes = await tryFetch(WRITE_BLOB_URL);
 
     if (!snapshotRes) return null;
     const data = await snapshotRes.json();
@@ -1069,8 +1065,7 @@ async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; sna
 
 async function pushStageChange(artistName: string, newStage: VettingStage, sheetRow: number): Promise<boolean> {
   try {
-    // Read current write blob — try proxy, then direct
-    const readRes = await tryFetch(WRITE_BLOB_URL) || await tryFetch(JSONBLOB_CHANGES);
+    const readRes = await tryFetch(WRITE_BLOB_URL);
     const current = readRes ? await readRes.json() : { syncedAt: null, changes: [] };
     
     // Add/update the change
@@ -1088,13 +1083,9 @@ async function pushStageChange(artistName: string, newStage: VettingStage, sheet
       changes.push(change);
     }
     
-    // Write back — try proxy first, then direct JSONBlob
     const payload = JSON.stringify({ syncedAt: new Date().toISOString(), changes });
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    let writeRes = await fetch(WRITE_BLOB_URL, { method: "PUT", headers, body: payload }).catch(() => null);
-    if (!writeRes || !writeRes.ok) {
-      writeRes = await fetch(JSONBLOB_CHANGES, { method: "PUT", headers, body: payload }).catch(() => null);
-    }
+    const writeRes = await fetch(WRITE_BLOB_URL, { method: "PUT", headers, body: payload }).catch(() => null);
     return writeRes?.ok ?? false;
   } catch {
     return false;
@@ -1107,11 +1098,7 @@ async function updateSnapshotBlob(artists: PipelineArtist[]) {
   const payload = JSON.stringify({ artists, snapshotAt: new Date().toISOString() });
   const headers = { "Content-Type": "application/json", Accept: "application/json" };
   try {
-    // Try proxy first, then direct JSONBlob
-    let res = await fetch(SNAPSHOT_BLOB_URL, { method: "PUT", headers, body: payload }).catch(() => null);
-    if (!res || !res.ok) {
-      await fetch(JSONBLOB_SNAPSHOT, { method: "PUT", headers, body: payload }).catch(() => {});
-    }
+    await fetch(SNAPSHOT_BLOB_URL, { method: "PUT", headers, body: payload }).catch(() => {});
   } catch { /* fire-and-forget */ }
 }
 
@@ -2336,10 +2323,7 @@ const PRIORITY_ITEMS = [
   { rank: 6, activity: "City of David Retainer", rate: "$100-$175/hr", hours: "15-20 hrs/mo", color: COLORS.textMuted },
 ];
 
-// Direct JSONBlob URLs for business pipeline (CORS-safe from any origin)
-const BIZ_JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019d0383-3260-7552-9484-ebcfdac9f3d6";
-const BIZ_JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019d0383-343a-75d1-b335-8d64f823e6b7";
-// Proxied API paths — routed through Express on port 5000 → JSONBlob
+// API paths — Vercel edge functions backed by Upstash Redis
 const BUSINESS_SNAPSHOT_URL = `${PIPE_API}/api/business/snapshot`;
 const BUSINESS_CHANGES_URL = `${PIPE_API}/api/business/changes`;
 
@@ -2349,9 +2333,8 @@ let _businessLastSync: string | null = null;
 
 async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapshotAt: string } | null> {
   try {
-    // Try proxy first, then direct JSONBlob as fallback
-    const snapshotRes = await tryFetch(BUSINESS_SNAPSHOT_URL) || await tryFetch(BIZ_JSONBLOB_SNAPSHOT);
-    const changesRes = await tryFetch(BUSINESS_CHANGES_URL) || await tryFetch(BIZ_JSONBLOB_CHANGES);
+    const snapshotRes = await tryFetch(BUSINESS_SNAPSHOT_URL);
+    const changesRes = await tryFetch(BUSINESS_CHANGES_URL);
 
     if (!snapshotRes) return null;
     const data = await snapshotRes.json();
@@ -2385,8 +2368,7 @@ async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapsho
 
 async function pushBusinessChange(change: any): Promise<boolean> {
   try {
-    // Read current changes — try proxy, then direct
-    const readRes = await tryFetch(BUSINESS_CHANGES_URL) || await tryFetch(BIZ_JSONBLOB_CHANGES);
+    const readRes = await tryFetch(BUSINESS_CHANGES_URL);
     const current = readRes ? await readRes.json() : { syncedAt: null, changes: [] };
     const changes = Array.isArray(current.changes) ? current.changes : [];
 
@@ -2398,13 +2380,9 @@ async function pushBusinessChange(change: any): Promise<boolean> {
       changes.push(change);
     }
 
-    // Write back — try proxy first, then direct JSONBlob
     const payload = JSON.stringify({ syncedAt: new Date().toISOString(), changes });
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    let writeRes = await fetch(BUSINESS_CHANGES_URL, { method: "PUT", headers, body: payload }).catch(() => null);
-    if (!writeRes || !writeRes.ok) {
-      writeRes = await fetch(BIZ_JSONBLOB_CHANGES, { method: "PUT", headers, body: payload }).catch(() => null);
-    }
+    const writeRes = await fetch(BUSINESS_CHANGES_URL, { method: "PUT", headers, body: payload }).catch(() => null);
     return writeRes?.ok ?? false;
   } catch {
     return false;
@@ -2415,11 +2393,7 @@ async function updateBusinessSnapshotBlob(deals: BusinessDeal[]) {
   const payload = JSON.stringify({ deals, snapshotAt: new Date().toISOString() });
   const headers = { "Content-Type": "application/json", Accept: "application/json" };
   try {
-    // Try proxy first, then direct JSONBlob
-    let res = await fetch(BUSINESS_SNAPSHOT_URL, { method: "PUT", headers, body: payload }).catch(() => null);
-    if (!res || !res.ok) {
-      await fetch(BIZ_JSONBLOB_SNAPSHOT, { method: "PUT", headers, body: payload }).catch(() => {});
-    }
+    await fetch(BUSINESS_SNAPSHOT_URL, { method: "PUT", headers, body: payload }).catch(() => {});
   } catch { /* fire-and-forget */ }
 }
 

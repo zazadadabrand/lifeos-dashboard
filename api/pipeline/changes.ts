@@ -1,50 +1,45 @@
 export const config = { runtime: 'edge' };
 
-const CHANGES_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-29d9-701c-9d19-80d8ad7b90b0";
+import { kvGet, kvSet } from '../lib/kv';
+
+const KEY = 'pipeline:changes';
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Accept',
+};
 
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Accept',
-      },
-    });
+    return new Response(null, { status: 204, headers: CORS });
   }
 
   try {
     if (req.method === 'PUT') {
-      const body = await req.text();
-      const resp = await fetch(CHANGES_BLOB, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body,
-      });
-      return new Response(JSON.stringify({ success: resp.ok }), {
-        status: resp.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      const body = await req.json();
+      const ok = await kvSet(KEY, body);
+      return new Response(JSON.stringify({ success: ok }), {
+        status: ok ? 200 : 500,
+        headers: { 'Content-Type': 'application/json', ...CORS },
       });
     }
 
     // GET
-    const resp = await fetch(CHANGES_BLOB, {
-      headers: { 'Accept': 'application/json' },
-    });
-    const data = await resp.text();
-    return new Response(data, {
-      status: resp.status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
+    const data = await kvGet(KEY);
+    if (data === null) {
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache, no-store, must-revalidate', ...CORS },
+      });
+    }
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache, no-store, must-revalidate', ...CORS },
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: 'Changes fetch failed' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
     });
   }
 }
