@@ -1734,7 +1734,7 @@ function ScoutedArtistsReview() {
       </div>
 
       {/* Expandable content */}
-      <div className="overflow-hidden transition-all duration-300 ease-in-out" style={{ maxHeight: expanded ? "6000px" : "0px", opacity: expanded ? 1 : 0 }}>
+      <div className="transition-all duration-300 ease-in-out" style={{ maxHeight: expanded ? "10000px" : "0px", opacity: expanded ? 1 : 0, overflow: expanded ? "visible" : "hidden" }}>
         {/* Pipeline stage summary bar */}
         <div className="mx-4 mb-2 flex items-center gap-[2px] h-2 rounded-full overflow-hidden" style={{ background: COLORS.borderSubtle }}>
           {PIPELINE_STAGES.filter(s => counts[s] > 0).map(stage => (
@@ -1783,8 +1783,8 @@ function ScoutedArtistsReview() {
           ))}
         </div>
 
-        {/* Artist cards */}
-        <div className="px-4 pb-3 flex flex-col gap-1.5">
+        {/* Artist cards — scrollable */}
+        <div className="px-4 pb-3 flex flex-col gap-1.5 max-h-[600px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
           {filtered.length === 0 && (
             <div className="text-center py-6 text-[11px]" style={{ color: COLORS.textFaint }}>
               {syncing ? "Loading artists..." : "No artists in this stage"}
@@ -4629,10 +4629,11 @@ function CollapsibleSection({
         </svg>
       </button>
       <div
-        className="overflow-hidden transition-all duration-300 ease-in-out"
+        className="transition-all duration-300 ease-in-out"
         style={{
-          maxHeight: open ? '4000px' : '0px',
+          maxHeight: open ? '10000px' : '0px',
           opacity: open ? 1 : 0,
+          overflow: open ? 'visible' : 'hidden',
         }}
       >
         <div className="pt-2 pb-1">
