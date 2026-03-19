@@ -1043,11 +1043,29 @@ async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; sna
 
     // Normalize API field names → PipelineArtist interface
     // API returns deepDiveData; component uses deepDive / hasDeepDive
-    let artists: PipelineArtist[] = data.artists.map((a: any) => ({
-      ...a,
-      deepDive: a.deepDive || a.deepDiveData || null,
-      hasDeepDive: !!(a.deepDive || a.deepDiveData),
-    }));
+    let artists: PipelineArtist[] = data.artists.map((a: any) => {
+      // Parse portfolio field ("website.com | @handle" or "@handle | website.com") into instagram + website
+      let parsedIG = a.instagram || "";
+      let parsedWeb = a.website || "";
+      if (a.portfolio && (!parsedIG || !parsedWeb)) {
+        const parts = a.portfolio.split(" | ").map((p: string) => p.trim()).filter(Boolean);
+        for (const part of parts) {
+          if (part.startsWith("@") || part.toLowerCase().includes("instagram.com")) {
+            if (!parsedIG) parsedIG = part;
+          } else {
+            if (!parsedWeb) parsedWeb = part;
+          }
+        }
+      }
+      return {
+        ...a,
+        instagram: parsedIG,
+        website: parsedWeb,
+        link: a.link || a.portfolio || "",
+        deepDive: a.deepDive || a.deepDiveData || null,
+        hasDeepDive: !!(a.deepDive || a.deepDiveData),
+      };
+    });
     if (changesRes) {
       try {
         const changesData = await changesRes.json();
