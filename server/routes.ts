@@ -2,13 +2,17 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 
-// Art Pipeline JSONBlob URLs (UPDATED — old 019cf4cc/019cf4b1 expired)
-const SNAPSHOT_BLOB = "https://jsonblob.com/api/jsonBlob/019cfa10-d033-7e2e-abb8-e71299184f97";
-const CHANGES_BLOB = "https://jsonblob.com/api/jsonBlob/019cfa10-d1b2-7c2c-a1c1-933fb5230183";
+// Art Pipeline JSONBlob URLs (REBUILT 2026-03-18 — previous blobs expired)
+const SNAPSHOT_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-2640-745f-84c7-25cb0c2b5c22";
+const CHANGES_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-29d9-701c-9d19-80d8ad7b90b0";
 
-// Business Pipeline JSONBlob URLs
-const BIZ_SNAPSHOT_BLOB = "https://jsonblob.com/api/jsonBlob/019cf9f2-9b92-7ea3-9756-7c79e04f3116";
-const BIZ_CHANGES_BLOB = "https://jsonblob.com/api/jsonBlob/019cf9f2-ad2d-73e5-ad98-24e81efa3e98";
+// Business Pipeline JSONBlob URLs (REBUILT 2026-03-18)
+const BIZ_SNAPSHOT_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-3260-7552-9484-ebcfdac9f3d6";
+const BIZ_CHANGES_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-343a-75d1-b335-8d64f823e6b7";
+
+// Family Pipeline JSONBlob URLs (REBUILT 2026-03-18)
+const FAM_SNAPSHOT_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-2d1c-725f-a620-562275328269";
+const FAM_CHANGES_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-2f00-7716-82a8-333126e6cb6e";
 
 // Helper: proxy GET from JSONBlob
 async function proxyGet(blobUrl: string, res: any, label: string) {
@@ -52,6 +56,12 @@ export async function registerRoutes(
   app.get("/api/business/changes", (req, res) => proxyGet(BIZ_CHANGES_BLOB, res, "biz changes"));
   app.put("/api/business/snapshot", (req, res) => proxyPut(BIZ_SNAPSHOT_BLOB, req, res, "biz snapshot"));
   app.put("/api/business/changes", (req, res) => proxyPut(BIZ_CHANGES_BLOB, req, res, "biz changes"));
+
+  // ── Family Pipeline ──
+  app.get("/api/family/snapshot", (req, res) => proxyGet(FAM_SNAPSHOT_BLOB, res, "family snapshot"));
+  app.get("/api/family/changes", (req, res) => proxyGet(FAM_CHANGES_BLOB, res, "family changes"));
+  app.put("/api/family/snapshot", (req, res) => proxyPut(FAM_SNAPSHOT_BLOB, req, res, "family snapshot"));
+  app.put("/api/family/changes", (req, res) => proxyPut(FAM_CHANGES_BLOB, req, res, "family changes"));
 
   return httpServer;
 }

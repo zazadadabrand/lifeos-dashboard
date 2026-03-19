@@ -978,8 +978,8 @@ const PIPE_API = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 // ARTIST PIPELINE — GLOBAL SYNC SYSTEM
 // ═══════════════════════════════════════════
 // Direct JSONBlob URLs (CORS-safe when not in sandboxed iframe)
-const JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019cfa10-d033-7e2e-abb8-e71299184f97";
-const JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019cfa10-d1b2-7c2c-a1c1-933fb5230183";
+const JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019d0383-2640-745f-84c7-25cb0c2b5c22";
+const JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019d0383-29d9-701c-9d19-80d8ad7b90b0";
 // Proxied API paths — routed through Express on port 5000 → JSONBlob
 const SNAPSHOT_BLOB_URL = `${PIPE_API}/api/pipeline/snapshot`;
 const WRITE_BLOB_URL = `${PIPE_API}/api/pipeline/changes`;
@@ -2337,8 +2337,8 @@ const PRIORITY_ITEMS = [
 ];
 
 // Direct JSONBlob URLs for business pipeline (CORS-safe from any origin)
-const BIZ_JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019cf9f2-9b92-7ea3-9756-7c79e04f3116";
-const BIZ_JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019cf9f2-ad2d-73e5-ad98-24e81efa3e98";
+const BIZ_JSONBLOB_SNAPSHOT = "https://jsonblob.com/api/jsonBlob/019d0383-3260-7552-9484-ebcfdac9f3d6";
+const BIZ_JSONBLOB_CHANGES = "https://jsonblob.com/api/jsonBlob/019d0383-343a-75d1-b335-8d64f823e6b7";
 // Proxied API paths — routed through Express on port 5000 → JSONBlob
 const BUSINESS_SNAPSHOT_URL = `${PIPE_API}/api/business/snapshot`;
 const BUSINESS_CHANGES_URL = `${PIPE_API}/api/business/changes`;
