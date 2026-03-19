@@ -1381,7 +1381,7 @@ function ScoutedArtistsReview() {
         />
         {/* Panel */}
         <div
-          className="fixed top-0 right-0 z-[101] overflow-y-auto"
+          className="fixed top-0 right-0 z-[101] flex flex-col"
           style={{
             width: "min(520px, 90vw)",
             height: "100vh",
@@ -1392,8 +1392,8 @@ function ScoutedArtistsReview() {
             animation: "slideInRight 0.3s ease-out",
           }}
         >
-          {/* Header */}
-          <div className="sticky top-0 z-10 px-6 pt-6 pb-4" style={{ background: "rgba(12,12,18,0.95)", borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
+          {/* Header — pinned top */}
+          <div className="flex-shrink-0 px-6 pt-6 pb-4" style={{ background: "rgba(12,12,18,0.95)", borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
             <div className="flex items-start gap-4">
               <ScoreRing score={artist.score} size={56} />
               <div className="flex-1 min-w-0">
@@ -1442,8 +1442,8 @@ function ScoutedArtistsReview() {
             </div>
           </div>
 
-          {/* Body content */}
-          <div className="px-6 py-5 flex flex-col gap-5">
+          {/* Body content — scrollable */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
 
             {/* REPRESENTATION STATUS — primary callout */}
             <div className="rounded-lg p-4 flex items-start gap-3" style={{
@@ -1614,8 +1614,8 @@ function ScoutedArtistsReview() {
             )}
           </div>
 
-          {/* Bottom action bar — sticky */}
-          <div className="sticky bottom-0 px-6 py-4 flex items-center gap-3" style={{ background: "rgba(12,12,18,0.95)", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+          {/* Bottom action bar — pinned bottom */}
+          <div className="flex-shrink-0 px-6 py-4 flex items-center gap-3" style={{ background: "rgba(12,12,18,0.95)", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
             {/* Instagram + Website links — show both when available */}
             {(() => {
               const igUrl = artist.instagram || (artist.link?.includes("instagram") ? artist.link.split(" | ")[0] : "");
