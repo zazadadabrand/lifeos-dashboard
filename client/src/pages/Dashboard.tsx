@@ -1041,8 +1041,13 @@ async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; sna
     const data = await snapshotRes.json();
     if (!data.artists || !Array.isArray(data.artists)) return null;
 
-    // Merge persisted changes on top of snapshot so reloads are consistent
-    let artists: PipelineArtist[] = data.artists;
+    // Normalize API field names → PipelineArtist interface
+    // API returns deepDiveData; component uses deepDive / hasDeepDive
+    let artists: PipelineArtist[] = data.artists.map((a: any) => ({
+      ...a,
+      deepDive: a.deepDive || a.deepDiveData || null,
+      hasDeepDive: !!(a.deepDive || a.deepDiveData),
+    }));
     if (changesRes) {
       try {
         const changesData = await changesRes.json();
