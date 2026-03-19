@@ -1921,10 +1921,13 @@ function ScoutedArtistsReview() {
         </div>
       </div>
 
-      {/* Deep Dive Slide-Out — rendered as portal-like overlay */}
+      {/* Deep Dive Slide-Out — portaled to body to escape parent overflow/backdrop-filter */}
       {expandedArtist && (() => {
         const a = artists.find(x => x.name === expandedArtist);
-        return a ? <DeepDiveSlideOut artist={a} onClose={() => setExpandedArtist(null)} /> : null;
+        return a ? ReactDOM.createPortal(
+          <DeepDiveSlideOut artist={a} onClose={() => setExpandedArtist(null)} />,
+          document.body
+        ) : null;
       })()}
     </div>
   );
