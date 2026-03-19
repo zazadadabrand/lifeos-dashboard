@@ -1361,6 +1361,17 @@ function ScoutedArtistsReview() {
     const stages = ["Scouted", "Deep Dive", "Shortlisted", "In Conversation"] as VettingStage[];
     const rep = getRepresentation(artist);
 
+    // Lock body scroll when slide-out is open
+    useEffect(() => {
+      const main = document.querySelector('main');
+      if (main) (main as HTMLElement).style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return () => {
+        if (main) (main as HTMLElement).style.overflow = '';
+        document.body.style.overflow = '';
+      };
+    }, []);
+
     // Next stage for the CTA button
     const nextStageMap: Partial<Record<VettingStage, VettingStage>> = {
       "Scouted": "Deep Dive",
@@ -1373,11 +1384,12 @@ function ScoutedArtistsReview() {
 
     return (
       <>
-        {/* Backdrop */}
+        {/* Backdrop — captures scroll to prevent background scrolling */}
         <div
           className="fixed inset-0 z-[100] transition-opacity duration-300"
-          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", overscrollBehavior: "contain" }}
           onClick={onClose}
+          onWheel={(e) => e.stopPropagation()}
         />
         {/* Panel */}
         <div
@@ -1390,6 +1402,7 @@ function ScoutedArtistsReview() {
             borderLeft: `1px solid ${COLORS.borderSubtle}`,
             boxShadow: "-8px 0 40px rgba(0,0,0,0.5)",
             animation: "slideInRight 0.3s ease-out",
+            overscrollBehavior: "contain",
           }}
         >
           {/* Header — pinned top */}
@@ -1443,7 +1456,7 @@ function ScoutedArtistsReview() {
           </div>
 
           {/* Body content — scrollable */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-5" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent`, overscrollBehavior: "contain" }}>
 
             {/* REPRESENTATION STATUS — primary callout */}
             <div className="rounded-lg p-4 flex items-start gap-3" style={{
