@@ -1456,7 +1456,7 @@ function ScoutedArtistsReview() {
           </div>
 
           {/* Body content — scrollable */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-5" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent`, overscrollBehavior: "contain" }}>
+          <div style={{ flex: "1 1 0%", minHeight: 0, overflowY: "auto", paddingLeft: 24, paddingRight: 24, paddingTop: 20, paddingBottom: 20, display: "flex", flexDirection: "column" as const, gap: 20, scrollbarWidth: "thin" as const, scrollbarColor: `${COLORS.textFaint} transparent`, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
 
             {/* REPRESENTATION STATUS — primary callout */}
             <div className="rounded-lg p-4 flex items-start gap-3" style={{
