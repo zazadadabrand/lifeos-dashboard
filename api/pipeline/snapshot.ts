@@ -1,6 +1,6 @@
 export const config = { runtime: 'edge' };
 
-const SNAPSHOT_BLOB = "https://jsonblob.com/api/jsonBlob/019d0601-c2b1-74b3-9c43-0e41c395b80a";
+const SNAPSHOT_BLOB = "https://jsonblob.com/api/jsonBlob/019d061a-dd3e-7912-be89-2f70ad3aea81";
 
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') {
