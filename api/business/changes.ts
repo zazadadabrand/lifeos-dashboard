@@ -1,6 +1,6 @@
 export const config = { runtime: 'edge' };
 
-const FAMILY_CHANGES_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-2f00-7716-82a8-333126e6cb6e";
+const BIZ_CHANGES_BLOB = "https://jsonblob.com/api/jsonBlob/019d0383-343a-75d1-b335-8d64f823e6b7";
 
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') {
@@ -17,7 +17,7 @@ export default async function handler(req: Request) {
   try {
     if (req.method === 'PUT') {
       const body = await req.text();
-      const resp = await fetch(FAMILY_CHANGES_BLOB, {
+      const resp = await fetch(BIZ_CHANGES_BLOB, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body,
@@ -29,7 +29,7 @@ export default async function handler(req: Request) {
     }
 
     // GET
-    const resp = await fetch(FAMILY_CHANGES_BLOB, {
+    const resp = await fetch(BIZ_CHANGES_BLOB, {
       headers: { 'Accept': 'application/json' },
     });
     const data = await resp.text();
@@ -42,7 +42,7 @@ export default async function handler(req: Request) {
       },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: 'Family changes fetch failed' }), {
+    return new Response(JSON.stringify({ error: 'Business changes fetch failed' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });

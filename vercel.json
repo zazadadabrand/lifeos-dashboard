@@ -6,6 +6,10 @@
   "rewrites": [
     { "source": "/api/pipeline/snapshot", "destination": "/api/pipeline/snapshot" },
     { "source": "/api/pipeline/changes", "destination": "/api/pipeline/changes" },
+    { "source": "/api/family/snapshot", "destination": "/api/family/snapshot" },
+    { "source": "/api/family/changes", "destination": "/api/family/changes" },
+    { "source": "/api/business/snapshot", "destination": "/api/business/snapshot" },
+    { "source": "/api/business/changes", "destination": "/api/business/changes" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
