@@ -2174,6 +2174,48 @@ const DEAL_STAGE_COLORS: Record<DealStage, string> = {
 type DealType = "Retainer" | "Project" | "Advisory" | "Grant" | "Commission" | "Job" | "Vendor";
 const DEAL_TYPES: DealType[] = ["Retainer", "Project", "Advisory", "Grant", "Commission", "Job", "Vendor"];
 
+// ─── Job Application Journey ───
+type JobAppStage = "Bookmarked" | "Applied" | "Phone Screen" | "Interview" | "Final Round" | "Offer" | "Negotiating" | "Accepted" | "Rejected" | "Withdrawn";
+const JOB_APP_STAGES: JobAppStage[] = ["Bookmarked", "Applied", "Phone Screen", "Interview", "Final Round", "Offer", "Negotiating", "Accepted"];
+const JOB_APP_TERMINAL: JobAppStage[] = ["Rejected", "Withdrawn"];
+const JOB_APP_COLORS: Record<JobAppStage, string> = {
+  "Bookmarked": "#8b8fa3",
+  "Applied": "#7c8cf5",
+  "Phone Screen": "#a78bfa",
+  "Interview": "#c084fc",
+  "Final Round": "#e879f9",
+  "Offer": "#22d3ee",
+  "Negotiating": "#facc15",
+  "Accepted": "#4ade80",
+  "Rejected": "#ef4444",
+  "Withdrawn": "#6b7280",
+};
+const JOB_APP_ICONS: Record<JobAppStage, string> = {
+  "Bookmarked": "🔖",
+  "Applied": "📤",
+  "Phone Screen": "📞",
+  "Interview": "🎙",
+  "Final Round": "🏁",
+  "Offer": "💰",
+  "Negotiating": "🤝",
+  "Accepted": "✅",
+  "Rejected": "❌",
+  "Withdrawn": "🚫",
+};
+// Map job app stages to deal stages for auto-advancement
+const JOB_TO_DEAL_STAGE: Partial<Record<JobAppStage, DealStage>> = {
+  "Bookmarked": "Lead",
+  "Applied": "Proposal",
+  "Phone Screen": "Proposal",
+  "Interview": "Negotiation",
+  "Final Round": "Negotiation",
+  "Offer": "Signed",
+  "Negotiating": "Signed",
+  "Accepted": "Active",
+  "Rejected": "Lost",
+  "Withdrawn": "Lost",
+};
+
 const PHASE_META: Record<DealPhase, { label: string; range: string; color: string; description: string }> = {
   short: { label: "Short Term", range: "0–60 Days", color: COLORS.coral, description: "Digital Marketing Services — campaigns, clipping, grants, retainers" },
   medium: { label: "Mid Term", range: "60–90 Days", color: COLORS.purple, description: "Expansion — clipping scale, advisory commissions, FIFA vendor play" },
@@ -2216,6 +2258,8 @@ interface BusinessDeal {
   role?: string;
   salaryRange?: string;
   interviewStage?: string;
+  applicationJourney?: JobAppStage;
+  journeyHistory?: { stage: JobAppStage; date: string }[];
 }
 
 // ─── Revenue Paths (static from v4.2 plan) ───
@@ -2386,10 +2430,15 @@ async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapsho
         const changes: any[] = Array.isArray(changesData?.changes) ? changesData.changes : [];
         if (changes.length > 0) {
           const stageMap = new Map(changes.filter((c: any) => c.type === "stage").map((c: any) => [c.dealId, c.newStage]));
+          const journeyMap = new Map(changes.filter((c: any) => c.type === "journey").map((c: any) => [c.dealId, { appStage: c.appStage, journeyHistory: c.journeyHistory }]));
           const newDeals: BusinessDeal[] = changes.filter((c: any) => c.type === "add").map((c: any) => c.deal);
           deals = deals.map(d => {
+            let updated = d;
             const newStage = stageMap.get(d.id);
-            return newStage ? { ...d, stage: newStage } : d;
+            if (newStage) updated = { ...updated, stage: newStage };
+            const journey = journeyMap.get(d.id);
+            if (journey) updated = { ...updated, applicationJourney: journey.appStage, interviewStage: journey.appStage, journeyHistory: journey.journeyHistory };
+            return updated;
           });
           const existingIds = new Set(deals.map(d => d.id));
           for (const nd of newDeals) {
@@ -2411,8 +2460,8 @@ async function pushBusinessChange(change: any): Promise<boolean> {
     const current = readRes ? await readRes.json() : { syncedAt: null, changes: [] };
     const changes = Array.isArray(current.changes) ? current.changes : [];
 
-    if (change.type === "stage") {
-      const existing = changes.findIndex((c: any) => c.type === "stage" && c.dealId === change.dealId);
+    if (change.type === "stage" || change.type === "journey") {
+      const existing = changes.findIndex((c: any) => c.type === change.type && c.dealId === change.dealId);
       if (existing >= 0) changes[existing] = change;
       else changes.push(change);
     } else {
@@ -2491,6 +2540,33 @@ function BusinessPipeline() {
     const ok = await pushBusinessChange({ type: "stage", dealId: deal.id, newStage, changedAt: new Date().toISOString() });
     if (!ok) {
       const reverted = deals.map(d => d.id === deal.id ? { ...d, stage: deal.stage } : d);
+      _businessDeals = reverted;
+      setDeals(reverted);
+    } else {
+      updateBusinessSnapshotBlob(updated);
+    }
+    setChangingStage(null);
+  };
+
+  const handleJobJourneyChange = async (deal: BusinessDeal, newAppStage: JobAppStage) => {
+    if (deal.applicationJourney === newAppStage) return;
+    setChangingStage(deal.id);
+    const historyEntry = { stage: newAppStage, date: new Date().toISOString() };
+    const prevHistory = deal.journeyHistory || [];
+    const targetDealStage = JOB_TO_DEAL_STAGE[newAppStage] || deal.stage;
+    const updated = deals.map(d => d.id === deal.id ? {
+      ...d,
+      applicationJourney: newAppStage,
+      interviewStage: newAppStage,
+      journeyHistory: [...prevHistory, historyEntry],
+      stage: targetDealStage,
+    } : d);
+    _businessDeals = updated;
+    setDeals(updated);
+    const ok1 = await pushBusinessChange({ type: "stage", dealId: deal.id, newStage: targetDealStage, changedAt: new Date().toISOString() });
+    const ok2 = await pushBusinessChange({ type: "journey", dealId: deal.id, appStage: newAppStage, journeyHistory: [...prevHistory, historyEntry], changedAt: new Date().toISOString() });
+    if (!ok1 && !ok2) {
+      const reverted = deals.map(d => d.id === deal.id ? { ...d, applicationJourney: deal.applicationJourney, interviewStage: deal.interviewStage, journeyHistory: deal.journeyHistory, stage: deal.stage } : d);
       _businessDeals = reverted;
       setDeals(reverted);
     } else {
@@ -2753,18 +2829,103 @@ function BusinessPipeline() {
               </div>
             )}
 
-            {/* Job-specific info */}
-            {deal.type === "Job" && (deal.company || deal.role || deal.salaryRange) && (
-              <div className="rounded-lg p-4" style={{ background: `${COLORS.gold}06`, border: `1px solid ${COLORS.gold}15` }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.gold }}>Job Details</span>
+            {/* Job Application Journey */}
+            {deal.type === "Job" && (
+              <div className="rounded-lg overflow-hidden" style={{ background: `${COLORS.gold}06`, border: `1px solid ${COLORS.gold}15` }}>
+                {/* Job details header */}
+                <div className="px-4 pt-4 pb-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="5" width="10" height="7" rx="1.5" stroke={COLORS.gold} strokeWidth="1.2"/><path d="M5 5V3.5A1.5 1.5 0 016.5 2h1A1.5 1.5 0 019 3.5V5" stroke={COLORS.gold} strokeWidth="1.2"/></svg>
+                    <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.gold }}>Application Journey</span>
+                    {deal.applicationJourney && (
+                      <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${JOB_APP_COLORS[deal.applicationJourney]}20`, color: JOB_APP_COLORS[deal.applicationJourney] }}>
+                        {JOB_APP_ICONS[deal.applicationJourney]} {deal.applicationJourney}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    {deal.company && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Company</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.company}</div></div>}
+                    {deal.role && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Role</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.role}</div></div>}
+                    {deal.salaryRange && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Salary</div><div className="text-[13px] font-medium" style={{ color: COLORS.green }}>{deal.salaryRange}</div></div>}
+                    {deal.applicationJourney && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Current Stage</div><div className="text-[13px] font-medium" style={{ color: JOB_APP_COLORS[deal.applicationJourney] }}>{deal.applicationJourney}</div></div>}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {deal.company && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Company</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.company}</div></div>}
-                  {deal.role && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Role</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.role}</div></div>}
-                  {deal.salaryRange && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Salary Range</div><div className="text-[13px] font-medium" style={{ color: COLORS.green }}>{deal.salaryRange}</div></div>}
-                  {deal.interviewStage && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Stage</div><div className="text-[13px] font-medium" style={{ color: COLORS.purple }}>{deal.interviewStage}</div></div>}
+                {/* Journey Progress Track */}
+                <div className="px-4 pb-3">
+                  <div className="flex items-center gap-0">
+                    {JOB_APP_STAGES.map((stage, i) => {
+                      const currentIdx = deal.applicationJourney ? JOB_APP_STAGES.indexOf(deal.applicationJourney as any) : -1;
+                      const isCompleted = currentIdx >= 0 && i < currentIdx;
+                      const isCurrent = deal.applicationJourney === stage;
+                      const isFuture = currentIdx >= 0 ? i > currentIdx : true;
+                      const isTerminal = deal.applicationJourney === "Rejected" || deal.applicationJourney === "Withdrawn";
+                      return (
+                        <div key={stage} className="flex-1 flex flex-col items-center gap-1">
+                          <div className="w-full h-[3px] rounded-full transition-all duration-500" style={{
+                            background: isTerminal ? COLORS.borderSubtle : isCompleted ? JOB_APP_COLORS[stage] : isCurrent ? JOB_APP_COLORS[stage] : COLORS.borderSubtle,
+                            opacity: isTerminal && !isCurrent ? 0.3 : isCompleted ? 0.7 : isCurrent ? 1 : 0.3,
+                          }} />
+                          <span className="text-[7px] font-medium leading-tight text-center" style={{
+                            color: isCurrent ? JOB_APP_COLORS[stage] : isCompleted ? COLORS.textMuted : COLORS.textFaint,
+                            opacity: isFuture && !isCurrent ? 0.4 : 1,
+                          }}>{stage}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+                {/* Journey timeline (if history exists) */}
+                {deal.journeyHistory && deal.journeyHistory.length > 0 && (
+                  <div className="px-4 pb-3" style={{ borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+                    <div className="text-[10px] font-bold tracking-wider uppercase mt-3 mb-2" style={{ color: COLORS.textFaint }}>Timeline</div>
+                    <div className="flex flex-col gap-1.5">
+                      {deal.journeyHistory.slice(-5).map((entry, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-[11px]">{JOB_APP_ICONS[entry.stage]}</span>
+                          <span className="text-[11px] font-medium" style={{ color: JOB_APP_COLORS[entry.stage] }}>{entry.stage}</span>
+                          <span className="text-[10px] ml-auto" style={{ color: COLORS.textFaint }}>{new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Advance buttons */}
+                {deal.applicationJourney !== "Accepted" && deal.applicationJourney !== "Rejected" && deal.applicationJourney !== "Withdrawn" && (
+                  <div className="px-4 py-3 flex items-center gap-2 flex-wrap" style={{ borderTop: `1px solid ${COLORS.borderSubtle}`, background: "rgba(0,0,0,0.15)" }}>
+                    {(() => {
+                      const currentIdx = deal.applicationJourney ? JOB_APP_STAGES.indexOf(deal.applicationJourney as any) : -1;
+                      const nextStage = currentIdx < JOB_APP_STAGES.length - 1 ? JOB_APP_STAGES[currentIdx + 1] : null;
+                      return (
+                        <>
+                          {!deal.applicationJourney && (
+                            <button onClick={() => handleJobJourneyChange(deal, "Bookmarked")}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all hover:brightness-110"
+                              style={{ background: `${JOB_APP_COLORS["Bookmarked"]}20`, color: JOB_APP_COLORS["Bookmarked"], border: `1px solid ${JOB_APP_COLORS["Bookmarked"]}30` }}>
+                              {JOB_APP_ICONS["Bookmarked"]} Start Journey
+                            </button>
+                          )}
+                          {nextStage && (
+                            <button onClick={() => handleJobJourneyChange(deal, nextStage)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all hover:brightness-110"
+                              style={{ background: JOB_APP_COLORS[nextStage], color: "#000" }}>
+                              {JOB_APP_ICONS[nextStage]} {nextStage}
+                            </button>
+                          )}
+                          <button onClick={() => handleJobJourneyChange(deal, "Rejected")}
+                            className="px-3 py-1.5 rounded-md text-[11px] font-medium transition-all hover:bg-white/[0.06] ml-auto"
+                            style={{ color: JOB_APP_COLORS["Rejected"], border: `1px solid ${JOB_APP_COLORS["Rejected"]}25` }}>
+                            Rejected
+                          </button>
+                          <button onClick={() => handleJobJourneyChange(deal, "Withdrawn")}
+                            className="px-3 py-1.5 rounded-md text-[11px] font-medium transition-all hover:bg-white/[0.06]"
+                            style={{ color: COLORS.textFaint, border: `1px solid ${COLORS.borderSubtle}` }}>
+                            Withdraw
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )}
 
@@ -3130,6 +3291,11 @@ function BusinessPipeline() {
                             {deal.nextAction && <p className="text-[10px] font-medium mb-1.5" style={{ color: COLORS.coral }}>Next: {deal.nextAction}</p>}
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                               <DealStageSelector deal={deal} />
+                              {deal.type === "Job" && deal.applicationJourney && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: `${JOB_APP_COLORS[deal.applicationJourney]}15`, color: JOB_APP_COLORS[deal.applicationJourney], border: `1px solid ${JOB_APP_COLORS[deal.applicationJourney]}25` }}>
+                                  {JOB_APP_ICONS[deal.applicationJourney]} {deal.applicationJourney}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
