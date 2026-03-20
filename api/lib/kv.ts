@@ -9,7 +9,7 @@
 
 // JSONBlob fallback URLs — used when Upstash is not configured yet
 const JSONBLOB_FALLBACK: Record<string, string> = {
-  'pipeline:snapshot': 'https://jsonblob.com/api/jsonBlob/019d0383-2640-745f-84c7-25cb0c2b5c22',
+  'pipeline:snapshot': 'https://jsonblob.com/api/jsonBlob/019d0bac-10d8-7d9c-bf5c-251ae9ec3bb1',
   'pipeline:changes': 'https://jsonblob.com/api/jsonBlob/019d0383-29d9-701c-9d19-80d8ad7b90b0',
   'family:snapshot': 'https://jsonblob.com/api/jsonBlob/019d0383-2d1c-725f-a620-562275328269',
   'family:changes': 'https://jsonblob.com/api/jsonBlob/019d0383-2f00-7716-82a8-333126e6cb6e',
