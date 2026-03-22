@@ -1826,9 +1826,9 @@ function ScoutedArtistsReview() {
               {syncing ? "Loading artists..." : "No artists in this stage"}
             </div>
           )}
-          {filtered.map((artist) => (
+          {filtered.map((artist, idx) => (
             <div
-              key={`${artist.name}-${artist.sheetRow}`}
+              key={`${artist.name}-${artist.batch || idx}`}
               className="rounded-lg border p-3 transition-all duration-200 group"
               style={{
                 ...GLASS_ALT,
