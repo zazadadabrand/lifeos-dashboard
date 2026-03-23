@@ -8,13 +8,14 @@
  */
 
 // JSONBlob fallback URLs — used when Upstash is not configured yet
+// JSONBlob fallback URLs — REBUILT 2026-03-22 (6th rebuild due to free-tier TTL expiry)
 const JSONBLOB_FALLBACK: Record<string, string> = {
-  'pipeline:snapshot': 'https://jsonblob.com/api/jsonBlob/019d127f-fa5e-737e-83cf-0d762d69c3df',
-  'pipeline:changes': 'https://jsonblob.com/api/jsonBlob/019d127f-fb6b-72d4-a149-e9026212444e',
-  'family:snapshot': 'https://jsonblob.com/api/jsonBlob/019d127f-fc54-796e-ae69-40c11cb9f24c',
-  'family:changes': 'https://jsonblob.com/api/jsonBlob/019d127f-fd7d-7f5e-88d0-8083cff46ce6',
-  'business:snapshot': 'https://jsonblob.com/api/jsonBlob/019d127f-fe79-760d-b814-ccd51f71fa7f',
-  'business:changes': 'https://jsonblob.com/api/jsonBlob/019d127f-ff56-7d12-a5ae-ca9223d9fc53',
+  'pipeline:snapshot': 'https://jsonblob.com/api/jsonBlob/019d1824-9af1-7a56-a04c-51968757a40d',
+  'pipeline:changes': 'https://jsonblob.com/api/jsonBlob/019d1824-9bb8-7f95-95fc-af045dd97618',
+  'family:snapshot': 'https://jsonblob.com/api/jsonBlob/019d1824-9c8a-7475-b5b3-ac6120e6d16e',
+  'family:changes': 'https://jsonblob.com/api/jsonBlob/019d1824-9d20-720c-9ee9-08e283f71139',
+  'business:snapshot': 'https://jsonblob.com/api/jsonBlob/019d1824-9dd7-7aa8-a201-4f66cf81593b',
+  'business:changes': 'https://jsonblob.com/api/jsonBlob/019d1824-9e99-7cab-9a10-a70b40b8f6d5',
 };
 
 function isUpstashConfigured(): boolean {
