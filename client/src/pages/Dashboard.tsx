@@ -2260,6 +2260,8 @@ interface BusinessDeal {
   interviewStage?: string;
   applicationJourney?: JobAppStage;
   journeyHistory?: { stage: JobAppStage; date: string }[];
+  url?: string;
+  deadline?: string;
 }
 
 // ─── Revenue Paths (static from v4.2 plan) ───
@@ -2817,15 +2819,26 @@ function BusinessPipeline() {
             )}
 
             {/* Grant-specific info */}
-            {deal.type === "Grant" && (deal.grantDeadline || deal.applicationStatus) && (
+            {deal.type === "Grant" && (
               <div className="rounded-lg p-4" style={{ background: `${COLORS.green}06`, border: `1px solid ${COLORS.green}15` }}>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke={COLORS.green} strokeWidth="1.2" /><path d="M4 5h6M4 7.5h4" stroke={COLORS.green} strokeWidth="1" strokeLinecap="round" /></svg>
                   <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: COLORS.green }}>Grant Details</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {deal.grantDeadline && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Deadline</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.grantDeadline}</div></div>}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  {deal.company && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Funder</div><div className="text-[13px] font-medium" style={{ color: COLORS.textPrimary }}>{deal.company}</div></div>}
+                  {(deal.grantDeadline || deal.deadline) && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Deadline</div><div className="text-[13px] font-medium" style={{ color: COLORS.coral }}>{deal.grantDeadline || deal.deadline}</div></div>}
+                  {deal.monthlyValue > 0 && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Amount</div><div className="text-[13px] font-medium" style={{ color: COLORS.green }}>{formatCurrency(deal.monthlyValue)}</div></div>}
                   {deal.applicationStatus && <div><div className="text-[10px] uppercase" style={{ color: COLORS.textFaint }}>Status</div><div className="text-[13px] font-medium" style={{ color: COLORS.gold }}>{deal.applicationStatus}</div></div>}
                 </div>
+                {deal.url && (
+                  <a href={deal.url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-[12px] font-semibold transition-all duration-200 hover:brightness-110"
+                    style={{ background: COLORS.green, color: "#000" }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 1.5H10.5V8.5M10.5 1.5L1.5 10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    Apply Now
+                  </a>
+                )}
               </div>
             )}
 
@@ -3289,6 +3302,14 @@ function BusinessPipeline() {
                             </div>
                             {deal.description && <p className="text-[11px] mb-1.5" style={{ color: COLORS.textMuted, lineHeight: "1.4" }}>{deal.description}</p>}
                             {deal.nextAction && <p className="text-[10px] font-medium mb-1.5" style={{ color: COLORS.coral }}>Next: {deal.nextAction}</p>}
+                            {deal.url && (
+                              <a href={deal.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md mb-1.5 transition-colors hover:bg-white/[0.06]"
+                                style={{ color: COLORS.teal, border: `1px solid ${COLORS.teal}30`, background: `${COLORS.teal}08` }}>
+                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 1H9V7M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                {deal.type === "Grant" ? "Apply" : deal.type === "Job" ? "Apply" : "Open"}
+                              </a>
+                            )}
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                               <DealStageSelector deal={deal} />
                               {deal.type === "Job" && deal.applicationJourney && (
