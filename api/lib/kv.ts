@@ -16,6 +16,7 @@ const JSONBLOB_FALLBACK: Record<string, string> = {
   'family:changes': 'https://jsonblob.com/api/jsonBlob/019d2583-6063-7f34-b908-0b9b537cafaf',
   'business:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2583-6138-729b-914b-5d687c24ccbf',
   'business:changes': 'https://jsonblob.com/api/jsonBlob/019d2583-61e7-78d6-a2f6-2955b8a9e6dd',
+  'notes:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2a9b-bd7e-7c80-a052-c43e92c8b368',
 };
 
 function isUpstashConfigured(): boolean {

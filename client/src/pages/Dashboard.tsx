@@ -5162,6 +5162,114 @@ function DeliverablesList({ laneName, laneColor }: { laneName: string; laneColor
 }
 
 // ═══════════════════════════════════════════
+// QUICK NOTES — editable scratchpad persisted to API
+// ═══════════════════════════════════════════
+function QuickNotes() {
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load notes on mount
+  useEffect(() => {
+    fetch(`${API_BASE}/api/notes/snapshot`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.notes !== undefined) setNotes(data.notes);
+        if (data?.updatedAt) setLastSaved(data.updatedAt);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = Math.max(80, textareaRef.current.scrollHeight) + "px";
+    }
+  }, [notes]);
+
+  // Debounced save
+  const persistNotes = useCallback((value: string) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        const now = new Date().toISOString();
+        await fetch(`${API_BASE}/api/notes/snapshot`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: value, updatedAt: now }),
+        });
+        setLastSaved(now);
+      } catch { /* silent */ }
+      setSaving(false);
+    }, 800);
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setNotes(val);
+    persistNotes(val);
+  };
+
+  const formatTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    } catch { return ""; }
+  };
+
+  return (
+    <div className="animate-fade-in-up rounded-xl border" style={{ ...GLASS }}>
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${COLORS.gold}15` }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+          </div>
+          <span className="text-xs font-semibold" style={{ color: COLORS.gold }}>Quick Notes</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {saving && (
+            <span className="text-[10px] font-medium" style={{ color: COLORS.textFaint }}>Saving...</span>
+          )}
+          {!saving && lastSaved && (
+            <span className="text-[10px]" style={{ color: COLORS.textFaint }}>Saved {formatTime(lastSaved)}</span>
+          )}
+        </div>
+      </div>
+      <div className="px-5 pb-4">
+        <textarea
+          ref={textareaRef}
+          value={loaded ? notes : ""}
+          onChange={handleChange}
+          placeholder="Type anything here — tasks, reminders, ideas, links. Auto-saves as you type."
+          spellCheck={false}
+          className="w-full resize-none rounded-lg border px-4 py-3 text-sm leading-relaxed transition-colors focus:outline-none"
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            borderColor: "rgba(255,255,255,0.08)",
+            color: COLORS.textPrimary,
+            minHeight: "80px",
+            fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace",
+            fontSize: "13px",
+            lineHeight: "1.7",
+            caretColor: COLORS.gold,
+          }}
+          onFocus={(e) => { (e.target as HTMLTextAreaElement).style.borderColor = `${COLORS.gold}40`; }}
+          onBlur={(e) => { (e.target as HTMLTextAreaElement).style.borderColor = "rgba(255,255,255,0.08)"; }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
 // TL;DR DIGEST
 // ═══════════════════════════════════════════
 interface DigestLine {
@@ -5465,6 +5573,7 @@ function computeAmbientGradient(variant: ColorVariant): string {
 // MAIN DASHBOARD PAGE
 // ═══════════════════════════════════════════
 const DEFAULT_SECTIONS: DashboardSection[] = [
+  { id: "quick-notes", label: "Quick Notes" },
   { id: "tldr", label: "At a Glance" },
   { id: "kpis", label: "Stats" },
   { id: "agents-active", label: "Agent Network" },
@@ -5475,7 +5584,7 @@ const DEFAULT_SECTIONS: DashboardSection[] = [
 ];
 
 // Sections that default to expanded
-const DEFAULT_OPEN_SECTIONS = new Set(["tldr", "kpis", "agents-active", "hub-connectors"]);
+const DEFAULT_OPEN_SECTIONS = new Set(["quick-notes", "tldr", "kpis", "agents-active", "hub-connectors"]);
 
 export default function Dashboard() {
   useEffect(() => { document.documentElement.classList.add("dark"); }, []);
@@ -5520,6 +5629,8 @@ export default function Dashboard() {
 
   const renderSection = (sectionId: string) => {
     switch (sectionId) {
+      case "quick-notes":
+        return <QuickNotes />;
       case "tldr":
         return <TLDRDigest />;
       case "kpis":

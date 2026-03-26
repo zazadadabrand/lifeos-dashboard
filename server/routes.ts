@@ -67,5 +67,9 @@ export async function registerRoutes(
   app.put("/api/family/snapshot", (req, res) => handlePut("family:snapshot", req, res));
   app.put("/api/family/changes", (req, res) => handlePut("family:changes", req, res));
 
+  // ── Quick Notes ──
+  app.get("/api/notes/snapshot", (req, res) => handleGet("notes:snapshot", { notes: "", updatedAt: new Date().toISOString() }, res));
+  app.put("/api/notes/snapshot", (req, res) => handlePut("notes:snapshot", req, res));
+
   return httpServer;
 }

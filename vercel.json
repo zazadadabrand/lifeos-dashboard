@@ -10,6 +10,7 @@
     { "source": "/api/family/changes", "destination": "/api/family/changes" },
     { "source": "/api/business/snapshot", "destination": "/api/business/snapshot" },
     { "source": "/api/business/changes", "destination": "/api/business/changes" },
+    { "source": "/api/notes/snapshot", "destination": "/api/notes/snapshot" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
