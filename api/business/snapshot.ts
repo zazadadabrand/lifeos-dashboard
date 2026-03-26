@@ -18,8 +18,18 @@ export default async function handler(req: Request) {
     if (req.method === 'PUT') {
       const body = await req.json();
       const ok = await kvSet(KEY, body);
+      if (!ok) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'WIPE_PROTECTION',
+          message: 'Cannot overwrite non-empty pipeline with empty data. This action requires manual approval.',
+        }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json', ...CORS },
+        });
+      }
       return new Response(JSON.stringify({ success: ok }), {
-        status: ok ? 200 : 500,
+        status: 200,
         headers: { 'Content-Type': 'application/json', ...CORS },
       });
     }
@@ -37,7 +47,7 @@ export default async function handler(req: Request) {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache, no-store, must-revalidate', ...CORS },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: 'Business snapshot fetch failed' }), {
+    return new Response(JSON.stringify({ error: 'Snapshot fetch failed' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...CORS },
     });

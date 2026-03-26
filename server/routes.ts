@@ -35,12 +35,51 @@ function saveLocal(key: string, data: any): boolean {
   } catch { return false; }
 }
 
+// ═══════════════════════════════════════════
+// WIPE PROTECTION — hardcoded, no override
+// Prevents any PUT from replacing a populated pipeline with empty data.
+// Data can only be cleared via manual user action.
+// ═══════════════════════════════════════════
+const PROTECTED_FIELDS: Record<string, string> = {
+  "pipeline:snapshot": "artists",
+  "business:snapshot": "deals",
+  "family:snapshot": "ideas",
+};
+
+function wouldWipePipeline(key: string, newData: any): boolean {
+  const field = PROTECTED_FIELDS[key];
+  if (!field) return false;
+
+  const existing = loadLocal(key);
+  const existingItems = existing?.[field];
+  const newItems = newData?.[field];
+
+  if (Array.isArray(existingItems) && existingItems.length > 0) {
+    if (!Array.isArray(newItems) || newItems.length === 0) {
+      console.error(
+        `[WIPE PROTECTION] BLOCKED: Attempted to overwrite ${key} ` +
+        `(${existingItems.length} ${field}) with empty data.`
+      );
+      return true;
+    }
+  }
+  return false;
+}
+
 function handleGet(key: string, fallback: any, res: any) {
   const data = loadLocal(key);
   res.json(data ?? fallback);
 }
 
 function handlePut(key: string, req: any, res: any) {
+  // Wipe protection check
+  if (wouldWipePipeline(key, req.body)) {
+    return res.status(409).json({
+      success: false,
+      error: "WIPE_PROTECTION",
+      message: "Cannot overwrite non-empty pipeline with empty data. This action requires manual approval.",
+    });
+  }
   const ok = saveLocal(key, req.body);
   res.status(ok ? 200 : 500).json({ success: ok });
 }

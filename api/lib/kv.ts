@@ -7,16 +7,15 @@
  *   UPSTASH_REDIS_REST_TOKEN — bearer token
  */
 
-// JSONBlob fallback URLs — used when Upstash is not configured yet
-// JSONBlob fallback URLs — REBUILT 2026-03-25 (7th rebuild due to free-tier TTL expiry)
+// JSONBlob fallback URLs — REBUILT 2026-03-26 (8th rebuild due to free-tier TTL expiry)
 const JSONBLOB_FALLBACK: Record<string, string> = {
-  'pipeline:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2583-5d2f-7024-9fa1-663d586da0b5',
-  'pipeline:changes': 'https://jsonblob.com/api/jsonBlob/019d2583-5e97-7157-9956-0019ff314bdc',
-  'family:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2583-5f3d-76b3-be6e-2ae65f31f9ae',
-  'family:changes': 'https://jsonblob.com/api/jsonBlob/019d2583-6063-7f34-b908-0b9b537cafaf',
-  'business:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2583-6138-729b-914b-5d687c24ccbf',
-  'business:changes': 'https://jsonblob.com/api/jsonBlob/019d2583-61e7-78d6-a2f6-2955b8a9e6dd',
-  'notes:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2a9b-bd7e-7c80-a052-c43e92c8b368',
+  'pipeline:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2abc-afb5-7357-a8eb-ef52113b2ab2',
+  'pipeline:changes': 'https://jsonblob.com/api/jsonBlob/019d2abc-b135-73a2-b519-e00f43751481',
+  'family:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2abc-b61e-76c3-a3ef-a32aef0d0d1c',
+  'family:changes': 'https://jsonblob.com/api/jsonBlob/019d2abc-b795-72a0-93fe-a41e3a539580',
+  'business:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2abc-b2c0-7c41-bfbd-2b1cbc006e5a',
+  'business:changes': 'https://jsonblob.com/api/jsonBlob/019d2abc-b488-7113-96f0-a171201feccf',
+  'notes:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2abc-b93e-7ffe-81f1-aff2648f1da1',
 };
 
 function isUpstashConfigured(): boolean {
@@ -25,6 +24,46 @@ function isUpstashConfigured(): boolean {
 
 const getUrl = () => process.env.UPSTASH_REDIS_REST_URL!;
 const getToken = () => process.env.UPSTASH_REDIS_REST_TOKEN!;
+
+// ═══════════════════════════════════════════
+// WIPE PROTECTION — hardcoded, no override
+// Prevents any PUT from replacing a populated pipeline with empty data.
+// Data can only be cleared via manual user action (not API calls).
+// ═══════════════════════════════════════════
+
+/** Returns the array field name for a given key, or null if not a protected key */
+function getProtectedArrayField(key: string): string | null {
+  if (key === 'pipeline:snapshot') return 'artists';
+  if (key === 'business:snapshot') return 'deals';
+  if (key === 'family:snapshot') return 'ideas';
+  return null;
+}
+
+/**
+ * Check if a write would wipe a non-empty pipeline.
+ * Returns true if the write should be BLOCKED.
+ */
+function wouldWipePipeline(key: string, newValue: any, existingValue: any): boolean {
+  const field = getProtectedArrayField(key);
+  if (!field) return false; // Not a protected key
+
+  const existingItems = existingValue?.[field];
+  const newItems = newValue?.[field];
+
+  // If existing has items and new is empty/missing — BLOCK
+  if (Array.isArray(existingItems) && existingItems.length > 0) {
+    if (!Array.isArray(newItems) || newItems.length === 0) {
+      console.error(
+        `[WIPE PROTECTION] BLOCKED: Attempted to overwrite ${key} ` +
+        `(${existingItems.length} ${field}) with empty data. ` +
+        `This requires manual approval.`
+      );
+      return true;
+    }
+  }
+
+  return false;
+}
 
 /** GET a JSON value by key */
 export async function kvGet(key: string): Promise<any | null> {
@@ -51,8 +90,17 @@ export async function kvGet(key: string): Promise<any | null> {
   }
 }
 
-/** SET a JSON value by key (no expiry) */
+/** SET a JSON value by key (no expiry) — with WIPE PROTECTION */
 export async function kvSet(key: string, value: any): Promise<boolean> {
+  // ── WIPE PROTECTION: read existing data before writing ──
+  const protectedField = getProtectedArrayField(key);
+  if (protectedField) {
+    const existing = await kvGet(key);
+    if (wouldWipePipeline(key, value, existing)) {
+      return false; // BLOCKED — do not write
+    }
+  }
+
   // Fallback to JSONBlob if Upstash not configured
   if (!isUpstashConfigured()) {
     const fallbackUrl = JSONBLOB_FALLBACK[key];

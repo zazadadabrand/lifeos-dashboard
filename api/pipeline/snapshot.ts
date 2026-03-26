@@ -18,8 +18,19 @@ export default async function handler(req: Request) {
     if (req.method === 'PUT') {
       const body = await req.json();
       const ok = await kvSet(KEY, body);
+      if (!ok) {
+        // kvSet returns false if wipe protection blocked the write
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'WIPE_PROTECTION',
+          message: 'Cannot overwrite non-empty pipeline with empty data. This action requires manual approval.',
+        }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json', ...CORS },
+        });
+      }
       return new Response(JSON.stringify({ success: ok }), {
-        status: ok ? 200 : 500,
+        status: 200,
         headers: { 'Content-Type': 'application/json', ...CORS },
       });
     }
