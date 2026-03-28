@@ -7,15 +7,15 @@
  *   UPSTASH_REDIS_REST_TOKEN — bearer token
  */
 
-// JSONBlob fallback URLs — REBUILT 2026-03-26 (8th rebuild due to free-tier TTL expiry)
+// JSONBlob fallback URLs — REBUILT 2026-03-28 (9th rebuild due to free-tier TTL expiry)
 const JSONBLOB_FALLBACK: Record<string, string> = {
-  'pipeline:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2abc-afb5-7357-a8eb-ef52113b2ab2',
-  'pipeline:changes': 'https://jsonblob.com/api/jsonBlob/019d2abc-b135-73a2-b519-e00f43751481',
-  'family:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2abc-b61e-76c3-a3ef-a32aef0d0d1c',
-  'family:changes': 'https://jsonblob.com/api/jsonBlob/019d2abc-b795-72a0-93fe-a41e3a539580',
-  'business:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2abc-b2c0-7c41-bfbd-2b1cbc006e5a',
-  'business:changes': 'https://jsonblob.com/api/jsonBlob/019d2abc-b488-7113-96f0-a171201feccf',
-  'notes:snapshot': 'https://jsonblob.com/api/jsonBlob/019d2abc-b93e-7ffe-81f1-aff2648f1da1',
+  'pipeline:snapshot': 'https://jsonblob.com/api/jsonBlob/019d3520-a282-7af9-b973-a01878c86dd4',
+  'pipeline:changes': 'https://jsonblob.com/api/jsonBlob/019d3520-a9ae-7f33-8376-f82d99f6335f',
+  'family:snapshot': 'https://jsonblob.com/api/jsonBlob/019d3520-bb2b-73d3-8b31-763cdc57d95c',
+  'family:changes': 'https://jsonblob.com/api/jsonBlob/019d3520-bf7b-700c-900d-eab5e62b46bb',
+  'business:snapshot': 'https://jsonblob.com/api/jsonBlob/019d3520-b136-78f6-b9b0-63ffd3958540',
+  'business:changes': 'https://jsonblob.com/api/jsonBlob/019d3520-b6f4-76c6-a634-576b08ae471e',
+  'notes:snapshot': 'https://jsonblob.com/api/jsonBlob/019d3520-c460-76d2-b638-4d7bdac5c974',
 };
 
 function isUpstashConfigured(): boolean {
