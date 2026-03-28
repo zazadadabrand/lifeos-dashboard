@@ -623,7 +623,7 @@ const LANES: Lane[] = [
     color: COLORS.gold,
     icon: "heart",
     description: "Siyah, Zoey, Kel'li coordination, wellness tracking",
-    status: "active",
+    status: "planned",
     agents: [
       {
         id: "siyah",
@@ -4598,7 +4598,7 @@ function BuildYourLifeOS() {
 // ═══════════════════════════════════════════
 function EvolutionRoadmap() {
   const milestones = [
-    { version: "v1.0", timing: "NOW", label: "Art Advisory + Family & Life", color: COLORS.teal, filled: true },
+    { version: "v1.0", timing: "NOW", label: "Art Advisory + Business", color: COLORS.teal, filled: true },
     { version: "v1.1", timing: "NEXT", label: "Connect Gmail, Calendar, Sheets", color: COLORS.gold, filled: false },
     { version: "v2.0", timing: "Q2", label: "Business & Finance Lanes", color: COLORS.coral, filled: false },
     { version: "v2.1", timing: "Q2", label: "Artist Outreach Automation", color: COLORS.purple, filled: false },
@@ -5340,27 +5340,7 @@ function TLDRDigest() {
     lane: "Art Advisory",
   });
 
-  // Family & Life
-  const familyNotes: string[] = [];
-  if (daysUntilBirthday === 0) {
-    familyNotes.push("Siyah's 20th birthday TODAY");
-  } else if (daysUntilBirthday === 1) {
-    familyNotes.push("Siyah's birthday tomorrow");
-  } else if (daysUntilBirthday > 0 && daysUntilBirthday <= 7) {
-    familyNotes.push(`Siyah's 20th in ${daysUntilBirthday}d`);
-  }
-  if (dayOfWeek === 6) familyNotes.push("Siyah call day");
-  familyNotes.push("Zoey call");
-
-  lines.push({
-    icon: "heart",
-    label: "Family",
-    color: COLORS.gold,
-    status: familyNotes.join(" · "),
-    detail: "4 agents active — Siyah, Zoey, Kel'li, Wellness",
-    urgent: daysUntilBirthday >= 0 && daysUntilBirthday <= 2,
-    lane: "Family",
-  });
+  // Family & Life — sunset (module paused)
 
   // Business
   lines.push({
