@@ -2201,8 +2201,8 @@ async function updateFamilySnapshotBlob(ideas: FamilyIdea[]) {
 }
 
 type DealPhase = "short" | "medium" | "long" | "cross";
-type DealStage = "Lead" | "Proposal" | "Negotiation" | "Signed" | "Active" | "Closed" | "Lost";
-const DEAL_STAGES: DealStage[] = ["Lead", "Proposal", "Negotiation", "Signed", "Active", "Closed", "Lost"];
+type DealStage = "Lead" | "Proposal" | "Negotiation" | "Signed" | "Active" | "Closed" | "Lost" | "Not Aligned";
+const DEAL_STAGES: DealStage[] = ["Lead", "Proposal", "Negotiation", "Signed", "Active", "Closed", "Lost", "Not Aligned"];
 const DEAL_STAGE_COLORS: Record<DealStage, string> = {
   "Lead": COLORS.textMuted,
   "Proposal": COLORS.purple,
@@ -2211,6 +2211,7 @@ const DEAL_STAGE_COLORS: Record<DealStage, string> = {
   "Active": COLORS.green,
   "Closed": COLORS.textFaint,
   "Lost": COLORS.chartRed,
+  "Not Aligned": "#B87333",
 };
 
 type DealType = "Retainer" | "Project" | "Advisory" | "Grant" | "Commission" | "Job" | "Vendor";
@@ -2652,7 +2653,7 @@ function BusinessPipeline() {
   };
 
   // ─── Computed values ───
-  const activeDeals = deals.filter(d => d.stage !== "Lost" && d.stage !== "Closed");
+  const activeDeals = deals.filter(d => d.stage !== "Lost" && d.stage !== "Closed" && d.stage !== "Not Aligned");
   const totalMonthly = activeDeals.reduce((s, d) => s + d.monthlyValue, 0);
   const totalNet = activeDeals.reduce((s, d) => s + d.netMargin, 0);
   const closedDeals = deals.filter(d => d.stage === "Closed" || d.stage === "Active");
@@ -3022,12 +3023,19 @@ function BusinessPipeline() {
                   {nextLabel}
                 </button>
               )}
-              {deal.stage !== "Lost" && deal.stage !== "Closed" && (
-                <button onClick={() => { handleStageChange(deal, "Lost"); onClose(); }}
-                  className="px-4 py-2.5 rounded-lg text-[12px] font-medium transition-colors hover:bg-white/[0.06]"
-                  style={{ color: COLORS.chartRed, border: `1px solid ${COLORS.chartRed}30` }}>
-                  Lost
-                </button>
+              {deal.stage !== "Lost" && deal.stage !== "Closed" && deal.stage !== "Not Aligned" && (
+                <>
+                  <button onClick={() => { handleStageChange(deal, "Not Aligned"); onClose(); }}
+                    className="px-4 py-2.5 rounded-lg text-[12px] font-medium transition-colors hover:bg-white/[0.06]"
+                    style={{ color: "#B87333", border: "1px solid rgba(184,115,51,0.3)" }}>
+                    Not Aligned
+                  </button>
+                  <button onClick={() => { handleStageChange(deal, "Lost"); onClose(); }}
+                    className="px-4 py-2.5 rounded-lg text-[12px] font-medium transition-colors hover:bg-white/[0.06]"
+                    style={{ color: COLORS.chartRed, border: `1px solid ${COLORS.chartRed}30` }}>
+                    Lost
+                  </button>
+                </>
               )}
             </div>
           </div>
