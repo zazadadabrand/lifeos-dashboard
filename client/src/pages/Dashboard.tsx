@@ -1379,7 +1379,39 @@ function ScoutedArtistsReview() {
 
   // ── Full slide-out deep dive panel ──
   const DeepDiveSlideOut = ({ artist, onClose }: { artist: PipelineArtist; onClose: () => void }) => {
-    const dd = artist.deepDive;
+    // Normalize deep dive data — different enrichment runs produce different schemas
+    const rawDD = artist.deepDive;
+    const dd = rawDD ? (() => {
+      const d = { ...rawDD };
+      // pressClippings: ensure array of objects (some enrichments stored as pipe-delimited string)
+      if (d.pressClippings && !Array.isArray(d.pressClippings)) {
+        try {
+          const lines = String(d.pressClippings).split(/\n|\|\s*(?=[A-Z])/).filter(Boolean);
+          d.pressClippings = lines.map((line: string) => {
+            const parts = line.split(" | ").map((s: string) => s.trim());
+            const urlMatch = line.match(/https?:\/\/[^\s|]+/);
+            return { title: parts[0] || line, source: parts[1] || "", url: urlMatch?.[0] || "", date: parts[3] || "" };
+          });
+        } catch { d.pressClippings = []; }
+      }
+      // exhibitionHistory: if it's an object with solo/group keys, flatten to fullExhibitionHistory
+      if (d.exhibitionHistory && typeof d.exhibitionHistory === "object" && !Array.isArray(d.exhibitionHistory)) {
+        if (!d.fullExhibitionHistory) {
+          const eh = d.exhibitionHistory as any;
+          const flat: string[] = [];
+          if (eh.solo?.length) { flat.push("SOLO EXHIBITIONS"); eh.solo.forEach((s: any) => flat.push(typeof s === "string" ? s : `${s.title || ""} — ${s.venue || ""} (${s.date || ""})`)); }
+          if (eh.group?.length) { flat.push("GROUP EXHIBITIONS"); eh.group.forEach((s: any) => flat.push(typeof s === "string" ? s : `${s.title || ""} — ${s.venue || ""} (${s.date || ""})`)); }
+          if (eh.residencies?.length) { flat.push("RESIDENCIES"); eh.residencies.forEach((s: any) => flat.push(typeof s === "string" ? s : `${s.title || s.name || ""} — ${s.venue || s.location || ""} (${s.date || ""})`)); }
+          if (eh.awards?.length) { flat.push("AWARDS & GRANTS"); eh.awards.forEach((s: any) => flat.push(typeof s === "string" ? s : `${s.title || s.name || ""} (${s.date || ""})`)); }
+          d.fullExhibitionHistory = flat;
+        }
+      }
+      // redFlags: ensure array
+      if (d.redFlags && !Array.isArray(d.redFlags)) {
+        d.redFlags = [String(d.redFlags)];
+      }
+      return d;
+    })() : null;
     const stageIndex = (PIPELINE_STAGES.filter(s => s !== "Declined") as string[]).indexOf(artist.status);
     const stages = ["Scouted", "Deep Dive", "Shortlisted", "In Conversation"] as VettingStage[];
     const rep = getRepresentation(artist);
