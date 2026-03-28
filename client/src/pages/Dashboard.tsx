@@ -1382,35 +1382,38 @@ function ScoutedArtistsReview() {
     // Normalize deep dive data — different enrichment runs produce different schemas
     const rawDD = artist.deepDive;
     const dd = rawDD ? (() => {
-      const d = { ...rawDD };
-      // pressClippings: ensure array of objects (some enrichments stored as pipe-delimited string)
-      if (d.pressClippings && !Array.isArray(d.pressClippings)) {
-        try {
-          const lines = String(d.pressClippings).split(/\n|\|\s*(?=[A-Z])/).filter(Boolean);
-          d.pressClippings = lines.map((line: string) => {
-            const parts = line.split(" | ").map((s: string) => s.trim());
-            const urlMatch = line.match(/https?:\/\/[^\s|]+/);
-            return { title: parts[0] || line, source: parts[1] || "", url: urlMatch?.[0] || "", date: parts[3] || "" };
-          });
-        } catch { d.pressClippings = []; }
-      }
-      // exhibitionHistory: if it's an object with solo/group keys, flatten to fullExhibitionHistory
-      if (d.exhibitionHistory && typeof d.exhibitionHistory === "object" && !Array.isArray(d.exhibitionHistory)) {
-        if (!d.fullExhibitionHistory) {
-          const eh = d.exhibitionHistory as any;
-          const flat: string[] = [];
-          if (eh.solo?.length) { flat.push("SOLO EXHIBITIONS"); eh.solo.forEach((s: any) => flat.push(typeof s === "string" ? s : `${s.title || ""} — ${s.venue || ""} (${s.date || ""})`)); }
-          if (eh.group?.length) { flat.push("GROUP EXHIBITIONS"); eh.group.forEach((s: any) => flat.push(typeof s === "string" ? s : `${s.title || ""} — ${s.venue || ""} (${s.date || ""})`)); }
-          if (eh.residencies?.length) { flat.push("RESIDENCIES"); eh.residencies.forEach((s: any) => flat.push(typeof s === "string" ? s : `${s.title || s.name || ""} — ${s.venue || s.location || ""} (${s.date || ""})`)); }
-          if (eh.awards?.length) { flat.push("AWARDS & GRANTS"); eh.awards.forEach((s: any) => flat.push(typeof s === "string" ? s : `${s.title || s.name || ""} (${s.date || ""})`)); }
-          d.fullExhibitionHistory = flat;
+      try {
+        const d = { ...rawDD };
+        // pressClippings: ensure array of objects
+        if (d.pressClippings && !Array.isArray(d.pressClippings)) {
+          try {
+            // Format: semicolon-separated entries, each with pipe-separated fields (title | source | url | date)
+            const entries = String(d.pressClippings).split(/"\s*;\s*"/).map((s: string) => s.replace(/^"|"$/g, "").trim()).filter(Boolean);
+            d.pressClippings = entries.map((entry: string) => {
+              const parts = entry.split(" | ").map((p: string) => p.trim());
+              return { title: parts[0] || entry, source: parts[1] || "", url: parts[2] || "", date: parts[3] || "" };
+            });
+          } catch { d.pressClippings = []; }
         }
-      }
-      // redFlags: ensure array
-      if (d.redFlags && !Array.isArray(d.redFlags)) {
-        d.redFlags = [String(d.redFlags)];
-      }
-      return d;
+        if (!d.pressClippings) d.pressClippings = [];
+        // exhibitionHistory: if it's an object with solo/group keys, flatten to fullExhibitionHistory
+        if (d.exhibitionHistory && typeof d.exhibitionHistory === "object" && !Array.isArray(d.exhibitionHistory)) {
+          if (!d.fullExhibitionHistory) {
+            const eh = d.exhibitionHistory as any;
+            const flat: string[] = [];
+            const pushItems = (label: string, arr: any[]) => { if (arr?.length) { flat.push(label); arr.forEach((s: any) => flat.push(typeof s === "string" ? s : [s.title, s.name, s.venue, s.location, s.date].filter(Boolean).join(" — "))); } };
+            pushItems("SOLO EXHIBITIONS", eh.solo);
+            pushItems("GROUP EXHIBITIONS", eh.group);
+            pushItems("RESIDENCIES", eh.residencies);
+            pushItems("AWARDS & GRANTS", eh.awards);
+            d.fullExhibitionHistory = flat.length > 0 ? flat : undefined;
+          }
+        }
+        // redFlags: ensure array
+        if (d.redFlags && !Array.isArray(d.redFlags)) d.redFlags = [String(d.redFlags)];
+        if (!d.redFlags) d.redFlags = [];
+        return d;
+      } catch { return rawDD; }
     })() : null;
     const stageIndex = (PIPELINE_STAGES.filter(s => s !== "Declined") as string[]).indexOf(artist.status);
     const stages = ["Scouted", "Deep Dive", "Shortlisted", "In Conversation"] as VettingStage[];
@@ -1436,6 +1439,13 @@ function ScoutedArtistsReview() {
     };
     const nextStage = nextStageMap[artist.status];
     const nextLabel = nextStage ? `Move to ${nextStage}` : null;
+
+    // Safety wrapper: if dd has any arrays that are actually strings, force-convert them
+    if (dd) {
+      if (dd.pressClippings && typeof dd.pressClippings === 'string') dd.pressClippings = [];
+      if (dd.redFlags && typeof dd.redFlags === 'string') dd.redFlags = [dd.redFlags];
+      if (dd.fullExhibitionHistory && typeof dd.fullExhibitionHistory === 'string') dd.fullExhibitionHistory = [dd.fullExhibitionHistory];
+    }
 
     return (
       <>
