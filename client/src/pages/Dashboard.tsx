@@ -2454,6 +2454,7 @@ const PRIORITY_ITEMS = [
 // API paths — Vercel edge functions backed by Upstash Redis
 const BUSINESS_SNAPSHOT_URL = `${PIPE_API}/api/business/snapshot`;
 const BUSINESS_CHANGES_URL = `${PIPE_API}/api/business/changes`;
+const AGENT_RESULTS_URL = `${PIPE_API}/api/agent/results`;
 
 let _businessDeals: BusinessDeal[] = [];
 let _businessLoaded = false;
@@ -5600,6 +5601,348 @@ function computeAmbientGradient(variant: ColorVariant): string {
 }
 
 // ═══════════════════════════════════════════
+// SATURDAY REVIEW — Banked Agent Outputs
+// ═══════════════════════════════════════════
+interface AgentResultEntry {
+  id: string;
+  agentType: 'art-scout' | 'job-scout' | 'grants-scout';
+  batchId: string;
+  data: any;
+  receivedAt: string;
+  reviewed: boolean;
+}
+
+function SaturdayReview() {
+  const [results, setResults] = useState<AgentResultEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState<string | null>(null);
+
+  useEffect(() => { loadResults(); }, []);
+
+  async function loadResults() {
+    setLoading(true);
+    const res = await tryFetch(AGENT_RESULTS_URL);
+    if (res) {
+      const data = await res.json();
+      setResults((data.results ?? []).filter((r: AgentResultEntry) => !r.reviewed));
+    }
+    setLoading(false);
+  }
+
+  async function persistReviewed(updatedResults: AgentResultEntry[]) {
+    await fetch(AGENT_RESULTS_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ results: updatedResults }),
+    }).catch(() => {});
+    setResults(updatedResults.filter(r => !r.reviewed));
+  }
+
+  async function markEntryReviewed(entryId: string) {
+    const updated = results.map(r => r.id === entryId ? { ...r, reviewed: true } : r);
+    await persistReviewed(updated);
+  }
+
+  async function addArtistToPipeline(artist: any, entryId: string) {
+    const key = artist.name;
+    setProcessing(key);
+    const newArtist: PipelineArtist = {
+      sheetRow: 0,
+      dateScouted: new Date().toISOString().split('T')[0],
+      batch: `agent-${new Date().toISOString().split('T')[0]}`,
+      name: artist.name,
+      location: artist.location ?? '',
+      medium: artist.medium ?? '',
+      score: artist.score ?? 0,
+      priceRange: artist.priceRange ?? '',
+      whyInteresting: artist.whyInteresting ?? '',
+      showsPress: artist.showsPress ?? '',
+      link: artist.website ?? '',
+      instagram: artist.instagram ?? '',
+      website: artist.website ?? '',
+      status: 'Scouted',
+      antRating: '',
+      hasDeepDive: false,
+      deepDive: null,
+    };
+    if (!_pipelineArtists.some(a => a.name === artist.name)) {
+      _pipelineArtists = [..._pipelineArtists, newArtist];
+      await updateSnapshotBlob(_pipelineArtists);
+    }
+    // Mark this artist as reviewed by removing it from the entry's data
+    const updated = results.map(r => {
+      if (r.id !== entryId) return r;
+      const remainingArtists = (r.data?.artists ?? []).filter((a: any) => a.name !== artist.name);
+      if (remainingArtists.length === 0) return { ...r, reviewed: true };
+      return { ...r, data: { ...r.data, artists: remainingArtists } };
+    });
+    await persistReviewed(updated);
+    setProcessing(null);
+  }
+
+  async function addJobToPipeline(job: any, entryId: string) {
+    const key = job.role + job.company;
+    setProcessing(key);
+    const deal: BusinessDeal = {
+      id: `job-agent-${Date.now()}`,
+      name: `${job.role} @ ${job.company}`,
+      client: job.company,
+      description: job.whyFit ?? '',
+      phase: 'cross',
+      stage: 'Lead',
+      type: 'Job',
+      tier: '',
+      monthlyValue: 0,
+      netMargin: 0,
+      addedAt: new Date().toISOString(),
+      notes: '',
+      dueDate: job.deadline ?? '',
+      contactName: '',
+      contactEmail: '',
+      nextAction: 'Apply',
+      company: job.company,
+      role: job.role,
+      salaryRange: job.salaryRange ?? '',
+      applicationJourney: 'Bookmarked',
+      url: job.url ?? '',
+    };
+    const ok = await pushBusinessChange({ type: 'add', deal, changedAt: new Date().toISOString() });
+    if (ok) {
+      _businessDeals = [..._businessDeals, deal];
+      await updateBusinessSnapshotBlob(_businessDeals);
+    }
+    const updated = results.map(r => {
+      if (r.id !== entryId) return r;
+      const remaining = (r.data?.jobs ?? []).filter((j: any) => !(j.company === job.company && j.role === job.role));
+      if (remaining.length === 0) return { ...r, reviewed: true };
+      return { ...r, data: { ...r.data, jobs: remaining } };
+    });
+    await persistReviewed(updated);
+    setProcessing(null);
+  }
+
+  async function addGrantToPipeline(grant: any, entryId: string) {
+    setProcessing(grant.name);
+    const deal: BusinessDeal = {
+      id: `grant-agent-${Date.now()}`,
+      name: grant.name,
+      client: grant.organization ?? 'Grant',
+      description: grant.eligibility ?? '',
+      phase: 'long',
+      stage: 'Lead',
+      type: 'Grant',
+      tier: '',
+      monthlyValue: 0,
+      netMargin: 0,
+      addedAt: new Date().toISOString(),
+      notes: grant.whyFit ?? '',
+      dueDate: grant.deadline ?? '',
+      contactName: '',
+      contactEmail: '',
+      nextAction: 'Apply',
+      grantName: grant.name,
+      grantDeadline: grant.deadline ?? '',
+      url: grant.url ?? '',
+    };
+    const ok = await pushBusinessChange({ type: 'add', deal, changedAt: new Date().toISOString() });
+    if (ok) {
+      _businessDeals = [..._businessDeals, deal];
+      await updateBusinessSnapshotBlob(_businessDeals);
+    }
+    const updated = results.map(r => {
+      if (r.id !== entryId) return r;
+      const remaining = (r.data?.grants ?? []).filter((g: any) => g.name !== grant.name);
+      if (remaining.length === 0) return { ...r, reviewed: true };
+      return { ...r, data: { ...r.data, grants: remaining } };
+    });
+    await persistReviewed(updated);
+    setProcessing(null);
+  }
+
+  const pendingArt = results.filter(r => r.agentType === 'art-scout');
+  const pendingJobs = results.filter(r => r.agentType === 'job-scout');
+  const pendingGrants = results.filter(r => r.agentType === 'grants-scout');
+  const totalItems =
+    pendingArt.reduce((s, r) => s + (r.data?.artists?.length ?? 0), 0) +
+    pendingJobs.reduce((s, r) => s + (r.data?.jobs?.length ?? 0), 0) +
+    pendingGrants.reduce((s, r) => s + (r.data?.grants?.length ?? 0), 0);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-4">
+        <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: COLORS.teal }} />
+        <span className="text-xs" style={{ color: COLORS.textMuted }}>Loading banked results...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeader
+        title="Saturday Review"
+        subtitle="Banked agent outputs — approve or skip before adding to pipelines"
+        count={totalItems > 0 ? `${totalItems} pending` : 'all clear'}
+      />
+      {totalItems === 0 ? (
+        <div className="rounded-xl border py-8 text-center mt-3" style={{ ...GLASS, borderColor: `${COLORS.teal}15` }}>
+          <p className="text-xs" style={{ color: COLORS.textMuted }}>No pending outputs. Agents bank results Mon–Fri.</p>
+          <button onClick={loadResults} className="mt-2 text-[11px] underline" style={{ color: COLORS.textFaint }}>Refresh</button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4 mt-3">
+
+          {/* ── Art Scout ── */}
+          {pendingArt.map(entry => (
+            <div key={entry.id} className="rounded-xl border overflow-hidden" style={{ ...GLASS, borderColor: `${COLORS.teal}20` }}>
+              <div className="px-5 pt-4 pb-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS.teal, boxShadow: `0 0 6px ${COLORS.teal}60` }} />
+                  <span className="text-xs font-semibold" style={{ color: COLORS.teal }}>Art Scout</span>
+                  <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{new Date(entry.receivedAt).toLocaleDateString()}</span>
+                </div>
+                <span className="text-[11px] px-2 py-0.5 rounded font-medium" style={{ background: `${COLORS.teal}12`, color: COLORS.teal }}>
+                  {entry.data?.artists?.length ?? 0} artists
+                </span>
+              </div>
+              <div>
+                {(entry.data?.artists ?? []).map((artist: any, i: number) => (
+                  <div key={i} className="px-5 py-3 flex items-start justify-between gap-4" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold" style={{ color: COLORS.textPrimary }}>{artist.name}</span>
+                        <span className="text-[11px]" style={{ color: COLORS.textMuted }}>{artist.location}</span>
+                        <span className="text-[11px] px-1.5 py-0.5 rounded font-mono tabular-nums" style={{ background: `${COLORS.gold}15`, color: COLORS.gold }}>{artist.score}</span>
+                      </div>
+                      <p className="text-[11px] mt-0.5" style={{ color: COLORS.textMuted }}>{artist.medium} · {artist.priceRange}</p>
+                      <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: COLORS.textFaint }}>{artist.whyInteresting}</p>
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        {artist.instagram && <span className="text-[11px]" style={{ color: COLORS.teal }}>{artist.instagram}</span>}
+                        {artist.website && <span className="text-[11px]" style={{ color: COLORS.textMuted }}>{artist.website}</span>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => addArtistToPipeline(artist, entry.id)}
+                      disabled={processing === artist.name}
+                      className="flex-shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-md transition-opacity"
+                      style={{ background: `${COLORS.teal}20`, color: COLORS.teal, opacity: processing === artist.name ? 0.4 : 1 }}
+                    >
+                      + Pipeline
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="px-5 py-2.5 flex justify-end">
+                <button onClick={() => markEntryReviewed(entry.id)} className="text-[11px]" style={{ color: COLORS.textFaint }}>
+                  Dismiss all
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* ── Job Scout ── */}
+          {pendingJobs.map(entry => (
+            <div key={entry.id} className="rounded-xl border overflow-hidden" style={{ ...GLASS, borderColor: `${COLORS.purple}20` }}>
+              <div className="px-5 pt-4 pb-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS.purple, boxShadow: `0 0 6px ${COLORS.purple}60` }} />
+                  <span className="text-xs font-semibold" style={{ color: COLORS.purple }}>Job Scout</span>
+                  <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{new Date(entry.receivedAt).toLocaleDateString()}</span>
+                </div>
+                <span className="text-[11px] px-2 py-0.5 rounded font-medium" style={{ background: `${COLORS.purple}12`, color: COLORS.purple }}>
+                  {entry.data?.jobs?.length ?? 0} jobs
+                </span>
+              </div>
+              <div>
+                {(entry.data?.jobs ?? []).map((job: any, i: number) => (
+                  <div key={i} className="px-5 py-3 flex items-start justify-between gap-4" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold" style={{ color: COLORS.textPrimary }}>{job.role}</span>
+                        <span className="text-[11px]" style={{ color: COLORS.textMuted }}>{job.company}</span>
+                        <span className="text-[11px] px-1.5 py-0.5 rounded font-medium" style={{
+                          background: job.fit === 'Best Fit' ? `${COLORS.green}15` : job.fit === 'Worth a Look' ? `${COLORS.gold}15` : `${COLORS.textFaint}15`,
+                          color: job.fit === 'Best Fit' ? COLORS.green : job.fit === 'Worth a Look' ? COLORS.gold : COLORS.textMuted,
+                        }}>{job.fit}</span>
+                      </div>
+                      <p className="text-[11px] mt-0.5" style={{ color: COLORS.teal }}>{job.salaryRange} · {job.location}</p>
+                      <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: COLORS.textFaint }}>{job.whyFit}</p>
+                    </div>
+                    <button
+                      onClick={() => addJobToPipeline(job, entry.id)}
+                      disabled={processing === job.role + job.company}
+                      className="flex-shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-md transition-opacity"
+                      style={{ background: `${COLORS.purple}20`, color: COLORS.purple, opacity: processing === job.role + job.company ? 0.4 : 1 }}
+                    >
+                      + Pipeline
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="px-5 py-2.5 flex justify-end">
+                <button onClick={() => markEntryReviewed(entry.id)} className="text-[11px]" style={{ color: COLORS.textFaint }}>
+                  Dismiss all
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* ── Grants Scout ── */}
+          {pendingGrants.map(entry => (
+            <div key={entry.id} className="rounded-xl border overflow-hidden" style={{ ...GLASS, borderColor: `${COLORS.gold}20` }}>
+              <div className="px-5 pt-4 pb-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS.gold, boxShadow: `0 0 6px ${COLORS.gold}60` }} />
+                  <span className="text-xs font-semibold" style={{ color: COLORS.gold }}>Grants Scout</span>
+                  <span className="text-[11px]" style={{ color: COLORS.textFaint }}>{new Date(entry.receivedAt).toLocaleDateString()}</span>
+                </div>
+                <span className="text-[11px] px-2 py-0.5 rounded font-medium" style={{ background: `${COLORS.gold}12`, color: COLORS.gold }}>
+                  {entry.data?.grants?.length ?? 0} grants
+                </span>
+              </div>
+              <div>
+                {(entry.data?.grants ?? []).map((grant: any, i: number) => (
+                  <div key={i} className="px-5 py-3 flex items-start justify-between gap-4" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold" style={{ color: COLORS.textPrimary }}>{grant.name}</span>
+                        <span className="text-[11px]" style={{ color: COLORS.textMuted }}>{grant.organization}</span>
+                        <span className="text-[11px] px-1.5 py-0.5 rounded font-mono" style={{ background: `${COLORS.gold}12`, color: COLORS.gold }}>{grant.amount}</span>
+                      </div>
+                      <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: COLORS.textMuted }}>{grant.eligibility}</p>
+                      <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: COLORS.textFaint }}>{grant.whyFit}</p>
+                      {grant.deadline && grant.deadline !== 'rolling' && (
+                        <p className="text-[11px] mt-0.5" style={{ color: COLORS.coral }}>Deadline: {grant.deadline}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => addGrantToPipeline(grant, entry.id)}
+                      disabled={processing === grant.name}
+                      className="flex-shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-md transition-opacity"
+                      style={{ background: `${COLORS.gold}20`, color: COLORS.gold, opacity: processing === grant.name ? 0.4 : 1 }}
+                    >
+                      + Pipeline
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="px-5 py-2.5 flex justify-end">
+                <button onClick={() => markEntryReviewed(entry.id)} className="text-[11px]" style={{ color: COLORS.textFaint }}>
+                  Dismiss all
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <div className="flex justify-end">
+            <button onClick={loadResults} className="text-[11px]" style={{ color: COLORS.textFaint }}>↺ Refresh</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
 // MAIN DASHBOARD PAGE
 // ═══════════════════════════════════════════
 const DEFAULT_SECTIONS: DashboardSection[] = [
@@ -5607,6 +5950,7 @@ const DEFAULT_SECTIONS: DashboardSection[] = [
   { id: "tldr", label: "At a Glance" },
   { id: "kpis", label: "Stats" },
   { id: "agents-active", label: "Agent Network" },
+  { id: "saturday-review", label: "Saturday Review" },
   { id: "hub-connectors", label: "Hub & Connectors" },
   { id: "credits", label: "Credit Usage" },
   { id: "agents-planned", label: "Planned Lanes" },
@@ -5614,7 +5958,7 @@ const DEFAULT_SECTIONS: DashboardSection[] = [
 ];
 
 // Sections that default to expanded
-const DEFAULT_OPEN_SECTIONS = new Set(["quick-notes", "tldr", "kpis", "agents-active", "hub-connectors"]);
+const DEFAULT_OPEN_SECTIONS = new Set(["quick-notes", "tldr", "kpis", "agents-active", "saturday-review", "hub-connectors"]);
 
 export default function Dashboard() {
   useEffect(() => { document.documentElement.classList.add("dark"); }, []);
@@ -5744,6 +6088,8 @@ export default function Dashboard() {
             </div>
           </div>
         );
+      case "saturday-review":
+        return <SaturdayReview />;
       case "roadmap":
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

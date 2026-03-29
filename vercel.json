@@ -17,14 +17,26 @@
       ]
     }
   ],
+  "crons": [
+    { "path": "/api/cron/art-scout",    "schedule": "0 12 * * 1,3" },
+    { "path": "/api/cron/job-scout",    "schedule": "0 13 * * 1"   },
+    { "path": "/api/cron/grants-scout", "schedule": "0 14 * * 1,4" },
+    { "path": "/api/cron/batch-poller", "schedule": "0 */2 * * *"  }
+  ],
   "rewrites": [
-    { "source": "/api/pipeline/snapshot", "destination": "/api/pipeline/snapshot" },
-    { "source": "/api/pipeline/changes", "destination": "/api/pipeline/changes" },
-    { "source": "/api/family/snapshot", "destination": "/api/family/snapshot" },
-    { "source": "/api/family/changes", "destination": "/api/family/changes" },
-    { "source": "/api/business/snapshot", "destination": "/api/business/snapshot" },
-    { "source": "/api/business/changes", "destination": "/api/business/changes" },
-    { "source": "/api/notes/snapshot", "destination": "/api/notes/snapshot" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/pipeline/snapshot",   "destination": "/api/pipeline/snapshot"   },
+    { "source": "/api/pipeline/changes",    "destination": "/api/pipeline/changes"    },
+    { "source": "/api/family/snapshot",     "destination": "/api/family/snapshot"     },
+    { "source": "/api/family/changes",      "destination": "/api/family/changes"      },
+    { "source": "/api/business/snapshot",   "destination": "/api/business/snapshot"   },
+    { "source": "/api/business/changes",    "destination": "/api/business/changes"    },
+    { "source": "/api/notes/snapshot",      "destination": "/api/notes/snapshot"      },
+    { "source": "/api/agent/results",       "destination": "/api/agent/results"       },
+    { "source": "/api/agent/batches",       "destination": "/api/agent/batches"       },
+    { "source": "/api/cron/art-scout",      "destination": "/api/cron/art-scout"      },
+    { "source": "/api/cron/job-scout",      "destination": "/api/cron/job-scout"      },
+    { "source": "/api/cron/grants-scout",   "destination": "/api/cron/grants-scout"   },
+    { "source": "/api/cron/batch-poller",   "destination": "/api/cron/batch-poller"   },
+    { "source": "/(.*)",                    "destination": "/index.html"              }
   ]
 }
