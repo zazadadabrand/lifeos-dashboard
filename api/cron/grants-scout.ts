@@ -1,7 +1,7 @@
 export const config = { runtime: 'edge' };
 
 import { kvGet, kvSet } from '../lib/kv';
-import { submitBatch } from '../lib/anthropic-batch';
+import { submitBatch, WEB_SEARCH_TOOL } from '../lib/anthropic-batch';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -33,10 +33,11 @@ STRICTLY FORBIDDEN:
 - Any grant where "artist" is a required eligibility criterion
 
 HARD RULES:
-1. Every grant must have a real, working application URL.
-2. Only include grants that are currently open, rolling, or opening within 60 days.
-3. Bernard Studia qualifies as a Black-owned creative BUSINESS — not as an artist practice.
-4. Return ONLY valid JSON. No prose before or after.
+1. Use web_search to find currently open grants — do not rely on training data. Search grant databases, foundation websites, Georgia.gov, SBA.gov, and minority business organizations.
+2. Every grant must have a real, working application URL — verify the link before including it.
+3. Only include grants that are currently open, rolling, or opening within 60 days.
+4. Bernard Studia qualifies as a Black-owned creative BUSINESS — not as an artist practice.
+5. Return ONLY valid JSON. No prose before or after.
 
 RESPONSE FORMAT (no markdown fences):
 {
@@ -83,6 +84,7 @@ export default async function handler(req: Request) {
           model: MODEL,
           max_tokens: MAX_TOKENS,
           system: SYSTEM_PROMPT,
+          tools: [WEB_SEARCH_TOOL],
           messages: [{ role: 'user', content: userMessage }],
         },
       },

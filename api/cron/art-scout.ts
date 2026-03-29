@@ -1,7 +1,7 @@
 export const config = { runtime: 'edge' };
 
 import { kvGet, kvSet } from '../lib/kv';
-import { submitBatch } from '../lib/anthropic-batch';
+import { submitBatch, WEB_SEARCH_TOOL } from '../lib/anthropic-batch';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 const MODEL = 'claude-sonnet-4-6';
@@ -23,11 +23,12 @@ SCORING RUBRIC (0–100):
 - No Representation: 10% — unrepresented or very early-stage only
 
 HARD RULES:
-1. Every artist MUST have a verified, working website URL AND a verified Instagram handle. If you cannot confirm both, skip that artist entirely. No exceptions.
-2. Do NOT suggest artists already listed in the pipeline (provided in user message).
-3. Prioritize Black, POC, and underrepresented artists. Diasporic narratives strongly preferred.
-4. All artists must be actively producing work in 2024–2026.
-5. Return ONLY valid JSON. No prose before or after.
+1. Use web_search to find and verify EVERY artist before including them. Do not rely on training data alone.
+2. Every artist MUST have a verified, working website URL AND a verified Instagram handle — search to confirm both exist and are active. If you cannot confirm both, skip that artist entirely. No exceptions.
+3. Do NOT suggest artists already listed in the pipeline (provided in user message).
+4. Prioritize Black, POC, and underrepresented artists. Diasporic narratives strongly preferred.
+5. All artists must be actively producing work in 2024–2026 — verify via recent posts or exhibition listings.
+6. Return ONLY valid JSON. No prose before or after.
 
 RESPONSE FORMAT (return exactly this JSON structure, no markdown fences):
 {
@@ -74,6 +75,7 @@ export default async function handler(req: Request) {
           model: MODEL,
           max_tokens: MAX_TOKENS,
           system: SYSTEM_PROMPT,
+          tools: [WEB_SEARCH_TOOL],
           messages: [{ role: 'user', content: userMessage }],
         },
       },

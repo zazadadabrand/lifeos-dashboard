@@ -1,7 +1,7 @@
 export const config = { runtime: 'edge' };
 
 import { kvGet, kvSet } from '../lib/kv';
-import { submitBatch } from '../lib/anthropic-batch';
+import { submitBatch, WEB_SEARCH_TOOL } from '../lib/anthropic-batch';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 // CONFIDENTIAL — do not reference current employer or PIP in any output
@@ -22,10 +22,11 @@ CANDIDATE PROFILE:
 CONFIDENTIALITY: This is a private search. Never reference any current employer.
 
 HARD RULES:
-1. Salary must be $150K+. Skip anything below.
-2. Include a real, direct application URL for every job.
-3. Do not repeat companies from the exclusion list.
-4. Return ONLY valid JSON. No prose before or after.
+1. Use web_search to find currently open job postings — do not rely on training data. Search LinkedIn, Greenhouse, Lever, company career pages.
+2. Salary must be $150K+. Skip anything below.
+3. Include a real, direct application URL for every job — verify the link is live before including it.
+4. Do not repeat companies from the exclusion list.
+5. Return ONLY valid JSON. No prose before or after.
 
 RESPONSE FORMAT (no markdown fences):
 {
@@ -80,6 +81,7 @@ export default async function handler(req: Request) {
           model: MODEL,
           max_tokens: MAX_TOKENS,
           system: SYSTEM_PROMPT,
+          tools: [WEB_SEARCH_TOOL],
           messages: [{ role: 'user', content: userMessage }],
         },
       },

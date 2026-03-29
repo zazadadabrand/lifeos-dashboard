@@ -17,6 +17,13 @@ function headers(): Record<string, string> {
   };
 }
 
+// Web search tool — Anthropic executes searches server-side within the same request.
+// No multi-turn needed; results are returned inline in the model's response.
+export const WEB_SEARCH_TOOL = {
+  type: 'web_search_20250305',
+  name: 'web_search',
+};
+
 export interface BatchRequest {
   custom_id: string;
   params: {
@@ -24,6 +31,7 @@ export interface BatchRequest {
     max_tokens: number;
     system?: string;
     messages: { role: 'user' | 'assistant'; content: string }[];
+    tools?: any[];
   };
 }
 
