@@ -37,6 +37,7 @@
     { "source": "/api/cron/job-scout",      "destination": "/api/cron/job-scout"      },
     { "source": "/api/cron/grants-scout",   "destination": "/api/cron/grants-scout"   },
     { "source": "/api/cron/batch-poller",   "destination": "/api/cron/batch-poller"   },
+    { "source": "/api/test/art-scout",      "destination": "/api/test/art-scout"      },
     { "source": "/(.*)",                    "destination": "/index.html"              }
   ]
 }
