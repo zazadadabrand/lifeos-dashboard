@@ -1,4 +1,4 @@
-export const config = { runtime: 'edge' };
+export const config = { maxDuration: 60 };
 
 import { kvGet, kvSet } from '../lib/kv';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
