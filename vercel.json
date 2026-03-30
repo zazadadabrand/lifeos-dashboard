@@ -17,12 +17,6 @@
       ]
     }
   ],
-  "crons": [
-    { "path": "/api/cron/art-scout",    "schedule": "0 12 * * 1,3" },
-    { "path": "/api/cron/job-scout",    "schedule": "0 13 * * 1"   },
-    { "path": "/api/cron/grants-scout", "schedule": "0 14 * * 1,4" },
-    { "path": "/api/cron/batch-poller", "schedule": "0 */2 * * *"  }
-  ],
   "rewrites": [
     { "source": "/api/pipeline/snapshot",   "destination": "/api/pipeline/snapshot"   },
     { "source": "/api/pipeline/changes",    "destination": "/api/pipeline/changes"    },
