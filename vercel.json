@@ -38,6 +38,7 @@
     { "source": "/api/cron/grants-scout",   "destination": "/api/cron/grants-scout"   },
     { "source": "/api/cron/batch-poller",   "destination": "/api/cron/batch-poller"   },
     { "source": "/api/test/art-scout",      "destination": "/api/test/art-scout"      },
+    { "source": "/api/ping",               "destination": "/api/ping"               },
     { "source": "/(.*)",                    "destination": "/index.html"              }
   ]
 }
