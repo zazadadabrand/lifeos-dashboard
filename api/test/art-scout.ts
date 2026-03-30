@@ -67,7 +67,7 @@ export default async function handler(req: Request) {
       ? `\n\nARTISTS ALREADY IN PIPELINE — do not suggest any of these:\n${existingNames.join('\n')}`
       : '';
 
-    const userMessage = `Scout exactly 5 emerging contemporary artists for Bernard Studia. Every artist must have both a verified website URL and a verified Instagram handle — use web search to confirm each one.${exclusionBlock}\n\nReturn exactly 5 artists as JSON.`;
+    const userMessage = `Scout exactly 5 emerging contemporary artists for Bernard Studia. Every artist must have both a real website URL and a real Instagram handle — include only artists you know to have both.${exclusionBlock}\n\nReturn exactly 5 artists as JSON.`;
 
     // Synchronous Messages API call (not Batch) for immediate result
     const res = await fetch(MESSAGES_URL, {
@@ -81,7 +81,6 @@ export default async function handler(req: Request) {
         model: MODEL,
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         messages: [{ role: 'user', content: userMessage }],
       }),
     });
