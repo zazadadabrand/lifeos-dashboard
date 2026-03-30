@@ -1,52 +1,71 @@
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 30 };
 
 import { kvGet, kvSet } from '../lib/kv';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
-import { parseJSON } from '../lib/anthropic-batch';
 
-const MODEL = 'claude-sonnet-4-6';
-const MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
-
-const SYSTEM_PROMPT = `You are the Art Scout for Bernard Studia, an Atlanta-based creative studio and art advisory firm founded by Ant Kinnel (Black American male, 35, business founder).
-
-Bernard Studia provides non-exclusive artist representation and advisory services for emerging contemporary artists. You identify talent aligned with this taste profile:
-
-REFERENCE ARTISTS: Egon Schiele, Jean-Michel Basquiat, Gustav Klimt, Cortney Herron, Lorenzo Amos, Jullia Kim, Gene A'Hern, Cato, Mark Fleuridor, Natasha Bakhshov, Tamara "Solem" Al-Issa, Hugo Winder-Lind
-
-STYLE PREFERENCES: Contemporary abstraction, gestural work, mixed media with depth, diasporic narratives, figurative work with psychological intensity, material-forward practices. Values: craft, conviction, and cultural depth over decoration. Underrepresented voices strongly preferred. Black and POC artists prioritized.
-
-SCORING RUBRIC (0–100):
-- Taste Fit: 30% — alignment with aesthetic above
-- Market Pricing: 20% — current $5K–$20K range, trajectory to $50K+
-- Upside Potential: 25% — career stage, trajectory, buzz
-- Show History: 15% — galleries, residencies, biennials, awards
-- No Representation: 10% — unrepresented or very early-stage only
-
-HARD RULES:
-1. Use web_search to find and verify EVERY artist. Do not rely on training data alone.
-2. Every artist MUST have a verified, working website URL AND a verified Instagram handle — search to confirm both are active. Skip any artist missing either. No exceptions.
-3. Do NOT suggest artists already listed in the pipeline (provided in user message).
-4. Prioritize Black, POC, and underrepresented artists. Diasporic narratives strongly preferred.
-5. All artists must be actively producing work in 2024–2026.
-6. Return ONLY valid JSON — no markdown fences, no prose before or after.
-
-RESPONSE FORMAT:
-{
-  "artists": [
-    {
-      "name": "Full Name",
-      "location": "City, Country",
-      "medium": "e.g. Oil painting, mixed media",
-      "score": 0,
-      "priceRange": "$X,000–$Y,000",
-      "whyInteresting": "2-3 sentences on why this artist fits Bernard Studia",
-      "showsPress": "Recent exhibitions and press, with years",
-      "instagram": "@handle",
-      "website": "domain.com",
-      "status": "Scouted"
-    }
-  ]
-}`;
+// 5 hardcoded artists matching Ant's taste profile — for pipeline push validation only
+const TEST_ARTISTS = [
+  {
+    name: "Tschabalala Self",
+    location: "New York, USA",
+    medium: "Painting, mixed media, fabric",
+    score: 88,
+    priceRange: "$30,000–$80,000",
+    whyInteresting: "Self constructs large-scale figures exploring Black female identity through bold color and fabric collage. Her work combines painting with sewn elements, creating physically and psychologically intense portraits that resonate deeply with Bernard Studia's focus on diasporic narratives.",
+    showsPress: "Frith Street Gallery (London), Pilar Corrias, exhibitions at ICA London 2023, Kunstmuseum Basel",
+    instagram: "@tschabalabaself",
+    website: "tschabalalaself.com",
+    status: "Scouted",
+  },
+  {
+    name: "Didier William",
+    location: "Philadelphia, USA",
+    medium: "Oil, acrylic, wood carving",
+    score: 85,
+    priceRange: "$15,000–$45,000",
+    whyInteresting: "William carves directly into wooden panels before painting, creating layered surfaces dense with Haitian symbolism and diasporic memory. The psychological intensity of his multi-eyed figures and material process aligns precisely with Bernard Studia's aesthetic compass.",
+    showsPress: "James Cohan Gallery, exhibitions at MoMA PS1, Museum of the African Diaspora 2024",
+    instagram: "@didier_william",
+    website: "didierwilliam.com",
+    status: "Scouted",
+  },
+  {
+    name: "Tomokazu Matsuyama",
+    location: "New York, USA",
+    medium: "Painting, mixed media",
+    score: 81,
+    priceRange: "$18,000–$60,000",
+    whyInteresting: "Matsuyama fuses Japanese woodblock aesthetics with contemporary figurative painting, exploring cultural collision and identity through gestural, layered canvases. Strong collector base with consistent upward trajectory.",
+    showsPress: "Sundaram Tagore Gallery, exhibitions in Tokyo, NYC, Hong Kong 2023–2024",
+    instagram: "@matsuyamaart",
+    website: "matsuyamaart.com",
+    status: "Scouted",
+  },
+  {
+    name: "Allison Gildersleeve",
+    location: "New York, USA",
+    medium: "Oil on canvas, abstraction",
+    score: 77,
+    priceRange: "$5,000–$18,000",
+    whyInteresting: "Gildersleeve's atmospheric abstractions balance spontaneity and control, with layered fields of color that reward close looking. Early career with strong institutional interest — fits the $5K–$20K entry range with clear upside.",
+    showsPress: "Denny Dimin Gallery NYC, exhibitions at NADA 2024, Aqua Art Miami",
+    instagram: "@allisongildersleeve",
+    website: "allisongildersleeve.com",
+    status: "Scouted",
+  },
+  {
+    name: "Calida Rawles",
+    location: "Los Angeles, USA",
+    medium: "Oil on canvas, figurative",
+    score: 91,
+    priceRange: "$40,000–$120,000",
+    whyInteresting: "Rawles paints Black figures submerged in luminous water, creating transcendent works about freedom, vulnerability, and the body. Rapidly rising market with major institutional interest — worth tracking for advisory relationships even at higher price points.",
+    showsPress: "Various gallery shows, Time Magazine coverage 2023, Gagosian radar, LACMA collection",
+    instagram: "@calidarawles",
+    website: "calidarawles.com",
+    status: "Scouted",
+  },
+];
 
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') {
@@ -58,90 +77,26 @@ export default async function handler(req: Request) {
   }
 
   try {
-    // Load current pipeline for exclusion list
     const snapshot = await kvGet('pipeline:snapshot');
     const existingArtists: any[] = snapshot?.artists ?? [];
-    const existingNames: string[] = existingArtists.map((a: any) => a.name).filter(Boolean);
+    const existingNames = new Set(existingArtists.map((a: any) => a.name));
 
-    const exclusionBlock = existingNames.length > 0
-      ? `\n\nARTISTS ALREADY IN PIPELINE — do not suggest any of these:\n${existingNames.join('\n')}`
-      : '';
-
-    const userMessage = `Scout exactly 5 emerging contemporary artists for Bernard Studia. Every artist must have both a real website URL and a real Instagram handle — include only artists you know to have both.${exclusionBlock}\n\nReturn exactly 5 artists as JSON.`;
-
-    // Synchronous Messages API call (not Batch) for immediate result
-    const res = await fetch(MESSAGES_URL, {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userMessage }],
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('[test/art-scout]', res.status, err);
-      return new Response(JSON.stringify({ error: 'Anthropic API call failed', detail: err }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...CORS },
-      });
-    }
-
-    const aiResponse = await res.json();
-    const textBlock = aiResponse?.content?.find((b: any) => b.type === 'text');
-    const text = textBlock?.text ?? null;
-
-    if (!text) {
-      return new Response(JSON.stringify({ error: 'No text in response', raw: aiResponse }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...CORS },
-      });
-    }
-
-    const parsed = parseJSON(text);
-    if (!parsed?.artists?.length) {
-      return new Response(JSON.stringify({ error: 'Could not parse artists from response', raw: text }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...CORS },
-      });
-    }
-
-    // Build new PipelineArtist objects and merge into snapshot
     const today = new Date().toISOString().split('T')[0];
-    const batchLabel = `test-${today}`;
-    const existingNames2 = new Set(existingArtists.map((a: any) => a.name));
-
-    const newArtists = parsed.artists
-      .filter((a: any) => a.name && !existingNames2.has(a.name))
-      .map((a: any, i: number) => ({
+    const newArtists = TEST_ARTISTS
+      .filter(a => !existingNames.has(a.name))
+      .map(a => ({
         sheetRow: 0,
         dateScouted: today,
-        batch: batchLabel,
-        name: a.name,
-        location: a.location ?? '',
-        medium: a.medium ?? '',
-        score: a.score ?? 0,
-        priceRange: a.priceRange ?? '',
-        whyInteresting: a.whyInteresting ?? '',
-        showsPress: a.showsPress ?? '',
-        link: a.website ?? '',
-        instagram: a.instagram ?? '',
-        website: a.website ?? '',
-        status: 'Scouted',
+        batch: `test-${today}`,
+        link: a.website,
         antRating: '',
         hasDeepDive: false,
         deepDive: null,
+        ...a,
       }));
 
     if (newArtists.length === 0) {
-      return new Response(JSON.stringify({ error: 'All returned artists already in pipeline' }), {
+      return new Response(JSON.stringify({ success: true, added: 0, message: 'All test artists already in pipeline' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...CORS },
       });
@@ -153,18 +108,12 @@ export default async function handler(req: Request) {
       snapshotAt: new Date().toISOString(),
     });
 
-    return new Response(JSON.stringify({
-      success: ok,
-      added: newArtists.length,
-      artists: newArtists,
-    }), {
-      status: 200,
+    return new Response(JSON.stringify({ success: ok, added: newArtists.length, artists: newArtists.map(a => a.name) }), {
+      status: ok ? 200 : 500,
       headers: { 'Content-Type': 'application/json', ...CORS },
     });
-
-  } catch (e) {
-    console.error('[test/art-scout]', e);
-    return new Response(JSON.stringify({ error: 'Internal error' }), {
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: String(e?.message ?? e) }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...CORS },
     });
