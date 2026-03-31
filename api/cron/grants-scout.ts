@@ -75,7 +75,7 @@ export default async function handler(req: Request) {
       ? `\n\nGRANTS ALREADY IN PIPELINE — skip these:\n${existingGrants.join('\n')}`
       : '';
 
-    const userMessage = `Find 3-5 currently open or rolling grant opportunities for Bernard Studia, a Black-owned creative business in Atlanta GA. Business grants ONLY — no artist grants.${exclusionBlock}\n\nReturn 3-5 grants as JSON.`;
+    const userMessage = `Find exactly 3 currently open or rolling grant opportunities for Bernard Studia, a Black-owned creative business in Atlanta GA. Business grants ONLY — no artist grants.${exclusionBlock}\n\nReturn exactly 3 grants as JSON.`;
 
     const batch = await submitBatch([
       {

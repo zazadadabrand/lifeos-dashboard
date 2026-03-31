@@ -1,0 +1,73 @@
+name: LifeOS Agents
+
+on:
+  schedule:
+    # Art Scout — daily 8am ET (12:00 UTC)
+    - cron: '0 12 * * *'
+    # Job Scout — daily 9am ET (13:00 UTC)
+    - cron: '0 13 * * *'
+    # Grants Scout — daily 10am ET (14:00 UTC)
+    - cron: '0 14 * * *'
+    # Batch Poller — every 2 hours
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: 'Agent to run manually'
+        required: true
+        type: choice
+        options:
+          - art-scout
+          - job-scout
+          - grants-scout
+          - batch-poller
+          - all
+
+jobs:
+  art-scout:
+    name: Art Scout (5 artists)
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'art-scout' || github.event.inputs.agent == 'all'))
+    steps:
+      - name: Trigger Art Scout
+        run: |
+          curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/art-scout" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  job-scout:
+    name: Job Scout (7 jobs)
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 13 * * *') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'job-scout' || github.event.inputs.agent == 'all'))
+    steps:
+      - name: Trigger Job Scout
+        run: |
+          curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/job-scout" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  grants-scout:
+    name: Grants Scout (3 grants)
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 14 * * *') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'grants-scout' || github.event.inputs.agent == 'all'))
+    steps:
+      - name: Trigger Grants Scout
+        run: |
+          curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/grants-scout" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  batch-poller:
+    name: Batch Poller
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 */2 * * *') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'batch-poller' || github.event.inputs.agent == 'all'))
+    steps:
+      - name: Poll Completed Batches
+        run: |
+          curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/batch-poller" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
