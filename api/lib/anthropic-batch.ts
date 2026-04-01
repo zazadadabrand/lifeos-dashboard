@@ -89,22 +89,35 @@ export async function getBatchResults(batchId: string): Promise<any[]> {
   }
 }
 
-/** Extract text content from a succeeded batch result item. */
+/** Extract text content from a succeeded batch result item.
+ *  With web_search tool use, content may have multiple text blocks —
+ *  the final one contains the JSON output. We try each text block in
+ *  reverse order so the last (most complete) response is returned first.
+ */
 export function extractText(resultItem: any): string | null {
   if (resultItem?.result?.type !== 'succeeded') return null;
   const content = resultItem?.result?.message?.content;
   if (!Array.isArray(content)) return null;
-  const textBlock = content.find((b: any) => b.type === 'text');
-  return textBlock?.text ?? null;
+  const textBlocks = content.filter((b: any) => b.type === 'text').map((b: any) => b.text);
+  // Return last text block first (most likely to be the final JSON response)
+  return textBlocks[textBlocks.length - 1] ?? null;
 }
 
-/** Parse JSON from model output — strips markdown fences if present. */
+/** Parse JSON from model output — strips markdown fences and leading prose. */
 export function parseJSON(text: string): any | null {
+  // Strip ```json ... ``` fences if model wrapped output
+  const fenceStripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   try {
-    // Strip ```json ... ``` fences if model wrapped output
-    const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-    return JSON.parse(cleaned);
-  } catch {
-    return null;
+    return JSON.parse(fenceStripped);
+  } catch { /* try harder below */ }
+
+  // If there's leading prose before the JSON object, extract from first { to last }
+  const start = fenceStripped.indexOf('{');
+  const end = fenceStripped.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    try {
+      return JSON.parse(fenceStripped.slice(start, end + 1));
+    } catch { /* give up */ }
   }
+  return null;
 }
