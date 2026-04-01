@@ -43,7 +43,6 @@ async function pushDeals(deals: any[], agentType: string): Promise<number> {
   const existingNames = new Set(existing.map((d: any) => d.name));
 
   const isGrant = agentType === 'grants-scout';
-  const dealType = isGrant ? 'Grant' : 'Job';
 
   const newDeals = deals
     .filter((d: any) => {
@@ -52,32 +51,50 @@ async function pushDeals(deals: any[], agentType: string): Promise<number> {
     })
     .map((d: any) => {
       const name = d.name ?? d.company ?? d.title;
+      const id = `${isGrant ? 'grant' : 'job'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const base = {
+        id,
+        client: '',
+        description: d.whyFit ?? d.eligibility ?? '',
+        tier: '',
+        monthlyValue: 0,
+        netMargin: 0,
+        addedAt: new Date().toISOString(),
+        notes: d.whyFit ?? '',
+        dueDate: d.deadline ?? '',
+        contactName: '',
+        contactEmail: '',
+        nextAction: '',
+        stage: 'Lead',
+        dateAdded: today(),
+        batch: `${agentType}-${today()}`,
+        url: d.url ?? '',
+      };
       if (isGrant) {
         return {
+          ...base,
           type: 'Grant',
           name,
+          phase: 'short',
           organization: d.organization ?? '',
           amount: d.amount ?? '',
           deadline: d.deadline ?? '',
-          url: d.url ?? '',
           eligibility: d.eligibility ?? '',
           whyFit: d.whyFit ?? '',
-          status: 'Researching',
-          dateAdded: today(),
-          batch: `${agentType}-${today()}`,
+          grantStage: 'Found',
         };
       } else {
         return {
+          ...base,
           type: 'Job',
-          name,
+          name: d.title ? `${d.title}${d.company ? ` @ ${d.company}` : ''}` : name,
+          phase: 'cross',
           company: d.company ?? '',
-          title: d.title ?? d.role ?? '',
-          salary: d.salary ?? d.compensation ?? '',
-          url: d.url ?? '',
-          whyFit: d.whyFit ?? '',
-          status: 'Researching',
-          dateAdded: today(),
-          batch: `${agentType}-${today()}`,
+          role: d.title ?? d.role ?? name,
+          salaryRange: d.salary ?? d.compensation ?? '',
+          applicationJourney: 'Bookmarked',
+          interviewStage: 'Bookmarked',
+          journeyHistory: [],
         };
       }
     });

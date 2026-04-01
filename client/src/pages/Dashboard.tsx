@@ -2302,6 +2302,20 @@ const JOB_TO_DEAL_STAGE: Partial<Record<JobAppStage, DealStage>> = {
   "Withdrawn": "Lost",
 };
 
+// ─── Grant Pipeline Stages ───
+type GrantStage = "Found" | "Reviewing" | "Applying" | "Submitted" | "Awarded" | "Declined" | "Not Eligible";
+const GRANT_STAGES: GrantStage[] = ["Found", "Reviewing", "Applying", "Submitted", "Awarded"];
+const GRANT_TERMINAL: GrantStage[] = ["Declined", "Not Eligible"];
+const GRANT_STAGE_COLORS: Record<GrantStage, string> = {
+  "Found": COLORS.textMuted,
+  "Reviewing": COLORS.purple,
+  "Applying": COLORS.gold,
+  "Submitted": COLORS.teal,
+  "Awarded": COLORS.green,
+  "Declined": COLORS.chartRed,
+  "Not Eligible": "#B87333",
+};
+
 const PHASE_META: Record<DealPhase, { label: string; range: string; color: string; description: string }> = {
   short: { label: "Short Term", range: "0–60 Days", color: COLORS.coral, description: "Digital Marketing Services — campaigns, clipping, grants, retainers" },
   medium: { label: "Mid Term", range: "60–90 Days", color: COLORS.purple, description: "Expansion — clipping scale, advisory commissions, FIFA vendor play" },
@@ -2348,6 +2362,13 @@ interface BusinessDeal {
   journeyHistory?: { stage: JobAppStage; date: string }[];
   url?: string;
   deadline?: string;
+  grantStage?: GrantStage;
+  organization?: string;
+  amount?: string;
+  eligibility?: string;
+  whyFit?: string;
+  dateAdded?: string;
+  batch?: string;
 }
 
 // ─── Revenue Paths (static from v4.2 plan) ───
@@ -2520,6 +2541,7 @@ async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapsho
         if (changes.length > 0) {
           const stageMap = new Map(changes.filter((c: any) => c.type === "stage").map((c: any) => [c.dealId, c.newStage]));
           const journeyMap = new Map(changes.filter((c: any) => c.type === "journey").map((c: any) => [c.dealId, { appStage: c.appStage, journeyHistory: c.journeyHistory }]));
+          const grantStageMap = new Map(changes.filter((c: any) => c.type === "grant-stage").map((c: any) => [c.dealId, c.grantStage]));
           const newDeals: BusinessDeal[] = changes.filter((c: any) => c.type === "add").map((c: any) => c.deal);
           deals = deals.map(d => {
             let updated = d;
@@ -2527,6 +2549,8 @@ async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapsho
             if (newStage) updated = { ...updated, stage: newStage };
             const journey = journeyMap.get(d.id);
             if (journey) updated = { ...updated, applicationJourney: journey.appStage, interviewStage: journey.appStage, journeyHistory: journey.journeyHistory };
+            const grantStage = grantStageMap.get(d.id);
+            if (grantStage) updated = { ...updated, grantStage };
             return updated;
           });
           const existingIds = new Set(deals.map(d => d.id));
@@ -2587,6 +2611,9 @@ function BusinessPipeline() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [expandedDeal, setExpandedDeal] = useState<string | null>(null);
   const [expandedPath, setExpandedPath] = useState<string | null>(null);
+  const [jobsOpen, setJobsOpen] = useState(true);
+  const [grantsOpen, setGrantsOpen] = useState(true);
+  const [dealsOpen, setDealsOpen] = useState(true);
   // Add form state
   const [newName, setNewName] = useState("");
   const [newClient, setNewClient] = useState("");
@@ -2656,6 +2683,23 @@ function BusinessPipeline() {
     const ok2 = await pushBusinessChange({ type: "journey", dealId: deal.id, appStage: newAppStage, journeyHistory: [...prevHistory, historyEntry], changedAt: new Date().toISOString() });
     if (!ok1 && !ok2) {
       const reverted = deals.map(d => d.id === deal.id ? { ...d, applicationJourney: deal.applicationJourney, interviewStage: deal.interviewStage, journeyHistory: deal.journeyHistory, stage: deal.stage } : d);
+      _businessDeals = reverted;
+      setDeals(reverted);
+    } else {
+      updateBusinessSnapshotBlob(updated);
+    }
+    setChangingStage(null);
+  };
+
+  const handleGrantStageChange = async (deal: BusinessDeal, newStage: GrantStage) => {
+    if (deal.grantStage === newStage) return;
+    setChangingStage(deal.id);
+    const updated = deals.map(d => d.id === deal.id ? { ...d, grantStage: newStage } : d);
+    _businessDeals = updated;
+    setDeals(updated);
+    const ok = await pushBusinessChange({ type: "grant-stage", dealId: deal.id, grantStage: newStage, changedAt: new Date().toISOString() });
+    if (!ok) {
+      const reverted = deals.map(d => d.id === deal.id ? { ...d, grantStage: deal.grantStage } : d);
       _businessDeals = reverted;
       setDeals(reverted);
     } else {
@@ -2799,6 +2843,84 @@ function BusinessPipeline() {
                 )}
               </button>
             ))}
+          </div>,
+          document.body
+        )}
+      </>
+    );
+  };
+
+  // ─── Generic Board Stage Selector (jobs + grants) ───
+  const BoardStageSelector = ({ dealId, current, stages, terminal, colors, onSelect }: {
+    dealId: string; current: string; stages: string[]; terminal: string[]; colors: Record<string, string>; onSelect: (s: string) => void;
+  }) => {
+    const allStages = [...stages, ...terminal];
+    const [open, setOpen] = useState(false);
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+    useEffect(() => {
+      const handler = (e: MouseEvent) => {
+        if (btnRef.current?.contains(e.target as Node)) return;
+        if (menuRef.current?.contains(e.target as Node)) return;
+        setOpen(false);
+      };
+      if (open) document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }, [open]);
+    useEffect(() => {
+      if (open && btnRef.current) {
+        const rect = btnRef.current.getBoundingClientRect();
+        setMenuPos({ top: rect.bottom + 4, left: rect.left });
+      }
+    }, [open]);
+    const color = colors[current] ?? COLORS.textMuted;
+    return (
+      <>
+        <button
+          ref={btnRef}
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all hover:bg-white/[0.04]"
+          style={{ borderColor: `${color}40`, color, background: `${color}10`, border: `1px solid ${color}30` }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
+          {current}
+          {changingStage === dealId ? (
+            <span className="animate-spin text-[9px]">&#9696;</span>
+          ) : (
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}>
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+        {open && menuPos && ReactDOM.createPortal(
+          <div
+            ref={menuRef}
+            className="fixed rounded-lg border py-1 min-w-[150px] shadow-xl"
+            style={{ top: menuPos.top, left: menuPos.left, zIndex: 9999, background: "rgba(20,20,30,0.97)", borderColor: COLORS.border, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
+          >
+            {stages.map(s => (
+              <button key={s} onClick={(e) => { e.stopPropagation(); onSelect(s); setOpen(false); }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors hover:bg-white/[0.06]"
+                style={{ color: s === current ? (colors[s] ?? COLORS.textMuted) : COLORS.textSecondary }}>
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colors[s] ?? COLORS.textMuted, opacity: s === current ? 1 : 0.5 }} />
+                {s}
+                {s === current && <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="ml-auto"><path d="M2 6L5 9L10 3" stroke={colors[s]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              </button>
+            ))}
+            {terminal.length > 0 && (
+              <>
+                <div className="my-1 mx-2 border-t" style={{ borderColor: COLORS.borderSubtle }} />
+                {terminal.map(s => (
+                  <button key={s} onClick={(e) => { e.stopPropagation(); onSelect(s); setOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors hover:bg-white/[0.06]"
+                    style={{ color: s === current ? (colors[s] ?? COLORS.textMuted) : COLORS.textFaint }}>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colors[s] ?? COLORS.textMuted, opacity: 0.5 }} />
+                    {s}
+                  </button>
+                ))}
+              </>
+            )}
           </div>,
           document.body
         )}
@@ -3254,30 +3376,8 @@ function BusinessPipeline() {
         {/* ═══ TAB: Pipeline (Deals) ═══ */}
         {activeTab === "pipeline" && (
           <>
-            {/* Add deal + filters */}
-            <div className="px-4 py-2 flex items-center justify-between border-b" style={{ borderColor: COLORS.borderSubtle }}>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button onClick={() => setPhaseFilter("all")}
-                  className="text-[11px] font-medium px-2 py-1 rounded-full transition-all"
-                  style={{ background: phaseFilter === "all" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
-                    color: phaseFilter === "all" ? COLORS.textPrimary : COLORS.textMuted,
-                    border: `1px solid ${phaseFilter === "all" ? COLORS.border : "transparent"}`, cursor: "pointer" }}>
-                  All {counts.all}
-                </button>
-                {(["short", "medium", "long", "cross"] as DealPhase[]).map(phase => {
-                  const phaseCount = deals.filter(d => d.phase === phase).length;
-                  if (phaseCount === 0 && phaseFilter !== phase) return null;
-                  return (
-                    <button key={phase} onClick={() => setPhaseFilter(phaseFilter === phase ? "all" : phase)}
-                      className="text-[11px] font-medium px-2 py-1 rounded-full transition-all"
-                      style={{ background: phaseFilter === phase ? `${PHASE_META[phase].color}20` : "rgba(255,255,255,0.04)",
-                        color: phaseFilter === phase ? PHASE_META[phase].color : COLORS.textMuted,
-                        border: `1px solid ${phaseFilter === phase ? `${PHASE_META[phase].color}40` : "transparent"}`, cursor: "pointer" }}>
-                      {PHASE_META[phase].label} {phaseCount}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Add deal button */}
+            <div className="px-4 py-2 flex items-center justify-end border-b" style={{ borderColor: COLORS.borderSubtle }}>
               <button onClick={() => setShowAddForm(!showAddForm)} className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
                 style={{ background: showAddForm ? `${COLORS.coral}30` : `${COLORS.coral}15`, color: COLORS.coral, border: "none", cursor: "pointer" }}>
                 {showAddForm ? "Cancel" : "+ Deal"}
@@ -3351,74 +3451,223 @@ function BusinessPipeline() {
               </div>
             )}
 
-            {/* Deals list */}
-            <div className="max-h-[500px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
-              {filtered.length === 0 && (
-                <div className="px-4 py-8 text-center">
-                  <span className="text-sm" style={{ color: COLORS.textMuted }}>No deals yet. Add one above.</span>
-                </div>
-              )}
-              {(["short", "medium", "long", "cross"] as DealPhase[]).map(phase => {
-                const phaseDeals = filtered.filter(d => d.phase === phase);
-                if (phaseDeals.length === 0) return null;
+            {/* ─── Three-pane board ─── */}
+            <div className="divide-y" style={{ borderColor: COLORS.borderSubtle }}>
+
+              {/* ── Jobs ── */}
+              {(() => {
+                const jobItems = deals.filter(d => d.type === "Job");
+                const activeJobCount = jobItems.filter(d => !JOB_APP_TERMINAL.includes(d.applicationJourney ?? "Bookmarked" as any)).length;
+                const visibleTerminal = JOB_APP_TERMINAL.filter(t => jobItems.some(i => (i.applicationJourney ?? "Bookmarked") === t));
+                const allJobStages = [...JOB_APP_STAGES as string[], ...visibleTerminal as string[]];
                 return (
-                  <div key={phase}>
-                    {phaseFilter === "all" && (
-                      <div className="px-4 py-2 flex items-center gap-2" style={{ background: `${PHASE_META[phase].color}06`, borderBottom: `1px solid ${COLORS.borderSubtle}` }}>
-                        <div className="w-1 h-4 rounded-full" style={{ background: PHASE_META[phase].color }} />
-                        <span className="text-[10px] font-bold tracking-wider uppercase" style={{ color: PHASE_META[phase].color }}>{PHASE_META[phase].label}</span>
-                        <span className="text-[10px]" style={{ color: COLORS.textFaint }}>{PHASE_META[phase].range}</span>
-                        <span className="text-[10px] ml-auto tabular-nums font-medium" style={{ color: COLORS.textFaint }}>{phaseDeals.length} deal{phaseDeals.length !== 1 ? "s" : ""}</span>
+                  <div>
+                    <button onClick={() => setJobsOpen(!jobsOpen)} className="w-full px-4 py-2.5 flex items-center gap-2.5 transition-colors hover:bg-white/[0.02]" style={{ cursor: "pointer", border: "none", background: "transparent", textAlign: "left" }}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#a78bfa" }} />
+                      <span className="text-[11px] font-bold tracking-wide uppercase" style={{ color: "#a78bfa" }}>Jobs</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums font-semibold ml-0.5" style={{ background: "#a78bfa18", color: "#a78bfa", border: "1px solid #a78bfa30" }}>{activeJobCount}</span>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto transition-transform duration-200" style={{ transform: jobsOpen ? "rotate(0deg)" : "rotate(-90deg)", color: COLORS.textFaint, flexShrink: 0 }}>
+                        <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    {jobsOpen && (
+                      <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+                        <div className="flex gap-2.5 px-4 pt-3 pb-4" style={{ minWidth: "max-content" }}>
+                          {allJobStages.map(stage => {
+                            const stageItems = jobItems.filter(i => (i.applicationJourney ?? "Bookmarked") === stage);
+                            const sc = JOB_APP_COLORS[stage as JobAppStage] ?? COLORS.textMuted;
+                            const idx = (JOB_APP_STAGES as string[]).indexOf(stage);
+                            const nextStage = idx >= 0 && idx < JOB_APP_STAGES.length - 1 ? JOB_APP_STAGES[idx + 1] : null;
+                            return (
+                              <div key={stage} style={{ width: 172, flexShrink: 0 }}>
+                                <div className="flex items-center gap-1.5 mb-2 px-0.5">
+                                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sc }} />
+                                  <span className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: sc }}>{stage}</span>
+                                  <span className="text-[10px] ml-auto flex-shrink-0 tabular-nums" style={{ color: COLORS.textFaint }}>{stageItems.length}</span>
+                                </div>
+                                <div className="flex flex-col gap-1.5" style={{ minHeight: 48 }}>
+                                  {stageItems.map(deal => (
+                                    <div key={deal.id ?? deal.name} className="p-2.5 rounded-lg border" style={{ ...GLASS_ALT, borderColor: `${sc}25` }}>
+                                      <p className="text-[11px] font-semibold truncate leading-tight mb-0.5" style={{ color: COLORS.textPrimary }}>{deal.role || deal.name}</p>
+                                      {(deal.company || deal.client) && <p className="text-[10px] truncate mb-1" style={{ color: COLORS.textMuted }}>{deal.company || deal.client}</p>}
+                                      {deal.salaryRange && <p className="text-[10px] mb-1.5 font-medium" style={{ color: COLORS.green }}>{deal.salaryRange}</p>}
+                                      <div className="flex items-center gap-1 flex-wrap">
+                                        {nextStage && (
+                                          <button onClick={() => handleJobJourneyChange(deal, nextStage)} disabled={changingStage === deal.id}
+                                            className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all hover:bg-white/[0.08]"
+                                            style={{ color: JOB_APP_COLORS[nextStage], background: `${JOB_APP_COLORS[nextStage]}12`, border: `1px solid ${JOB_APP_COLORS[nextStage]}25`, cursor: "pointer" }}>
+                                            → {nextStage}
+                                          </button>
+                                        )}
+                                        <BoardStageSelector dealId={deal.id ?? deal.name} current={deal.applicationJourney ?? "Bookmarked"} stages={JOB_APP_STAGES as unknown as string[]} terminal={JOB_APP_TERMINAL as unknown as string[]} colors={JOB_APP_COLORS as Record<string, string>} onSelect={s => handleJobJourneyChange(deal, s as JobAppStage)} />
+                                      </div>
+                                      {deal.url && (
+                                        <a href={deal.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded mt-1.5 transition-colors hover:bg-white/[0.06]"
+                                          style={{ color: COLORS.teal, border: `1px solid ${COLORS.teal}25`, background: `${COLORS.teal}08` }}>
+                                          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1H9V7M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                          Apply
+                                        </a>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {stageItems.length === 0 && (
+                                    <div className="h-10 rounded-lg flex items-center justify-center border border-dashed" style={{ borderColor: `${COLORS.borderSubtle}80` }}>
+                                      <span className="text-[10px]" style={{ color: COLORS.textFaint }}>—</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
-                    {phaseDeals.map(deal => {
-                      const daysUntilDue = deal.dueDate ? Math.ceil((new Date(deal.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
-                      const isUrgent = daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 7;
-                      return (
-                        <div key={deal.id} className="px-4 py-3 border-b flex items-start gap-3 transition-all cursor-pointer hover:bg-white/[0.02]"
-                          onClick={() => setExpandedDeal(deal.id)}
-                          style={{ borderColor: COLORS.borderSubtle, opacity: changingStage === deal.id ? 0.5 : 1, background: isUrgent ? "rgba(224,104,64,0.04)" : "transparent" }}>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="text-sm font-medium" style={{ color: COLORS.textPrimary }}>{deal.name}</span>
-                              {deal.client && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{deal.client}</span>}
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: `${PHASE_META[deal.phase].color}18`, color: PHASE_META[deal.phase].color }}>{deal.type}</span>
-                              {deal.tier && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textFaint }}>{deal.tier}</span>}
-                              {deal.monthlyValue > 0 && <span className="text-[10px] font-semibold tabular-nums" style={{ color: COLORS.green }}>{formatCurrency(deal.monthlyValue)}</span>}
-                              {daysUntilDue !== null && daysUntilDue >= 0 && (
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: isUrgent ? `${COLORS.coral}20` : "rgba(255,255,255,0.06)", color: isUrgent ? COLORS.coral : COLORS.textFaint }}>
-                                  {daysUntilDue === 0 ? "Today" : daysUntilDue === 1 ? "Tomorrow" : `${daysUntilDue}d`}
-                                </span>
-                              )}
-                              {daysUntilDue !== null && daysUntilDue < 0 && (
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: `${COLORS.chartRed}15`, color: COLORS.chartRed }}>Overdue</span>
-                              )}
-                            </div>
-                            {deal.description && <p className="text-[11px] mb-1.5" style={{ color: COLORS.textMuted, lineHeight: "1.4" }}>{deal.description}</p>}
-                            {deal.nextAction && <p className="text-[10px] font-medium mb-1.5" style={{ color: COLORS.coral }}>Next: {deal.nextAction}</p>}
-                            {deal.url && (
-                              <a href={deal.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md mb-1.5 transition-colors hover:bg-white/[0.06]"
-                                style={{ color: COLORS.teal, border: `1px solid ${COLORS.teal}30`, background: `${COLORS.teal}08` }}>
-                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 1H9V7M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                {deal.type === "Grant" ? "Apply" : deal.type === "Job" ? "Apply" : "Open"}
-                              </a>
-                            )}
-                            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                              <DealStageSelector deal={deal} />
-                              {deal.type === "Job" && deal.applicationJourney && (
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: `${JOB_APP_COLORS[deal.applicationJourney]}15`, color: JOB_APP_COLORS[deal.applicationJourney], border: `1px solid ${JOB_APP_COLORS[deal.applicationJourney]}25` }}>
-                                  {JOB_APP_ICONS[deal.applicationJourney]} {deal.applicationJourney}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
                 );
-              })}
+              })()}
+
+              {/* ── Grants ── */}
+              {(() => {
+                const grantItems = deals.filter(d => d.type === "Grant");
+                const activeGrantCount = grantItems.filter(d => !GRANT_TERMINAL.includes(d.grantStage ?? "Found" as any)).length;
+                const visibleTerminal = GRANT_TERMINAL.filter(t => grantItems.some(i => (i.grantStage ?? "Found") === t));
+                const allGrantStages = [...GRANT_STAGES as string[], ...visibleTerminal as string[]];
+                return (
+                  <div>
+                    <button onClick={() => setGrantsOpen(!grantsOpen)} className="w-full px-4 py-2.5 flex items-center gap-2.5 transition-colors hover:bg-white/[0.02]" style={{ cursor: "pointer", border: "none", background: "transparent", textAlign: "left" }}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS.gold }} />
+                      <span className="text-[11px] font-bold tracking-wide uppercase" style={{ color: COLORS.gold }}>Grants</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums font-semibold ml-0.5" style={{ background: `${COLORS.gold}18`, color: COLORS.gold, border: `1px solid ${COLORS.gold}30` }}>{activeGrantCount}</span>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto transition-transform duration-200" style={{ transform: grantsOpen ? "rotate(0deg)" : "rotate(-90deg)", color: COLORS.textFaint, flexShrink: 0 }}>
+                        <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    {grantsOpen && (
+                      <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+                        <div className="flex gap-2.5 px-4 pt-3 pb-4" style={{ minWidth: "max-content" }}>
+                          {allGrantStages.map(stage => {
+                            const stageItems = grantItems.filter(i => (i.grantStage ?? "Found") === stage);
+                            const sc = GRANT_STAGE_COLORS[stage as GrantStage] ?? COLORS.textMuted;
+                            const idx = (GRANT_STAGES as string[]).indexOf(stage);
+                            const nextStage = idx >= 0 && idx < GRANT_STAGES.length - 1 ? GRANT_STAGES[idx + 1] : null;
+                            return (
+                              <div key={stage} style={{ width: 172, flexShrink: 0 }}>
+                                <div className="flex items-center gap-1.5 mb-2 px-0.5">
+                                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sc }} />
+                                  <span className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: sc }}>{stage}</span>
+                                  <span className="text-[10px] ml-auto flex-shrink-0 tabular-nums" style={{ color: COLORS.textFaint }}>{stageItems.length}</span>
+                                </div>
+                                <div className="flex flex-col gap-1.5" style={{ minHeight: 48 }}>
+                                  {stageItems.map(deal => (
+                                    <div key={deal.id ?? deal.name} className="p-2.5 rounded-lg border" style={{ ...GLASS_ALT, borderColor: `${sc}25` }}>
+                                      <p className="text-[11px] font-semibold truncate leading-tight mb-0.5" style={{ color: COLORS.textPrimary }}>{deal.name}</p>
+                                      {(deal.organization || deal.client) && <p className="text-[10px] truncate mb-0.5" style={{ color: COLORS.textMuted }}>{deal.organization || deal.client}</p>}
+                                      {deal.amount && <p className="text-[10px] mb-1.5 font-semibold tabular-nums" style={{ color: COLORS.gold }}>{deal.amount}</p>}
+                                      {deal.deadline && <p className="text-[10px] mb-1" style={{ color: COLORS.textFaint }}>Due: {deal.deadline}</p>}
+                                      <div className="flex items-center gap-1 flex-wrap">
+                                        {nextStage && (
+                                          <button onClick={() => handleGrantStageChange(deal, nextStage)} disabled={changingStage === deal.id}
+                                            className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all hover:bg-white/[0.08]"
+                                            style={{ color: sc, background: `${sc}12`, border: `1px solid ${sc}25`, cursor: "pointer" }}>
+                                            → {nextStage}
+                                          </button>
+                                        )}
+                                        <BoardStageSelector dealId={deal.id ?? deal.name} current={deal.grantStage ?? "Found"} stages={GRANT_STAGES as unknown as string[]} terminal={GRANT_TERMINAL as unknown as string[]} colors={GRANT_STAGE_COLORS as Record<string, string>} onSelect={s => handleGrantStageChange(deal, s as GrantStage)} />
+                                      </div>
+                                      {deal.url && (
+                                        <a href={deal.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded mt-1.5 transition-colors hover:bg-white/[0.06]"
+                                          style={{ color: COLORS.teal, border: `1px solid ${COLORS.teal}25`, background: `${COLORS.teal}08` }}>
+                                          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1H9V7M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                          Apply
+                                        </a>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {stageItems.length === 0 && (
+                                    <div className="h-10 rounded-lg flex items-center justify-center border border-dashed" style={{ borderColor: `${COLORS.borderSubtle}80` }}>
+                                      <span className="text-[10px]" style={{ color: COLORS.textFaint }}>—</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Deals ── */}
+              {(() => {
+                const dealItems = deals.filter(d => d.type !== "Job" && d.type !== "Grant");
+                const activeDealStages: DealStage[] = ["Lead", "Proposal", "Negotiation", "Signed", "Active", "Closed"];
+                const terminalDealStages: DealStage[] = ["Lost", "Not Aligned"];
+                const activeDealCount = dealItems.filter(d => !terminalDealStages.includes(d.stage)).length;
+                const visibleTerminal = terminalDealStages.filter(t => dealItems.some(i => i.stage === t));
+                const allDealStages = [...activeDealStages, ...visibleTerminal];
+                return (
+                  <div>
+                    <button onClick={() => setDealsOpen(!dealsOpen)} className="w-full px-4 py-2.5 flex items-center gap-2.5 transition-colors hover:bg-white/[0.02]" style={{ cursor: "pointer", border: "none", background: "transparent", textAlign: "left" }}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS.coral }} />
+                      <span className="text-[11px] font-bold tracking-wide uppercase" style={{ color: COLORS.coral }}>Deals</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums font-semibold ml-0.5" style={{ background: `${COLORS.coral}18`, color: COLORS.coral, border: `1px solid ${COLORS.coral}30` }}>{activeDealCount}</span>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto transition-transform duration-200" style={{ transform: dealsOpen ? "rotate(0deg)" : "rotate(-90deg)", color: COLORS.textFaint, flexShrink: 0 }}>
+                        <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    {dealsOpen && (
+                      <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+                        <div className="flex gap-2.5 px-4 pt-3 pb-4" style={{ minWidth: "max-content" }}>
+                          {allDealStages.map(stage => {
+                            const stageItems = dealItems.filter(i => i.stage === stage);
+                            const sc = DEAL_STAGE_COLORS[stage];
+                            const idx = activeDealStages.indexOf(stage);
+                            const nextStage = idx >= 0 && idx < activeDealStages.length - 1 ? activeDealStages[idx + 1] : null;
+                            return (
+                              <div key={stage} style={{ width: 172, flexShrink: 0 }}>
+                                <div className="flex items-center gap-1.5 mb-2 px-0.5">
+                                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sc }} />
+                                  <span className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: sc }}>{stage}</span>
+                                  <span className="text-[10px] ml-auto flex-shrink-0 tabular-nums" style={{ color: COLORS.textFaint }}>{stageItems.length}</span>
+                                </div>
+                                <div className="flex flex-col gap-1.5" style={{ minHeight: 48 }}>
+                                  {stageItems.map(deal => (
+                                    <div key={deal.id} className="p-2.5 rounded-lg border cursor-pointer transition-all hover:bg-white/[0.03]" style={{ ...GLASS_ALT, borderColor: `${sc}25` }} onClick={() => setExpandedDeal(deal.id)}>
+                                      <p className="text-[11px] font-semibold truncate leading-tight mb-0.5" style={{ color: COLORS.textPrimary }}>{deal.name}</p>
+                                      {deal.client && <p className="text-[10px] truncate mb-0.5" style={{ color: COLORS.textMuted }}>{deal.client}</p>}
+                                      {deal.monthlyValue > 0 && <p className="text-[10px] mb-1.5 font-semibold tabular-nums" style={{ color: COLORS.green }}>{formatCurrency(deal.monthlyValue)}</p>}
+                                      <div className="flex items-center gap-1 flex-wrap" onClick={e => e.stopPropagation()}>
+                                        {nextStage && (
+                                          <button onClick={() => handleStageChange(deal, nextStage)} disabled={changingStage === deal.id}
+                                            className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all hover:bg-white/[0.08]"
+                                            style={{ color: DEAL_STAGE_COLORS[nextStage], background: `${DEAL_STAGE_COLORS[nextStage]}12`, border: `1px solid ${DEAL_STAGE_COLORS[nextStage]}25`, cursor: "pointer" }}>
+                                            → {nextStage}
+                                          </button>
+                                        )}
+                                        <DealStageSelector deal={deal} />
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {stageItems.length === 0 && (
+                                    <div className="h-10 rounded-lg flex items-center justify-center border border-dashed" style={{ borderColor: `${COLORS.borderSubtle}80` }}>
+                                      <span className="text-[10px]" style={{ color: COLORS.textFaint }}>—</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
             </div>
           </>
         )}
