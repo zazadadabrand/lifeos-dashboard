@@ -12,7 +12,7 @@ function headers(): Record<string, string> {
   return {
     'x-api-key': process.env.ANTHROPIC_API_KEY!,
     'anthropic-version': '2023-06-01',
-    'anthropic-beta': 'message-batches-2024-09-24',
+    'anthropic-beta': 'message-batches-2024-09-24,web-search-2025-03-05',
     'content-type': 'application/json',
   };
 }
