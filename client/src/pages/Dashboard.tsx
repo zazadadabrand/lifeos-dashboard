@@ -970,6 +970,44 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
 }
 
 // ═══════════════════════════════════════════
+// COPY EMAIL BUTTON (reusable)
+// ═══════════════════════════════════════════
+function CopyEmailButton({ email }: { email: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(email).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all duration-200 hover:border-white/20 hover:bg-white/[0.04]"
+      style={{ borderColor: copied ? `${COLORS.gold}40` : COLORS.borderSubtle, color: copied ? COLORS.gold : COLORS.textMuted }}
+    >
+      {copied ? (
+        <>
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+            <path d="M2 6.5l3 3 5-6" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          ✓ Copied
+        </>
+      ) : (
+        <>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+            <rect x="8" y="8" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="1.8" />
+          </svg>
+          {email}
+        </>
+      )}
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════
 // PIPELINE API BASE — resolves to proxy path after deploy_website replaces __PORT_5000__
 // ═══════════════════════════════════════════
 const PIPE_API = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
@@ -1007,6 +1045,7 @@ interface PipelineArtist {
   link: string;
   instagram: string;
   website: string;
+  email?: string;
   status: VettingStage;
   antRating: string;
   hasDeepDive: boolean;
@@ -1949,6 +1988,10 @@ function ScoutedArtistsReview() {
                         </>
                       );
                     })()}
+                    {/* Email copy — Shortlisted only */}
+                    {artist.status === "Shortlisted" && artist.email && (
+                      <CopyEmailButton email={artist.email} />
+                    )}
                     {/* Open deep dive slide-out */}
                     {(artist.hasDeepDive || artist.status === "Deep Dive") && (
                       <button
