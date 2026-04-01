@@ -2614,6 +2614,13 @@ function BusinessPipeline() {
   const [jobsOpen, setJobsOpen] = useState(true);
   const [grantsOpen, setGrantsOpen] = useState(true);
   const [dealsOpen, setDealsOpen] = useState(true);
+  const [sectionOrder, setSectionOrder] = useState<("jobs"|"grants"|"deals")[]>(() => {
+    try { const s = localStorage.getItem("biz-section-order"); if (s) return JSON.parse(s); } catch {}
+    return ["jobs", "grants", "deals"];
+  });
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
   // Add form state
   const [newName, setNewName] = useState("");
   const [newClient, setNewClient] = useState("");
@@ -2706,6 +2713,20 @@ function BusinessPipeline() {
       updateBusinessSnapshotBlob(updated);
     }
     setChangingStage(null);
+  };
+
+  const handleDragSort = () => {
+    const from = dragItem.current;
+    const to = dragOverItem.current;
+    if (from === null || to === null || from === to) {
+      dragItem.current = null; dragOverItem.current = null; setDraggingIdx(null); return;
+    }
+    const next = [...sectionOrder];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setSectionOrder(next);
+    try { localStorage.setItem("biz-section-order", JSON.stringify(next)); } catch {}
+    dragItem.current = null; dragOverItem.current = null; setDraggingIdx(null);
   };
 
   const handleAddDeal = async () => {
@@ -3451,158 +3472,173 @@ function BusinessPipeline() {
               </div>
             )}
 
-            {/* ─── Three-pane board ─── */}
+            {/* ─── Three-pane board (drag-sortable) ─── */}
             <div className="divide-y" style={{ borderColor: COLORS.borderSubtle }}>
-
-              {/* ── Jobs ── */}
-              {(() => {
-                const jobItems = deals.filter(d => d.type === "Job");
-                const activeJobCount = jobItems.filter(d => !JOB_APP_TERMINAL.includes(d.applicationJourney ?? "Bookmarked" as any)).length;
-                const visibleTerminal = JOB_APP_TERMINAL.filter(t => jobItems.some(i => (i.applicationJourney ?? "Bookmarked") === t));
-                const allJobStages = [...JOB_APP_STAGES as string[], ...visibleTerminal as string[]];
-                return (
-                  <div>
-                    <button onClick={() => setJobsOpen(!jobsOpen)} className="w-full px-4 py-2.5 flex items-center gap-2.5 transition-colors hover:bg-white/[0.02]" style={{ cursor: "pointer", border: "none", background: "transparent", textAlign: "left" }}>
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#a78bfa" }} />
-                      <span className="text-[11px] font-bold tracking-wide uppercase" style={{ color: "#a78bfa" }}>Jobs</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums font-semibold ml-0.5" style={{ background: "#a78bfa18", color: "#a78bfa", border: "1px solid #a78bfa30" }}>{activeJobCount}</span>
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto transition-transform duration-200" style={{ transform: jobsOpen ? "rotate(0deg)" : "rotate(-90deg)", color: COLORS.textFaint, flexShrink: 0 }}>
-                        <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                    {jobsOpen && (
-                      <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
-                        <div className="flex gap-2.5 px-4 pt-3 pb-4" style={{ minWidth: "max-content" }}>
-                          {allJobStages.map(stage => {
-                            const stageItems = jobItems.filter(i => (i.applicationJourney ?? "Bookmarked") === stage);
-                            const sc = JOB_APP_COLORS[stage as JobAppStage] ?? COLORS.textMuted;
-                            const idx = (JOB_APP_STAGES as string[]).indexOf(stage);
-                            const nextStage = idx >= 0 && idx < JOB_APP_STAGES.length - 1 ? JOB_APP_STAGES[idx + 1] : null;
-                            return (
-                              <div key={stage} style={{ width: 172, flexShrink: 0 }}>
-                                <div className="flex items-center gap-1.5 mb-2 px-0.5">
-                                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sc }} />
-                                  <span className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: sc }}>{stage}</span>
-                                  <span className="text-[10px] ml-auto flex-shrink-0 tabular-nums" style={{ color: COLORS.textFaint }}>{stageItems.length}</span>
-                                </div>
-                                <div className="flex flex-col gap-1.5" style={{ minHeight: 48 }}>
-                                  {stageItems.map(deal => (
-                                    <div key={deal.id ?? deal.name} className="p-2.5 rounded-lg border" style={{ ...GLASS_ALT, borderColor: `${sc}25` }}>
-                                      <p className="text-[11px] font-semibold truncate leading-tight mb-0.5" style={{ color: COLORS.textPrimary }}>{deal.role || deal.name}</p>
-                                      {(deal.company || deal.client) && <p className="text-[10px] truncate mb-1" style={{ color: COLORS.textMuted }}>{deal.company || deal.client}</p>}
-                                      {deal.salaryRange && <p className="text-[10px] mb-1.5 font-medium" style={{ color: COLORS.green }}>{deal.salaryRange}</p>}
-                                      <div className="flex items-center gap-1 flex-wrap">
-                                        {nextStage && (
-                                          <button onClick={() => handleJobJourneyChange(deal, nextStage)} disabled={changingStage === deal.id}
-                                            className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all hover:bg-white/[0.08]"
-                                            style={{ color: JOB_APP_COLORS[nextStage], background: `${JOB_APP_COLORS[nextStage]}12`, border: `1px solid ${JOB_APP_COLORS[nextStage]}25`, cursor: "pointer" }}>
-                                            → {nextStage}
-                                          </button>
-                                        )}
-                                        <BoardStageSelector dealId={deal.id ?? deal.name} current={deal.applicationJourney ?? "Bookmarked"} stages={JOB_APP_STAGES as unknown as string[]} terminal={JOB_APP_TERMINAL as unknown as string[]} colors={JOB_APP_COLORS as Record<string, string>} onSelect={s => handleJobJourneyChange(deal, s as JobAppStage)} />
-                                      </div>
-                                      {deal.url && (
-                                        <a href={deal.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded mt-1.5 transition-colors hover:bg-white/[0.06]"
-                                          style={{ color: COLORS.teal, border: `1px solid ${COLORS.teal}25`, background: `${COLORS.teal}08` }}>
-                                          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1H9V7M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                          Apply
-                                        </a>
-                                      )}
-                                    </div>
-                                  ))}
-                                  {stageItems.length === 0 && (
-                                    <div className="h-10 rounded-lg flex items-center justify-center border border-dashed" style={{ borderColor: `${COLORS.borderSubtle}80` }}>
-                                      <span className="text-[10px]" style={{ color: COLORS.textFaint }}>—</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+              {sectionOrder.map((section, sIdx) => {
+                const dragHandle = (
+                  <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" style={{ color: COLORS.textFaint, cursor: "grab", flexShrink: 0 }}>
+                    <circle cx="3" cy="2.5" r="1.1"/><circle cx="7" cy="2.5" r="1.1"/>
+                    <circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/>
+                    <circle cx="3" cy="11.5" r="1.1"/><circle cx="7" cy="11.5" r="1.1"/>
+                  </svg>
                 );
-              })()}
+                const dragProps = {
+                  draggable: true as const,
+                  onDragStart: (e: React.DragEvent) => { e.stopPropagation(); dragItem.current = sIdx; setDraggingIdx(sIdx); },
+                  onDragEnter: (e: React.DragEvent) => { e.preventDefault(); dragOverItem.current = sIdx; },
+                  onDragEnd: handleDragSort,
+                  onDragOver: (e: React.DragEvent) => e.preventDefault(),
+                  style: { opacity: draggingIdx === sIdx ? 0.45 : 1, transition: "opacity 0.15s ease" },
+                };
 
-              {/* ── Grants ── */}
-              {(() => {
-                const grantItems = deals.filter(d => d.type === "Grant");
-                const activeGrantCount = grantItems.filter(d => !GRANT_TERMINAL.includes(d.grantStage ?? "Found" as any)).length;
-                const visibleTerminal = GRANT_TERMINAL.filter(t => grantItems.some(i => (i.grantStage ?? "Found") === t));
-                const allGrantStages = [...GRANT_STAGES as string[], ...visibleTerminal as string[]];
-                return (
-                  <div>
-                    <button onClick={() => setGrantsOpen(!grantsOpen)} className="w-full px-4 py-2.5 flex items-center gap-2.5 transition-colors hover:bg-white/[0.02]" style={{ cursor: "pointer", border: "none", background: "transparent", textAlign: "left" }}>
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS.gold }} />
-                      <span className="text-[11px] font-bold tracking-wide uppercase" style={{ color: COLORS.gold }}>Grants</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums font-semibold ml-0.5" style={{ background: `${COLORS.gold}18`, color: COLORS.gold, border: `1px solid ${COLORS.gold}30` }}>{activeGrantCount}</span>
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto transition-transform duration-200" style={{ transform: grantsOpen ? "rotate(0deg)" : "rotate(-90deg)", color: COLORS.textFaint, flexShrink: 0 }}>
-                        <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                    {grantsOpen && (
-                      <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
-                        <div className="flex gap-2.5 px-4 pt-3 pb-4" style={{ minWidth: "max-content" }}>
-                          {allGrantStages.map(stage => {
-                            const stageItems = grantItems.filter(i => (i.grantStage ?? "Found") === stage);
-                            const sc = GRANT_STAGE_COLORS[stage as GrantStage] ?? COLORS.textMuted;
-                            const idx = (GRANT_STAGES as string[]).indexOf(stage);
-                            const nextStage = idx >= 0 && idx < GRANT_STAGES.length - 1 ? GRANT_STAGES[idx + 1] : null;
-                            return (
-                              <div key={stage} style={{ width: 172, flexShrink: 0 }}>
-                                <div className="flex items-center gap-1.5 mb-2 px-0.5">
-                                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sc }} />
-                                  <span className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: sc }}>{stage}</span>
-                                  <span className="text-[10px] ml-auto flex-shrink-0 tabular-nums" style={{ color: COLORS.textFaint }}>{stageItems.length}</span>
-                                </div>
-                                <div className="flex flex-col gap-1.5" style={{ minHeight: 48 }}>
-                                  {stageItems.map(deal => (
-                                    <div key={deal.id ?? deal.name} className="p-2.5 rounded-lg border" style={{ ...GLASS_ALT, borderColor: `${sc}25` }}>
-                                      <p className="text-[11px] font-semibold truncate leading-tight mb-0.5" style={{ color: COLORS.textPrimary }}>{deal.name}</p>
-                                      {(deal.organization || deal.client) && <p className="text-[10px] truncate mb-0.5" style={{ color: COLORS.textMuted }}>{deal.organization || deal.client}</p>}
-                                      {deal.amount && <p className="text-[10px] mb-1.5 font-semibold tabular-nums" style={{ color: COLORS.gold }}>{deal.amount}</p>}
-                                      {deal.deadline && <p className="text-[10px] mb-1" style={{ color: COLORS.textFaint }}>Due: {deal.deadline}</p>}
-                                      <div className="flex items-center gap-1 flex-wrap">
-                                        {nextStage && (
-                                          <button onClick={() => handleGrantStageChange(deal, nextStage)} disabled={changingStage === deal.id}
-                                            className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all hover:bg-white/[0.08]"
-                                            style={{ color: sc, background: `${sc}12`, border: `1px solid ${sc}25`, cursor: "pointer" }}>
-                                            → {nextStage}
-                                          </button>
+                if (section === "jobs") {
+                  const jobItems = deals.filter(d => d.type === "Job");
+                  const activeJobCount = jobItems.filter(d => !JOB_APP_TERMINAL.includes(d.applicationJourney ?? "Bookmarked" as any)).length;
+                  const visibleTerminal = JOB_APP_TERMINAL.filter(t => jobItems.some(i => (i.applicationJourney ?? "Bookmarked") === t));
+                  const allJobStages = [...JOB_APP_STAGES as string[], ...visibleTerminal as string[]];
+                  return (
+                    <div key="jobs" {...dragProps}>
+                      <button onClick={() => setJobsOpen(!jobsOpen)} className="w-full px-4 py-2.5 flex items-center gap-2.5 transition-colors hover:bg-white/[0.02]" style={{ cursor: "pointer", border: "none", background: "transparent", textAlign: "left" }}>
+                        {dragHandle}
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#a78bfa" }} />
+                        <span className="text-[11px] font-bold tracking-wide uppercase" style={{ color: "#a78bfa" }}>Jobs</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums font-semibold ml-0.5" style={{ background: "#a78bfa18", color: "#a78bfa", border: "1px solid #a78bfa30" }}>{activeJobCount}</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto transition-transform duration-200" style={{ transform: jobsOpen ? "rotate(0deg)" : "rotate(-90deg)", color: COLORS.textFaint, flexShrink: 0 }}>
+                          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                      {jobsOpen && (
+                        <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }} onDragStart={e => e.stopPropagation()}>
+                          <div className="flex gap-2.5 px-4 pt-3 pb-4" style={{ minWidth: "max-content" }}>
+                            {allJobStages.map(stage => {
+                              const stageItems = jobItems.filter(i => (i.applicationJourney ?? "Bookmarked") === stage);
+                              const sc = JOB_APP_COLORS[stage as JobAppStage] ?? COLORS.textMuted;
+                              const idx = (JOB_APP_STAGES as string[]).indexOf(stage);
+                              const nextStage = idx >= 0 && idx < JOB_APP_STAGES.length - 1 ? JOB_APP_STAGES[idx + 1] : null;
+                              return (
+                                <div key={stage} style={{ width: 172, flexShrink: 0 }}>
+                                  <div className="flex items-center gap-1.5 mb-2 px-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sc }} />
+                                    <span className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: sc }}>{stage}</span>
+                                    <span className="text-[10px] ml-auto flex-shrink-0 tabular-nums" style={{ color: COLORS.textFaint }}>{stageItems.length}</span>
+                                  </div>
+                                  <div className="flex flex-col gap-1.5" style={{ minHeight: 48 }}>
+                                    {stageItems.map(deal => (
+                                      <div key={deal.id ?? deal.name} className="p-2.5 rounded-lg border" style={{ ...GLASS_ALT, borderColor: `${sc}25` }}>
+                                        <p className="text-[11px] font-semibold truncate leading-tight mb-0.5" style={{ color: COLORS.textPrimary }}>{deal.role || deal.name}</p>
+                                        {(deal.company || deal.client) && <p className="text-[10px] truncate mb-1" style={{ color: COLORS.textMuted }}>{deal.company || deal.client}</p>}
+                                        {deal.salaryRange && <p className="text-[10px] mb-1.5 font-medium" style={{ color: COLORS.green }}>{deal.salaryRange}</p>}
+                                        <div className="flex items-center gap-1 flex-wrap">
+                                          {nextStage && (
+                                            <button onClick={() => handleJobJourneyChange(deal, nextStage)} disabled={changingStage === deal.id}
+                                              className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all hover:bg-white/[0.08]"
+                                              style={{ color: JOB_APP_COLORS[nextStage], background: `${JOB_APP_COLORS[nextStage]}12`, border: `1px solid ${JOB_APP_COLORS[nextStage]}25`, cursor: "pointer" }}>
+                                              → {nextStage}
+                                            </button>
+                                          )}
+                                          <BoardStageSelector dealId={deal.id ?? deal.name} current={deal.applicationJourney ?? "Bookmarked"} stages={JOB_APP_STAGES as unknown as string[]} terminal={JOB_APP_TERMINAL as unknown as string[]} colors={JOB_APP_COLORS as Record<string, string>} onSelect={s => handleJobJourneyChange(deal, s as JobAppStage)} />
+                                        </div>
+                                        {deal.url && (
+                                          <a href={deal.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded mt-1.5 transition-colors hover:bg-white/[0.06]"
+                                            style={{ color: COLORS.teal, border: `1px solid ${COLORS.teal}25`, background: `${COLORS.teal}08` }}>
+                                            <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1H9V7M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                            Apply
+                                          </a>
                                         )}
-                                        <BoardStageSelector dealId={deal.id ?? deal.name} current={deal.grantStage ?? "Found"} stages={GRANT_STAGES as unknown as string[]} terminal={GRANT_TERMINAL as unknown as string[]} colors={GRANT_STAGE_COLORS as Record<string, string>} onSelect={s => handleGrantStageChange(deal, s as GrantStage)} />
                                       </div>
-                                      {deal.url && (
-                                        <a href={deal.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded mt-1.5 transition-colors hover:bg-white/[0.06]"
-                                          style={{ color: COLORS.teal, border: `1px solid ${COLORS.teal}25`, background: `${COLORS.teal}08` }}>
-                                          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1H9V7M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                          Apply
-                                        </a>
-                                      )}
-                                    </div>
-                                  ))}
-                                  {stageItems.length === 0 && (
-                                    <div className="h-10 rounded-lg flex items-center justify-center border border-dashed" style={{ borderColor: `${COLORS.borderSubtle}80` }}>
-                                      <span className="text-[10px]" style={{ color: COLORS.textFaint }}>—</span>
-                                    </div>
-                                  )}
+                                    ))}
+                                    {stageItems.length === 0 && (
+                                      <div className="h-10 rounded-lg flex items-center justify-center border border-dashed" style={{ borderColor: `${COLORS.borderSubtle}80` }}>
+                                        <span className="text-[10px]" style={{ color: COLORS.textFaint }}>—</span>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+                      )}
+                    </div>
+                  );
+                }
 
-              {/* ── Deals ── */}
-              {(() => {
+                if (section === "grants") {
+                  const grantItems = deals.filter(d => d.type === "Grant");
+                  const activeGrantCount = grantItems.filter(d => !GRANT_TERMINAL.includes(d.grantStage ?? "Found" as any)).length;
+                  const visibleTerminal = GRANT_TERMINAL.filter(t => grantItems.some(i => (i.grantStage ?? "Found") === t));
+                  const allGrantStages = [...GRANT_STAGES as string[], ...visibleTerminal as string[]];
+                  return (
+                    <div key="grants" {...dragProps}>
+                      <button onClick={() => setGrantsOpen(!grantsOpen)} className="w-full px-4 py-2.5 flex items-center gap-2.5 transition-colors hover:bg-white/[0.02]" style={{ cursor: "pointer", border: "none", background: "transparent", textAlign: "left" }}>
+                        {dragHandle}
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS.gold }} />
+                        <span className="text-[11px] font-bold tracking-wide uppercase" style={{ color: COLORS.gold }}>Grants</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums font-semibold ml-0.5" style={{ background: `${COLORS.gold}18`, color: COLORS.gold, border: `1px solid ${COLORS.gold}30` }}>{activeGrantCount}</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto transition-transform duration-200" style={{ transform: grantsOpen ? "rotate(0deg)" : "rotate(-90deg)", color: COLORS.textFaint, flexShrink: 0 }}>
+                          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                      {grantsOpen && (
+                        <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }} onDragStart={e => e.stopPropagation()}>
+                          <div className="flex gap-2.5 px-4 pt-3 pb-4" style={{ minWidth: "max-content" }}>
+                            {allGrantStages.map(stage => {
+                              const stageItems = grantItems.filter(i => (i.grantStage ?? "Found") === stage);
+                              const sc = GRANT_STAGE_COLORS[stage as GrantStage] ?? COLORS.textMuted;
+                              const idx = (GRANT_STAGES as string[]).indexOf(stage);
+                              const nextStage = idx >= 0 && idx < GRANT_STAGES.length - 1 ? GRANT_STAGES[idx + 1] : null;
+                              return (
+                                <div key={stage} style={{ width: 172, flexShrink: 0 }}>
+                                  <div className="flex items-center gap-1.5 mb-2 px-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sc }} />
+                                    <span className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: sc }}>{stage}</span>
+                                    <span className="text-[10px] ml-auto flex-shrink-0 tabular-nums" style={{ color: COLORS.textFaint }}>{stageItems.length}</span>
+                                  </div>
+                                  <div className="flex flex-col gap-1.5" style={{ minHeight: 48 }}>
+                                    {stageItems.map(deal => (
+                                      <div key={deal.id ?? deal.name} className="p-2.5 rounded-lg border" style={{ ...GLASS_ALT, borderColor: `${sc}25` }}>
+                                        <p className="text-[11px] font-semibold truncate leading-tight mb-0.5" style={{ color: COLORS.textPrimary }}>{deal.name}</p>
+                                        {(deal.organization || deal.client) && <p className="text-[10px] truncate mb-0.5" style={{ color: COLORS.textMuted }}>{deal.organization || deal.client}</p>}
+                                        {deal.amount && <p className="text-[10px] mb-1.5 font-semibold tabular-nums" style={{ color: COLORS.gold }}>{deal.amount}</p>}
+                                        {deal.deadline && <p className="text-[10px] mb-1" style={{ color: COLORS.textFaint }}>Due: {deal.deadline}</p>}
+                                        <div className="flex items-center gap-1 flex-wrap">
+                                          {nextStage && (
+                                            <button onClick={() => handleGrantStageChange(deal, nextStage)} disabled={changingStage === deal.id}
+                                              className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all hover:bg-white/[0.08]"
+                                              style={{ color: sc, background: `${sc}12`, border: `1px solid ${sc}25`, cursor: "pointer" }}>
+                                              → {nextStage}
+                                            </button>
+                                          )}
+                                          <BoardStageSelector dealId={deal.id ?? deal.name} current={deal.grantStage ?? "Found"} stages={GRANT_STAGES as unknown as string[]} terminal={GRANT_TERMINAL as unknown as string[]} colors={GRANT_STAGE_COLORS as Record<string, string>} onSelect={s => handleGrantStageChange(deal, s as GrantStage)} />
+                                        </div>
+                                        {deal.url && (
+                                          <a href={deal.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded mt-1.5 transition-colors hover:bg-white/[0.06]"
+                                            style={{ color: COLORS.teal, border: `1px solid ${COLORS.teal}25`, background: `${COLORS.teal}08` }}>
+                                            <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1H9V7M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                            Apply
+                                          </a>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {stageItems.length === 0 && (
+                                      <div className="h-10 rounded-lg flex items-center justify-center border border-dashed" style={{ borderColor: `${COLORS.borderSubtle}80` }}>
+                                        <span className="text-[10px]" style={{ color: COLORS.textFaint }}>—</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // deals
                 const dealItems = deals.filter(d => d.type !== "Job" && d.type !== "Grant");
                 const activeDealStages: DealStage[] = ["Lead", "Proposal", "Negotiation", "Signed", "Active", "Closed"];
                 const terminalDealStages: DealStage[] = ["Lost", "Not Aligned"];
@@ -3610,8 +3646,9 @@ function BusinessPipeline() {
                 const visibleTerminal = terminalDealStages.filter(t => dealItems.some(i => i.stage === t));
                 const allDealStages = [...activeDealStages, ...visibleTerminal];
                 return (
-                  <div>
+                  <div key="deals" {...dragProps}>
                     <button onClick={() => setDealsOpen(!dealsOpen)} className="w-full px-4 py-2.5 flex items-center gap-2.5 transition-colors hover:bg-white/[0.02]" style={{ cursor: "pointer", border: "none", background: "transparent", textAlign: "left" }}>
+                      {dragHandle}
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS.coral }} />
                       <span className="text-[11px] font-bold tracking-wide uppercase" style={{ color: COLORS.coral }}>Deals</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums font-semibold ml-0.5" style={{ background: `${COLORS.coral}18`, color: COLORS.coral, border: `1px solid ${COLORS.coral}30` }}>{activeDealCount}</span>
@@ -3620,7 +3657,7 @@ function BusinessPipeline() {
                       </svg>
                     </button>
                     {dealsOpen && (
-                      <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }}>
+                      <div className="border-t overflow-x-auto" style={{ borderColor: COLORS.borderSubtle, scrollbarWidth: "thin", scrollbarColor: `${COLORS.textFaint} transparent` }} onDragStart={e => e.stopPropagation()}>
                         <div className="flex gap-2.5 px-4 pt-3 pb-4" style={{ minWidth: "max-content" }}>
                           {allDealStages.map(stage => {
                             const stageItems = dealItems.filter(i => i.stage === stage);
@@ -3666,8 +3703,7 @@ function BusinessPipeline() {
                     )}
                   </div>
                 );
-              })()}
-
+              })}
             </div>
           </>
         )}
