@@ -16,7 +16,7 @@ CANDIDATE PROFILE:
 - Skills: Influencer ecosystems, brand partnerships, off-channel marketing, campaign strategy, content seeding, social media management, creator campaigns, clipping/repurposing, paid media, analytics reporting, project management
 - Target roles: Director of Marketing, Senior Brand Manager, VP Marketing, Director of Brand Partnerships, Director of Social Media, Director of Content Strategy, Director of Influencer, Fractional CMO
 - Salary floor: $150,000 minimum — do not suggest any role below this. Non-negotiable.
-- Location: Remote preferred, Atlanta-based, or major market hybrid (NYC/LA/CHI/ATL)
+- Location: Remote only or remote-considerate (hybrid with flexibility). No in-office-only or relocation-required roles.
 - Preferred verticals: Direct response, influencer-heavy, creator economy, sports, entertainment, lifestyle, consumer brands
 
 CONFIDENTIALITY: This is a private search. Never reference any current employer.
@@ -24,9 +24,10 @@ CONFIDENTIALITY: This is a private search. Never reference any current employer.
 HARD RULES:
 1. Use web_search to find currently open job postings — do not rely on training data. Search LinkedIn, Greenhouse, Lever, company career pages.
 2. Salary must be $150K+. Skip anything below.
-3. Include a real, direct application URL for every job — verify the link is live before including it.
-4. Do not repeat companies from the exclusion list.
-5. Return ONLY valid JSON. No prose before or after.
+3. Location must be Remote or Remote-considerate (hybrid with flexibility). Skip any role that is in-office only or requires relocation.
+4. Include a real, direct application URL for every job — verify the link is live before including it.
+5. Do not repeat companies from the exclusion list.
+6. Return ONLY valid JSON. No prose before or after.
 
 RESPONSE FORMAT (no markdown fences):
 {
