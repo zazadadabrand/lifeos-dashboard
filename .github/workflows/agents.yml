@@ -4,9 +4,8 @@ on:
   schedule:
     # All scouts — daily 7am EST (12:00 UTC)
     - cron: '0 12 * * *'
-    # Batch Poller — 9am EST (14:00 UTC) to catch 7am scout results, then every 2 hours
-    - cron: '0 14 * * *'
-    - cron: '0 */2 * * *'
+    # Batch Poller — every 2h at odd hours (1,3,5...23 UTC) — never overlaps with noon UTC
+    - cron: '0 1,3,5,7,9,11,13,15,17,19,21,23 * * *'
   workflow_dispatch:
     inputs:
       agent:
@@ -61,7 +60,7 @@ jobs:
     name: Batch Poller
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'schedule' && (github.event.schedule == '0 14 * * *' || github.event.schedule == '0 */2 * * *')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 1,3,5,7,9,11,13,15,17,19,21,23 * * *') ||
       (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'batch-poller' || github.event.inputs.agent == 'all'))
     steps:
       - name: Poll Completed Batches
