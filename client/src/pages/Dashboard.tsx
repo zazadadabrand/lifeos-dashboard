@@ -1050,6 +1050,70 @@ interface PipelineArtist {
   deepDive: any | null;
 }
 
+// ═══════════════════════════════════════════
+// CARD STACK & WORKSPACE TYPES
+// ═══════════════════════════════════════════
+type CardId = "art-advisory" | "outreach" | "jobs" | "grants";
+
+interface WorkspaceCard {
+  id: CardId;
+  label: string;
+  icon: string;
+  color: string;
+  description: string;
+}
+
+const WORKSPACE_CARDS: WorkspaceCard[] = [
+  { id: "art-advisory", label: "Art Advisory", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
+  { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },
+  { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },
+  { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },
+];
+
+// ═══════════════════════════════════════════
+// OUTREACH CONTACT TYPES
+// ═══════════════════════════════════════════
+type OutreachStage = "Review" | "Approved" | "Drafted" | "Sent" | "Replied" | "Meeting Booked";
+
+interface OutreachContact {
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+  email: string;
+  linkedIn: string;
+  source: string;
+  stage: OutreachStage;
+  notes: string;
+  dateAdded: string;
+}
+
+const OUTREACH_STAGES: OutreachStage[] = ["Review", "Approved", "Drafted", "Sent", "Replied", "Meeting Booked"];
+
+const OUTREACH_STAGE_COLORS: Record<OutreachStage, string> = {
+  "Review": COLORS.textMuted,
+  "Approved": COLORS.teal,
+  "Drafted": COLORS.gold,
+  "Sent": COLORS.purple,
+  "Replied": COLORS.green,
+  "Meeting Booked": COLORS.coral,
+};
+
+// Seed data from Apollo search
+const SEED_OUTREACH_CONTACTS: OutreachContact[] = [
+  { id: "1", name: "Molly Brady", title: "SVP Growth Marketing", company: "Disney Streaming", email: "molly.brady@disney.com", linkedIn: "linkedin.com/in/bradymolly", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "2", name: "Eddie Park", title: "VP of Growth Strategy", company: "Warner Bros. Discovery", email: "eddie.park@wbd.com", linkedIn: "linkedin.com/in/eddiepark", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "3", name: "Killian Aubert", title: "Sr. Director of Growth", company: "Sony Pictures Entertainment", email: "killian_aubert@spe.sony.com", linkedIn: "linkedin.com/in/killianaubert", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "4", name: "Charlotte Minetti", title: "VP, Growth Marketing", company: "AMC Networks", email: "charlotte.minetti@amcnetworks.com", linkedIn: "linkedin.com/in/charlotte-minetti", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "5", name: "Sarah Dannenbaum", title: "VP, Growth & Marketing: Games & Emerging Media", company: "Paramount", email: "sarah.dannenbaum@paramount.com", linkedIn: "linkedin.com/in/sarah-milik", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "6", name: "Poppy Thekdi", title: "Director of Growth Marketing", company: "A24", email: "pthekdi@a24films.com", linkedIn: "linkedin.com/in/poppy-thekdi", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "7", name: "Cody Christie", title: "Director of Growth", company: "Riot Games", email: "cchristie@riotgames.com", linkedIn: "linkedin.com/in/codychristie", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "8", name: "Giovanni Bressa", title: "Director, Growth Marketing", company: "Sony Interactive Entertainment", email: "giovanni.bressa@sony.com", linkedIn: "linkedin.com/in/giovannibressa", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "9", name: "Dot Lin", title: "Director of Digital Strategy & Growth", company: "Konami", email: "ld.01636@konami.com", linkedIn: "linkedin.com/in/dotlin", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "10", name: "Ben Collis", title: "Sr. Director, Growth Marketing", company: "Activision Blizzard", email: "benjamin.collis@activision.com", linkedIn: "linkedin.com/in/ben-collis", source: "Apollo", stage: "Review", notes: "", dateAdded: "2026-04-10" },
+  { id: "11", name: "Max B.", title: "EVP of Growth", company: "SSENSE", email: "", linkedIn: "linkedin.com/in/max-b-aa9b3221", source: "Apollo", stage: "Review", notes: "Email unavailable - reach via LinkedIn", dateAdded: "2026-04-10" },
+];
+
 // Module-level state — survives React re-renders
 let _pipelineArtists: PipelineArtist[] = [];
 let _pipelineLoaded = false;
@@ -5601,6 +5665,353 @@ function QuickNotes() {
 }
 
 // ═══════════════════════════════════════════
+// CARD STACK NAVIGATOR COMPONENT
+// ═══════════════════════════════════════════
+function CardStackNavigator({
+  cards,
+  activeCard,
+  onCardChange,
+  children
+}: {
+  cards: WorkspaceCard[];
+  activeCard: CardId;
+  onCardChange: (id: CardId) => void;
+  children: Record<CardId, React.ReactNode>;
+}) {
+  const activeIndex = cards.findIndex(c => c.id === activeCard);
+
+  return (
+    <div style={{ perspective: "1200px", transformStyle: "preserve-3d", position: "relative", width: "100%", height: "100%" }}>
+      {cards.map((card, idx) => {
+        // Calculate position relative to active card (wrapping)
+        let offset = idx - activeIndex;
+        if (offset < 0) offset += cards.length;
+
+        const isActive = offset === 0;
+        const translateX = offset * 28;
+        const translateY = offset * 20;
+        const rotateY = offset * 5;
+        const scaleVal = 1 - offset * 0.025;
+        const opacity = offset > 3 ? 0 : offset === 0 ? 1 : 0.6 - offset * 0.15;
+
+        return (
+          <div
+            key={card.id}
+            onClick={() => !isActive && onCardChange(card.id)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              transition: "all 0.4s cubic-bezier(0.23, 1, 0.32, 1)",
+              transform: `translateX(${translateX}px) translateY(${translateY}px) rotateY(${rotateY}deg) scale(${scaleVal})`,
+              zIndex: cards.length - offset,
+              opacity,
+              pointerEvents: isActive ? "auto" : offset <= 2 ? "auto" : "none",
+              cursor: isActive ? "default" : "pointer",
+              borderRadius: "16px",
+              overflow: "hidden",
+              border: `1px solid ${isActive ? card.color + "40" : COLORS.borderSubtle}`,
+              background: GLASS.background,
+              backdropFilter: GLASS.backdropFilter,
+              boxShadow: isActive
+                ? `0 0 30px ${card.color}15, 0 8px 32px rgba(0,0,0,0.3)`
+                : "0 4px 16px rgba(0,0,0,0.2)",
+            }}
+          >
+            {/* Card header tab showing label when not active */}
+            {!isActive && (
+              <div style={{
+                padding: "12px 20px",
+                borderBottom: `1px solid ${COLORS.borderSubtle}`,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}>
+                <AgentIcon type={card.icon} color={card.color} size={14} />
+                <span style={{ color: card.color, fontSize: "13px", fontWeight: 600 }}>{card.label}</span>
+              </div>
+            )}
+            {/* Full workspace content only renders for active card */}
+            {isActive && (
+              <div style={{ height: "100%", overflow: "auto" }}>
+                {children[card.id]}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Navigation dots */}
+      <div style={{
+        position: "absolute",
+        bottom: "-36px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        display: "flex",
+        gap: "8px",
+        zIndex: 20,
+      }}>
+        {cards.map((card) => (
+          <button
+            key={card.id}
+            onClick={() => onCardChange(card.id)}
+            style={{
+              width: card.id === activeCard ? "24px" : "8px",
+              height: "8px",
+              borderRadius: "4px",
+              background: card.id === activeCard ? card.color : COLORS.textFaint,
+              border: "none",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+              opacity: card.id === activeCard ? 1 : 0.5,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// OUTREACH WORKSPACE COMPONENT
+// ═══════════════════════════════════════════
+function OutreachWorkspace() {
+  const [contacts, setContacts] = useState<OutreachContact[]>(SEED_OUTREACH_CONTACTS);
+  const [activeStage, setActiveStage] = useState<"all" | OutreachStage>("all");
+  const [selectedContact, setSelectedContact] = useState<OutreachContact | null>(null);
+
+  const filtered = activeStage === "all" ? contacts : contacts.filter(c => c.stage === activeStage);
+  const stageCounts = OUTREACH_STAGES.reduce((acc, s) => {
+    acc[s] = contacts.filter(c => c.stage === s).length;
+    return acc;
+  }, {} as Record<OutreachStage, number>);
+
+  const handleStageChange = (contactId: string, newStage: OutreachStage) => {
+    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, stage: newStage } : c));
+  };
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <div style={{ padding: "20px 24px 0", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div>
+            <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700, margin: 0 }}>
+              Outreach Pipeline
+            </h2>
+            <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "2px" }}>
+              {contacts.length} contacts · {stageCounts["Approved"] || 0} approved · {stageCounts["Sent"] || 0} sent
+            </p>
+          </div>
+        </div>
+
+        {/* Stage filter pills */}
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+          <button
+            onClick={() => setActiveStage("all")}
+            style={{
+              padding: "4px 12px",
+              borderRadius: "12px",
+              border: `1px solid ${activeStage === "all" ? COLORS.coral : COLORS.borderSubtle}`,
+              background: activeStage === "all" ? `${COLORS.coral}15` : "transparent",
+              color: activeStage === "all" ? COLORS.coral : COLORS.textMuted,
+              fontSize: "11px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            All ({contacts.length})
+          </button>
+          {OUTREACH_STAGES.map(stage => (
+            <button
+              key={stage}
+              onClick={() => setActiveStage(stage)}
+              style={{
+                padding: "4px 12px",
+                borderRadius: "12px",
+                border: `1px solid ${activeStage === stage ? OUTREACH_STAGE_COLORS[stage] : COLORS.borderSubtle}`,
+                background: activeStage === stage ? `${OUTREACH_STAGE_COLORS[stage]}15` : "transparent",
+                color: activeStage === stage ? OUTREACH_STAGE_COLORS[stage] : COLORS.textMuted,
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {stage} ({stageCounts[stage]})
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Contact cards */}
+      <div style={{ flex: 1, overflow: "auto", padding: "0 24px 24px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {filtered.map(contact => (
+            <div
+              key={contact.id}
+              style={{
+                ...GLASS,
+                borderRadius: "12px",
+                border: `1px solid ${OUTREACH_STAGE_COLORS[contact.stage]}25`,
+                padding: "16px 20px",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = OUTREACH_STAGE_COLORS[contact.stage] + "60"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = OUTREACH_STAGE_COLORS[contact.stage] + "25"; }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ color: COLORS.textPrimary, fontSize: "14px", fontWeight: 600 }}>{contact.name}</span>
+                    <span
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "8px",
+                        fontSize: "10px",
+                        fontWeight: 600,
+                        background: `${OUTREACH_STAGE_COLORS[contact.stage]}20`,
+                        color: OUTREACH_STAGE_COLORS[contact.stage],
+                      }}
+                    >
+                      {contact.stage}
+                    </span>
+                  </div>
+                  <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "2px" }}>
+                    {contact.title}
+                  </p>
+                  <p style={{ color: COLORS.textFaint, fontSize: "11px", marginTop: "1px" }}>
+                    {contact.company}
+                  </p>
+                </div>
+                {/* Action buttons */}
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  {contact.stage === "Review" && (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Approved"); }}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: "8px",
+                          border: `1px solid ${COLORS.teal}50`,
+                          background: `${COLORS.teal}15`,
+                          color: COLORS.teal,
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setContacts(prev => prev.filter(c => c.id !== contact.id)); }}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: "8px",
+                          border: `1px solid ${COLORS.textFaint}40`,
+                          background: "transparent",
+                          color: COLORS.textMuted,
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Skip
+                      </button>
+                    </>
+                  )}
+                  {contact.stage === "Approved" && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Drafted"); }}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "8px",
+                        border: `1px solid ${COLORS.gold}50`,
+                        background: `${COLORS.gold}15`,
+                        color: COLORS.gold,
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Draft Email
+                    </button>
+                  )}
+                  {contact.email && (
+                    <a
+                      href={`mailto:${contact.email}`}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: COLORS.textMuted, fontSize: "11px", textDecoration: "none" }}
+                      title={contact.email}
+                    >
+                      ✉
+                    </a>
+                  )}
+                  {contact.linkedIn && (
+                    <a
+                      href={`https://${contact.linkedIn}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: COLORS.textMuted, fontSize: "11px", textDecoration: "none" }}
+                      title="LinkedIn"
+                    >
+                      in
+                    </a>
+                  )}
+                </div>
+              </div>
+              {contact.notes && (
+                <p style={{ color: COLORS.textFaint, fontSize: "11px", marginTop: "6px", fontStyle: "italic" }}>
+                  {contact.notes}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// ART ADVISORY WORKSPACE WRAPPER
+// ═══════════════════════════════════════════
+function ArtAdvisoryWorkspace() {
+  return (
+    <div style={{ height: "100%", overflow: "auto" }}>
+      <ScoutedArtistsReview />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// PLACEHOLDER WORKSPACE COMPONENTS
+// ═══════════════════════════════════════════
+function JobsWorkspace() {
+  return (
+    <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
+      <AgentIcon type="briefcase" color={COLORS.purple} size={32} />
+      <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700 }}>Jobs Pipeline</h2>
+      <p style={{ color: COLORS.textMuted, fontSize: "13px", textAlign: "center", maxWidth: "300px" }}>
+        Job applications, interview tracking, and follow-ups. Coming soon.
+      </p>
+    </div>
+  );
+}
+
+function GrantsWorkspace() {
+  return (
+    <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
+      <AgentIcon type="bars" color={COLORS.gold} size={32} />
+      <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700 }}>Grants Pipeline</h2>
+      <p style={{ color: COLORS.textMuted, fontSize: "13px", textAlign: "center", maxWidth: "300px" }}>
+        Grant opportunities, deadlines, and applications. Coming soon.
+      </p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
 // TL;DR DIGEST
 // ═══════════════════════════════════════════
 interface DigestLine {
@@ -5613,7 +6024,13 @@ interface DigestLine {
   lane?: string; // maps to deliverable lane name for expand/collapse
 }
 
-function TLDRDigest() {
+function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNavigateToCard: (id: CardId) => void }) {
+  const LANE_TO_CARD: Record<string, CardId> = {
+    "Art Advisory": "art-advisory",
+    "Outreach": "outreach",
+    "Business": "outreach",
+  };
+
   const now = new Date();
   const etNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   const hour = etNow.getHours();
@@ -5673,14 +6090,14 @@ function TLDRDigest() {
 
   // Family & Life — sunset (module paused)
 
-  // Business
+  // Outreach
   lines.push({
-    icon: "briefcase",
-    label: "Business",
+    icon: "signal",
+    label: "Outreach",
     color: COLORS.coral,
     status: "Active",
-    detail: "Pipeline active — 6 deals across 6 revenue paths",
-    lane: "Business",
+    detail: "Growth pipeline — 11 contacts in review",
+    lane: "Outreach",
   });
 
 
@@ -5745,8 +6162,18 @@ function TLDRDigest() {
               {/* Lane row */}
               <div
                 className={`flex items-start gap-2.5 min-h-[20px] py-1.5 rounded-md px-1.5 -mx-1.5 transition-colors ${hasItems ? "cursor-pointer" : ""}`}
-                style={{ background: isExpanded ? `${line.color}08` : "transparent" }}
-                onClick={() => hasItems && toggleLane(line.lane)}
+                style={{
+                  background: isExpanded ? `${line.color}08` : "transparent",
+                  borderLeft: LANE_TO_CARD[line.label] === activeCard ? `2px solid ${line.color}` : "2px solid transparent",
+                }}
+                onClick={() => {
+                  const cardId = LANE_TO_CARD[line.label];
+                  if (cardId) {
+                    onNavigateToCard(cardId);
+                  } else if (hasItems) {
+                    toggleLane(line.lane);
+                  }
+                }}
                 onMouseEnter={(e) => { if (hasItems && !isExpanded) e.currentTarget.style.background = `${line.color}05`; }}
                 onMouseLeave={(e) => { if (!isExpanded) e.currentTarget.style.background = "transparent"; }}
               >
@@ -6220,8 +6647,7 @@ const DEFAULT_OPEN_SECTIONS = new Set(["quick-notes", "tldr", "kpis", "agents-ac
 export default function Dashboard() {
   useEffect(() => { document.documentElement.classList.add("dark"); }, []);
 
-  const [sections, setSections] = useState<DashboardSection[]>(DEFAULT_SECTIONS);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeCard, setActiveCard] = useState<CardId>("art-advisory");
   const [activeVariant, setActiveVariant] = useState<string>("deep-space");
   const [density, setDensity] = useState<DensityLevel>("comfortable");
   const scale = DENSITY_SCALES[density];
@@ -6232,66 +6658,25 @@ export default function Dashboard() {
   // Shadow figures animation
   useShadowFigures(canvasRef, variant.shadowTint);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
-
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  }, []);
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-    if (over && active.id !== over.id) {
-      setSections((prev) => {
-        const oldIndex = prev.findIndex((s) => s.id === active.id);
-        const newIndex = prev.findIndex((s) => s.id === over.id);
-        const newOrder = arrayMove(prev, oldIndex, newIndex);
-        return newOrder;
-      });
-    }
-  }, []);
-
-  const totalAgents = LANES.reduce((sum, l) => sum + l.agents.length, 0) + HUB_AGENTS.length;
-  const activeAgents = LANES.reduce((sum, l) => sum + l.agents.filter(a => a.status === "active").length, 0) + HUB_AGENTS.filter(a => a.status === "active").length;
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const cardOrder: CardId[] = WORKSPACE_CARDS.map(c => c.id);
+      const currentIdx = cardOrder.indexOf(activeCard);
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveCard(cardOrder[(currentIdx + 1) % cardOrder.length]);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveCard(cardOrder[(currentIdx - 1 + cardOrder.length) % cardOrder.length]);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeCard]);
 
   const ambientGradient = computeAmbientGradient(variant);
-
-  const renderSection = (sectionId: string) => {
-    switch (sectionId) {      case "tldr":
-        return <TLDRDigest />;      case "agents-active":
-        return (
-          <div>
-            <SectionHeader title="Agent Network" subtitle="Active lanes and their specialized agents" count={`${activeAgents} active / ${totalAgents} total`} />
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-3">
-              {LANES.filter(l => l.status === "active").map((lane, i) => (
-                <LaneGroup key={lane.id} lane={lane} delay={200 + i * 150} />
-              ))}
-            </div>
-          </div>
-        );
-      case "agents-planned":
-        return (
-          <div>
-            <SectionHeader title="Planned Lanes" subtitle="Coming in future versions" count={`${LANES.filter(l => l.status === "planned").length} lanes queued`} />
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-3">
-              {LANES.filter(l => l.status === "planned").map((lane, i) => (
-                <LaneGroup key={lane.id} lane={lane} delay={200 + i * 150} />
-              ))}
-            </div>
-          </div>
-        );      case "roadmap":
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <BuildYourLifeOS />
-            <EvolutionRoadmap />
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
 
   return (
     <div className="h-screen flex flex-col" style={{ background: variant.bg }}>
@@ -6307,30 +6692,29 @@ export default function Dashboard() {
       {/* Header — z-index 10 */}
       <Header activeVariant={activeVariant} onVariantChange={setActiveVariant} density={density} onDensityChange={setDensity} />
 
-      {/* Main content — z-index 2, relative */}
-      <main className="flex-1 overflow-y-auto p-6" style={{ position: "relative", zIndex: 2, overscrollBehavior: "contain" }}>
-        <div className="max-w-[1400px] mx-auto flex flex-col transition-all duration-300" style={{ gap: `${scale * 16}px`, paddingLeft: `${scale * 16}px` }}>
-          {/* Collapsible sections */}
-          {sections.map((section) => (
-            <CollapsibleSection
-              key={section.id}
-              id={section.id}
-              label={section.label}
-              defaultOpen={DEFAULT_OPEN_SECTIONS.has(section.id)}
-            >
-              {renderSection(section.id)}
-            </CollapsibleSection>
-          ))}
+      {/* Main content — z-index 2 */}
+      <main className="flex-1 overflow-hidden flex flex-col" style={{ position: "relative", zIndex: 2 }}>
+        {/* Remote Control (At a Glance) — fixed at top */}
+        <div style={{ flexShrink: 0, padding: `${scale * 16}px ${scale * 16}px 0`, maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+          <CollapsibleSection id="tldr" label="At a Glance" defaultOpen={true}>
+            <TLDRDigest activeCard={activeCard} onNavigateToCard={setActiveCard} />
+          </CollapsibleSection>
+        </div>
 
-          {/* Footer */}
-          <footer className="text-center py-4">
-            <span className="text-[11px]" style={{ color: COLORS.textFaint }}>
-              LifeOS v1.0 | Powered by{" "}
-              <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: COLORS.textMuted }}>
-                Perplexity Computer
-              </a>
-            </span>
-          </footer>
+        {/* Card Stack — fills remaining space */}
+        <div style={{ flex: 1, padding: `${scale * 16}px`, paddingBottom: `${scale * 16 + 48}px`, maxWidth: "1400px", margin: "0 auto", width: "100%", overflow: "hidden", position: "relative" }}>
+          <CardStackNavigator
+            cards={WORKSPACE_CARDS}
+            activeCard={activeCard}
+            onCardChange={setActiveCard}
+          >
+            {{
+              "art-advisory": <ArtAdvisoryWorkspace />,
+              "outreach": <OutreachWorkspace />,
+              "jobs": <JobsWorkspace />,
+              "grants": <GrantsWorkspace />,
+            }}
+          </CardStackNavigator>
         </div>
       </main>
     </div>
