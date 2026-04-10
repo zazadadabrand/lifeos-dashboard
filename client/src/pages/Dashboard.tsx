@@ -4722,37 +4722,7 @@ function HubAgentsCard() {
   );
 }
 
-// ═══════════════════════════════════════════
-// SYSTEM STATUS (connectors)
-// ═══════════════════════════════════════════
-function SystemStatusCard() {
-  const connectors = [
-    { name: "Realtime Finance", connected: true },
-    { name: "Gmail + Calendar", connected: true },
-    { name: "Google Sheets", connected: true },
-    { name: "Google Drive", connected: true },
-    { name: "GitHub", connected: true },
-    { name: "Vercel", connected: true },
-    { name: "Slack", connected: false },
-  ];
-
-  const connected = connectors.filter(c => c.connected).length;
-  const total = connectors.length;
-
-  return (
-            <div key={c.name} className="flex items-center gap-2 text-[11px]">
-              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.connected ? COLORS.green : COLORS.textFaint }} />
-              <span style={{ color: c.connected ? COLORS.textPrimary : COLORS.textMuted }}>{c.name}</span>
-              <span className="ml-auto text-[11px]" style={{ color: c.connected ? COLORS.green : COLORS.textFaint }}>
-                {c.connected ? "Live" : "Pending"}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+// SystemStatusCard removed — was part of Hub & Connectors section
 
 // ═══════════════════════════════════════════
 // MINI CALENDAR
