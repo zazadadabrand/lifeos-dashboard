@@ -7047,7 +7047,7 @@ const DEFAULT_OPEN_SECTIONS = new Set(["quick-notes", "tldr", "kpis", "agents-ac
 export default function Dashboard() {
   useEffect(() => { document.documentElement.classList.add("dark"); }, []);
 
-  const [activeCard, setActiveCard] = useState<CardId>("art-advisory");
+  const [activeCard, setActiveCard] = useState<CardId>("outreach");
   const [activeVariant, setActiveVariant] = useState<string>("deep-space");
   const [density, setDensity] = useState<DensityLevel>("comfortable");
   const scale = DENSITY_SCALES[density];
