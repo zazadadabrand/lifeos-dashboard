@@ -5980,13 +5980,322 @@ function JobsWorkspace() {
 }
 
 function GrantsWorkspace() {
+  const [grants, setGrants] = useState<BusinessDeal[]>(() =>
+    _businessDeals.filter(d => d.type === "Grant")
+  );
+  const [activeStage, setActiveStage] = useState<"all" | GrantStage>("all");
+  const [expandedGrant, setExpandedGrant] = useState<string | null>(null);
+
+  // Re-sync when _businessDeals changes (after fetch)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const fresh = _businessDeals.filter(d => d.type === "Grant");
+      if (fresh.length !== grants.length) setGrants(fresh);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [grants.length]);
+
+  const filtered = activeStage === "all" ? grants : grants.filter(g => g.grantStage === activeStage);
+
+  const stageCounts = GRANT_STAGES.reduce((acc, s) => {
+    acc[s] = grants.filter(g => g.grantStage === s).length;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const handleStageChange = (grantId: string, newStage: GrantStage) => {
+    setGrants(prev => prev.map(g => g.id === grantId ? { ...g, grantStage: newStage } : g));
+    // Also update module-level cache
+    const idx = _businessDeals.findIndex(d => d.id === grantId);
+    if (idx >= 0) (_businessDeals[idx] as any).grantStage = newStage;
+  };
+
+  const deadlineColor = (deadline?: string) => {
+    if (!deadline || deadline === "rolling") return COLORS.textMuted;
+    const d = new Date(deadline);
+    const now = new Date();
+    const daysLeft = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysLeft < 0) return COLORS.red;
+    if (daysLeft <= 14) return COLORS.gold;
+    return COLORS.green;
+  };
+
+  const formatDeadline = (deadline?: string) => {
+    if (!deadline) return "No deadline";
+    if (deadline.toLowerCase() === "rolling") return "Rolling";
+    const d = new Date(deadline);
+    const now = new Date();
+    const daysLeft = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    if (daysLeft < 0) return `Closed · ${dateStr}`;
+    if (daysLeft === 0) return `Due today`;
+    if (daysLeft === 1) return `Due tomorrow`;
+    return `${daysLeft}d left · ${dateStr}`;
+  };
+
+  if (!_businessLoaded) {
+    return (
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
+        <div style={{ width: "20px", height: "20px", border: `2px solid ${COLORS.gold}40`, borderTopColor: COLORS.gold, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+        <p style={{ color: COLORS.textMuted, fontSize: "13px" }}>Loading grants data…</p>
+      </div>
+    );
+  }
+
+  if (grants.length === 0) {
+    return (
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
+        <AgentIcon type="bars" color={COLORS.gold} size={32} />
+        <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700 }}>Grants Pipeline</h2>
+        <p style={{ color: COLORS.textMuted, fontSize: "13px", textAlign: "center", maxWidth: "360px" }}>
+          No grants found yet. The Grants Scout runs daily at 7 AM EST — new opportunities will appear here automatically.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
-      <AgentIcon type="bars" color={COLORS.gold} size={32} />
-      <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700 }}>Grants Pipeline</h2>
-      <p style={{ color: COLORS.textMuted, fontSize: "13px", textAlign: "center", maxWidth: "300px" }}>
-        Grant opportunities, deadlines, and applications. Coming soon.
-      </p>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <div style={{ padding: "20px 24px 0", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div>
+            <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700, margin: 0 }}>
+              Grants Pipeline
+            </h2>
+            <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "2px" }}>
+              {grants.length} grant{grants.length !== 1 ? "s" : ""} · {stageCounts["Found"] || 0} new · {stageCounts["Applying"] || 0} in progress · {stageCounts["Awarded"] || 0} awarded
+            </p>
+          </div>
+        </div>
+
+        {/* Stage filter pills */}
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+          {(["all", ...GRANT_STAGES] as const).map((stage) => {
+            const isActive = activeStage === stage;
+            const count = stage === "all" ? grants.length : (stageCounts[stage] || 0);
+            return (
+              <button
+                key={stage}
+                onClick={() => setActiveStage(stage as any)}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: "20px",
+                  border: `1px solid ${isActive ? COLORS.gold : COLORS.borderSubtle}`,
+                  background: isActive ? `${COLORS.gold}20` : "transparent",
+                  color: isActive ? COLORS.gold : COLORS.textMuted,
+                  fontSize: "11px",
+                  fontWeight: isActive ? 700 : 500,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {stage === "all" ? "All" : stage} ({count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Grant cards */}
+      <div style={{ flex: 1, overflow: "auto", padding: "0 24px 20px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {filtered.map((grant) => {
+            const isExpanded = expandedGrant === grant.id;
+            return (
+              <div
+                key={grant.id}
+                onClick={() => setExpandedGrant(isExpanded ? null : grant.id)}
+                style={{
+                  background: GLASS.background,
+                  backdropFilter: GLASS.backdropFilter,
+                  borderRadius: "12px",
+                  border: `1px solid ${COLORS.borderSubtle}`,
+                  padding: "16px 20px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = `${COLORS.gold}50`;
+                  e.currentTarget.style.boxShadow = `0 0 12px ${COLORS.gold}10`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = COLORS.borderSubtle;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                {/* Top row */}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                      <span style={{
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        background: `${COLORS.gold}20`,
+                        color: COLORS.gold,
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                      }}>
+                        {grant.grantStage || "Found"}
+                      </span>
+                      <span style={{ color: COLORS.textPrimary, fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {grant.name}
+                      </span>
+                    </div>
+                    <p style={{ color: COLORS.textMuted, fontSize: "12px", margin: "2px 0 0" }}>
+                      {grant.organization || "Unknown organization"}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ color: COLORS.green, fontSize: "14px", fontWeight: 700 }}>
+                      {grant.amount || "TBD"}
+                    </div>
+                    <div style={{ color: deadlineColor(grant.deadline), fontSize: "11px", marginTop: "2px" }}>
+                      {formatDeadline(grant.deadline)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+                    {grant.eligibility && (
+                      <div style={{ marginBottom: "10px" }}>
+                        <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Eligibility</span>
+                        <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5 }}>{grant.eligibility}</p>
+                      </div>
+                    )}
+                    {grant.whyFit && (
+                      <div style={{ marginBottom: "10px" }}>
+                        <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Why It Fits</span>
+                        <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5 }}>{grant.whyFit}</p>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+                      {grant.url && (
+                        <a
+                          href={grant.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            padding: "6px 14px",
+                            borderRadius: "8px",
+                            background: `${COLORS.gold}20`,
+                            color: COLORS.gold,
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            textDecoration: "none",
+                            border: `1px solid ${COLORS.gold}40`,
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          Apply →
+                        </a>
+                      )}
+                      {/* Stage advancement buttons */}
+                      {grant.grantStage === "Found" && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Reviewing"); }}
+                            style={{
+                              padding: "6px 14px", borderRadius: "8px",
+                              background: `${COLORS.teal}15`, color: COLORS.teal,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.teal}30`,
+                              cursor: "pointer", transition: "all 0.2s ease",
+                            }}
+                          >
+                            Review
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Not Eligible"); }}
+                            style={{
+                              padding: "6px 14px", borderRadius: "8px",
+                              background: `${COLORS.red}10`, color: COLORS.red,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.red}20`,
+                              cursor: "pointer", transition: "all 0.2s ease",
+                            }}
+                          >
+                            Not Eligible
+                          </button>
+                        </>
+                      )}
+                      {grant.grantStage === "Reviewing" && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Applying"); }}
+                            style={{
+                              padding: "6px 14px", borderRadius: "8px",
+                              background: `${COLORS.teal}15`, color: COLORS.teal,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.teal}30`,
+                              cursor: "pointer", transition: "all 0.2s ease",
+                            }}
+                          >
+                            Start Application
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Not Eligible"); }}
+                            style={{
+                              padding: "6px 14px", borderRadius: "8px",
+                              background: `${COLORS.red}10`, color: COLORS.red,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.red}20`,
+                              cursor: "pointer", transition: "all 0.2s ease",
+                            }}
+                          >
+                            Skip
+                          </button>
+                        </>
+                      )}
+                      {grant.grantStage === "Applying" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Submitted"); }}
+                          style={{
+                            padding: "6px 14px", borderRadius: "8px",
+                            background: `${COLORS.green}15`, color: COLORS.green,
+                            fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.green}30`,
+                            cursor: "pointer", transition: "all 0.2s ease",
+                          }}
+                        >
+                          Mark Submitted
+                        </button>
+                      )}
+                      {grant.grantStage === "Submitted" && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Awarded"); }}
+                            style={{
+                              padding: "6px 14px", borderRadius: "8px",
+                              background: `${COLORS.green}15`, color: COLORS.green,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.green}30`,
+                              cursor: "pointer", transition: "all 0.2s ease",
+                            }}
+                          >
+                            Awarded!
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Declined"); }}
+                            style={{
+                              padding: "6px 14px", borderRadius: "8px",
+                              background: `${COLORS.red}10`, color: COLORS.red,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.red}20`,
+                              cursor: "pointer", transition: "all 0.2s ease",
+                            }}
+                          >
+                            Declined
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -6676,7 +6985,7 @@ export default function Dashboard() {
       <main className="flex-1 overflow-hidden flex flex-col" style={{ position: "relative", zIndex: 2 }}>
         {/* Remote Control (At a Glance) — fixed at top */}
         <div style={{ flexShrink: 0, padding: `${scale * 16}px ${scale * 16}px 0`, maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
-          <CollapsibleSection id="tldr" label="At a Glance" defaultOpen={true}>
+          <CollapsibleSection id="tldr" label="At a Glance" defaultOpen={false}>
             <TLDRDigest activeCard={activeCard} onNavigateToCard={setActiveCard} />
           </CollapsibleSection>
         </div>
