@@ -5825,22 +5825,27 @@ function OutreachWorkspace() {
       {/* Contact cards */}
       <div style={{ flex: 1, overflow: "auto", padding: "0 24px 24px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {filtered.map(contact => (
+          {filtered.map(contact => {
+            const isExpanded = selectedContact?.id === contact.id;
+            const stageColor = OUTREACH_STAGE_COLORS[contact.stage];
+            return (
             <div
               key={contact.id}
+              onClick={() => setSelectedContact(isExpanded ? null : contact)}
               style={{
                 ...GLASS,
                 borderRadius: "12px",
-                border: `1px solid ${OUTREACH_STAGE_COLORS[contact.stage]}25`,
+                border: `1px solid ${stageColor}25`,
                 padding: "16px 20px",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = OUTREACH_STAGE_COLORS[contact.stage] + "60"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = OUTREACH_STAGE_COLORS[contact.stage] + "25"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = stageColor + "60"; e.currentTarget.style.boxShadow = `0 0 12px ${stageColor}10`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = stageColor + "25"; e.currentTarget.style.boxShadow = "none"; }}
             >
+              {/* Top row — name, title, company, stage */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span style={{ color: COLORS.textPrimary, fontSize: "14px", fontWeight: 600 }}>{contact.name}</span>
                     <span
@@ -5849,8 +5854,8 @@ function OutreachWorkspace() {
                         borderRadius: "8px",
                         fontSize: "10px",
                         fontWeight: 600,
-                        background: `${OUTREACH_STAGE_COLORS[contact.stage]}20`,
-                        color: OUTREACH_STAGE_COLORS[contact.stage],
+                        background: `${stageColor}20`,
+                        color: stageColor,
                       }}
                     >
                       {contact.stage}
@@ -5864,7 +5869,7 @@ function OutreachWorkspace() {
                   </p>
                 </div>
                 {/* Action buttons */}
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
                   {contact.stage === "Review" && (
                     <>
                       <button
@@ -5916,37 +5921,143 @@ function OutreachWorkspace() {
                       Draft Email
                     </button>
                   )}
-                  {contact.email && (
-                    <a
-                      href={`mailto:${contact.email}`}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ color: COLORS.textMuted, fontSize: "11px", textDecoration: "none" }}
-                      title={contact.email}
-                    >
-                      ✉
-                    </a>
-                  )}
-                  {contact.linkedIn && (
-                    <a
-                      href={`https://${contact.linkedIn}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ color: COLORS.textMuted, fontSize: "11px", textDecoration: "none" }}
-                      title="LinkedIn"
-                    >
-                      in
-                    </a>
-                  )}
                 </div>
               </div>
-              {contact.notes && (
+
+              {/* Contact info row — always visible */}
+              <div style={{ display: "flex", gap: "16px", marginTop: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                {contact.email ? (
+                  <a
+                    href={`mailto:${contact.email}`}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "5px",
+                      color: COLORS.textSecondary, fontSize: "12px", textDecoration: "none",
+                      padding: "3px 10px", borderRadius: "6px",
+                      background: `${COLORS.teal}08`, border: `1px solid ${COLORS.teal}15`,
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = `${COLORS.teal}18`; e.currentTarget.style.color = COLORS.teal; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = `${COLORS.teal}08`; e.currentTarget.style.color = COLORS.textSecondary; }}
+                    title={`Email ${contact.name}`}
+                  >
+                    <span style={{ fontSize: "13px" }}>✉</span>
+                    <span>{contact.email}</span>
+                  </a>
+                ) : (
+                  <span style={{ display: "flex", alignItems: "center", gap: "5px", color: COLORS.textFaint, fontSize: "12px", padding: "3px 10px", borderRadius: "6px", background: `${COLORS.red}08`, border: `1px solid ${COLORS.red}10` }}>
+                    <span style={{ fontSize: "13px" }}>✉</span>
+                    <span>No email</span>
+                  </span>
+                )}
+                {contact.linkedIn && (
+                  <a
+                    href={`https://${contact.linkedIn}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "5px",
+                      color: COLORS.textSecondary, fontSize: "12px", textDecoration: "none",
+                      padding: "3px 10px", borderRadius: "6px",
+                      background: `#0077B508`, border: `1px solid #0077B515`,
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#0077B518"; e.currentTarget.style.color = "#0077B5"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "#0077B508"; e.currentTarget.style.color = COLORS.textSecondary; }}
+                    title={`View ${contact.name} on LinkedIn`}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: "11px" }}>in</span>
+                    <span>{contact.linkedIn.replace("linkedin.com/in/", "")}</span>
+                  </a>
+                )}
+                <span style={{ color: COLORS.textFaint, fontSize: "10px" }}>
+                  via {contact.source} · {contact.dateAdded}
+                </span>
+              </div>
+
+              {/* Expanded details */}
+              {isExpanded && (
+                <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px" }}>
+                    <div>
+                      <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Company</span>
+                      <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "3px 0 0" }}>{contact.company}</p>
+                    </div>
+                    <div>
+                      <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Role</span>
+                      <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "3px 0 0" }}>{contact.title}</p>
+                    </div>
+                    <div>
+                      <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Email</span>
+                      <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "3px 0 0" }}>{contact.email || "Not available"}</p>
+                    </div>
+                    <div>
+                      <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>LinkedIn</span>
+                      <p style={{ margin: "3px 0 0" }}>
+                        {contact.linkedIn ? (
+                          <a href={`https://${contact.linkedIn}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                            style={{ color: "#0077B5", fontSize: "13px", textDecoration: "none" }}
+                          >{contact.linkedIn}</a>
+                        ) : (
+                          <span style={{ color: COLORS.textFaint, fontSize: "13px" }}>Not available</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {contact.notes && (
+                    <div style={{ marginTop: "10px" }}>
+                      <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Notes</span>
+                      <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "3px 0 0", fontStyle: "italic" }}>{contact.notes}</p>
+                    </div>
+                  )}
+                  {/* Quick actions in expanded view */}
+                  <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
+                    {contact.email && (
+                      <a
+                        href={`mailto:${contact.email}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          padding: "6px 14px", borderRadius: "8px",
+                          background: `${COLORS.teal}15`, color: COLORS.teal,
+                          fontSize: "11px", fontWeight: 600, textDecoration: "none",
+                          border: `1px solid ${COLORS.teal}30`,
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        Send Email
+                      </a>
+                    )}
+                    {contact.linkedIn && (
+                      <a
+                        href={`https://${contact.linkedIn}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          padding: "6px 14px", borderRadius: "8px",
+                          background: `#0077B512`, color: "#0077B5",
+                          fontSize: "11px", fontWeight: 600, textDecoration: "none",
+                          border: `1px solid #0077B525`,
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        View LinkedIn
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes (collapsed view) */}
+              {!isExpanded && contact.notes && (
                 <p style={{ color: COLORS.textFaint, fontSize: "11px", marginTop: "6px", fontStyle: "italic" }}>
                   {contact.notes}
                 </p>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
