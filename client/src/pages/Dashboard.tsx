@@ -5683,24 +5683,6 @@ function TLDRDigest() {
     lane: "Business",
   });
 
-  // Finance
-  lines.push({
-    icon: "chart",
-    label: "Finance",
-    color: COLORS.green,
-    status: "Planned",
-    detail: "Finance Agent + Crypto Scanner queued for v2.0",
-    lane: "Finance",
-  });
-
-  // Connectors
-  lines.push({
-    icon: "signal",
-    label: "Connectors",
-    color: COLORS.textMuted,
-    status: "7 connected",
-    detail: "Sheets, Drive, GitHub, Finance, Gmail, Calendar, Vercel — all live",
-  });
 
   // Credits
   lines.push({
