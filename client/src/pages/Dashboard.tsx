@@ -5678,14 +5678,21 @@ function CardStackNavigator({
   onCardChange: (id: CardId) => void;
   children: Record<CardId, React.ReactNode>;
 }) {
+  const activeIdx = cards.findIndex(c => c.id === activeCard);
+  const activeColor = cards[activeIdx]?.color || COLORS.teal;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "0" }}>
-      {/* Tab bar — workspace switcher */}
+    <div style={{ display: "flex", height: "100%", gap: "0" }}>
+
+      {/* ── Left rail: mini window thumbnails ── */}
       <div style={{
         display: "flex",
-        gap: "2px",
+        flexDirection: "column",
+        gap: "6px",
         flexShrink: 0,
-        padding: "0 0 0",
+        width: "54px",
+        padding: "4px 0",
+        justifyContent: "flex-start",
       }}>
         {cards.map((card) => {
           const isActive = card.id === activeCard;
@@ -5693,59 +5700,207 @@ function CardStackNavigator({
             <button
               key={card.id}
               onClick={() => onCardChange(card.id)}
+              title={card.label}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "10px 18px",
+                width: "48px",
+                height: "40px",
                 border: "none",
-                borderRadius: "12px 12px 0 0",
-                background: isActive ? GLASS.background : "transparent",
-                backdropFilter: isActive ? GLASS.backdropFilter : "none",
-                color: isActive ? card.color : COLORS.textMuted,
-                fontSize: "12px",
-                fontWeight: isActive ? 700 : 500,
+                borderRadius: "8px",
+                background: isActive
+                  ? `linear-gradient(135deg, ${card.color}30, ${card.color}12)`
+                  : "rgba(255,255,255,0.04)",
                 cursor: "pointer",
-                transition: "all 0.25s ease",
-                borderBottom: isActive ? `2px solid ${card.color}` : "2px solid transparent",
-                opacity: isActive ? 1 : 0.6,
+                transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                position: "relative",
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "3px",
+                outline: isActive ? `1.5px solid ${card.color}60` : "1.5px solid transparent",
+                boxShadow: isActive
+                  ? `0 0 12px ${card.color}20, 0 2px 8px rgba(0,0,0,0.3)`
+                  : "0 1px 4px rgba(0,0,0,0.15)",
+                transform: isActive ? "scale(1.05)" : "scale(1)",
               }}
-              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.opacity = "0.9"; e.currentTarget.style.color = card.color; } }}
-              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.opacity = "0.6"; e.currentTarget.style.color = COLORS.textMuted; } }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = `linear-gradient(135deg, ${card.color}20, ${card.color}08)`;
+                  e.currentTarget.style.outline = `1.5px solid ${card.color}35`;
+                  e.currentTarget.style.transform = "scale(1.08)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                  e.currentTarget.style.outline = "1.5px solid transparent";
+                  e.currentTarget.style.transform = "scale(1)";
+                }
+              }}
             >
-              <AgentIcon type={card.icon} color={isActive ? card.color : COLORS.textMuted} size={12} />
-              {card.label}
+              {/* Glow bar at top of active thumbnail */}
+              {isActive && (
+                <div style={{
+                  position: "absolute",
+                  top: 0,
+                  left: "20%",
+                  right: "20%",
+                  height: "2px",
+                  borderRadius: "0 0 2px 2px",
+                  background: card.color,
+                  boxShadow: `0 0 8px ${card.color}80`,
+                }} />
+              )}
+              <AgentIcon type={card.icon} color={isActive ? card.color : COLORS.textMuted} size={14} />
+              <span style={{
+                fontSize: "7px",
+                fontWeight: isActive ? 700 : 500,
+                color: isActive ? card.color : COLORS.textFaint,
+                letterSpacing: "0.3px",
+                textTransform: "uppercase",
+                lineHeight: 1,
+              }}>
+                {card.label.split(" ")[0]}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Active workspace — single card, no stacking */}
-      <div style={{
-        flex: 1,
-        borderRadius: "0 12px 12px 12px",
-        overflow: "hidden",
-        border: `1px solid ${cards.find(c => c.id === activeCard)?.color || COLORS.borderSubtle}25`,
-        background: GLASS.background,
-        backdropFilter: GLASS.backdropFilter,
-        boxShadow: `0 0 20px ${cards.find(c => c.id === activeCard)?.color || COLORS.teal}08, 0 4px 24px rgba(0,0,0,0.2)`,
-        position: "relative",
-      }}>
-        {cards.map((card) => (
-          <div
-            key={card.id}
-            style={{
-              position: "absolute",
-              inset: 0,
-              opacity: card.id === activeCard ? 1 : 0,
-              pointerEvents: card.id === activeCard ? "auto" : "none",
-              transition: "opacity 0.3s ease",
-              overflow: "auto",
-            }}
-          >
-            {children[card.id]}
+      {/* ── Main workspace window ── */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
+
+        {/* Window title bar */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          padding: "8px 16px",
+          flexShrink: 0,
+          borderRadius: "14px 14px 0 0",
+          background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)",
+          backdropFilter: GLASS.backdropFilter,
+          borderTop: "1px solid rgba(255,255,255,0.12)",
+          borderLeft: "1px solid rgba(255,255,255,0.08)",
+          borderRight: "1px solid rgba(255,255,255,0.08)",
+        }}>
+          {/* Traffic lights (decorative) */}
+          <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: `${activeColor}50`, border: `1px solid ${activeColor}30` }} />
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.06)" }} />
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.06)" }} />
           </div>
-        ))}
+
+          {/* Active workspace label */}
+          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+            <AgentIcon type={cards[activeIdx]?.icon || "palette"} color={activeColor} size={13} />
+            <span style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: COLORS.textSecondary,
+              letterSpacing: "0.3px",
+            }}>
+              {cards[activeIdx]?.label}
+            </span>
+            <span style={{
+              fontSize: "10px",
+              color: COLORS.textFaint,
+              fontWeight: 400,
+            }}>
+              — {cards[activeIdx]?.description}
+            </span>
+          </div>
+
+          {/* Nav arrows */}
+          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+            <button
+              onClick={() => {
+                const prev = (activeIdx - 1 + cards.length) % cards.length;
+                onCardChange(cards[prev].id);
+              }}
+              style={{
+                width: "22px", height: "22px", borderRadius: "6px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.04)",
+                color: COLORS.textMuted, fontSize: "11px",
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.10)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+              title="Previous workspace (←)"
+            >‹</button>
+            <button
+              onClick={() => {
+                const next = (activeIdx + 1) % cards.length;
+                onCardChange(cards[next].id);
+              }}
+              style={{
+                width: "22px", height: "22px", borderRadius: "6px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.04)",
+                color: COLORS.textMuted, fontSize: "11px",
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.10)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+              title="Next workspace (→)"
+            >›</button>
+          </div>
+        </div>
+
+        {/* Window body — workspace content */}
+        <div style={{
+          flex: 1,
+          borderRadius: "0 0 14px 14px",
+          overflow: "hidden",
+          position: "relative",
+          background: GLASS.background,
+          backdropFilter: GLASS.backdropFilter,
+          borderLeft: "1px solid rgba(255,255,255,0.06)",
+          borderRight: "1px solid rgba(255,255,255,0.06)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          boxShadow: `0 0 30px ${activeColor}06, 0 8px 32px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.15)`,
+        }}>
+          {/* Accent glow along top edge */}
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: "10%",
+            right: "10%",
+            height: "1px",
+            background: `linear-gradient(90deg, transparent, ${activeColor}40, transparent)`,
+            zIndex: 2,
+          }} />
+
+          {/* Workspace cards — slide transition */}
+          {cards.map((card, i) => {
+            const isActive = card.id === activeCard;
+            const offset = i - activeIdx;
+            return (
+              <div
+                key={card.id}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  opacity: isActive ? 1 : 0,
+                  pointerEvents: isActive ? "auto" : "none",
+                  transform: isActive
+                    ? "translateX(0) scale(1)"
+                    : offset > 0
+                      ? "translateX(40px) scale(0.97)"
+                      : "translateX(-40px) scale(0.97)",
+                  transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                  overflow: "auto",
+                }}
+              >
+                {children[card.id]}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -5945,7 +6100,7 @@ function OutreachWorkspace() {
                     <span>{contact.email}</span>
                   </a>
                 ) : (
-                  <span style={{ display: "flex", alignItems: "center", gap: "5px", color: COLORS.textFaint, fontSize: "12px", padding: "3px 10px", borderRadius: "6px", background: `${COLORS.red}08`, border: `1px solid ${COLORS.red}10` }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "5px", color: COLORS.textFaint, fontSize: "12px", padding: "3px 10px", borderRadius: "6px", background: `${COLORS.chartRed}08`, border: `1px solid ${COLORS.chartRed}10` }}>
                     <span style={{ fontSize: "13px" }}>✉</span>
                     <span>No email</span>
                   </span>
@@ -6125,7 +6280,7 @@ function GrantsWorkspace() {
     const d = new Date(deadline);
     const now = new Date();
     const daysLeft = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysLeft < 0) return COLORS.red;
+    if (daysLeft < 0) return COLORS.chartRed;
     if (daysLeft <= 14) return COLORS.gold;
     return COLORS.green;
   };
@@ -6325,8 +6480,8 @@ function GrantsWorkspace() {
                             onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Not Eligible"); }}
                             style={{
                               padding: "6px 14px", borderRadius: "8px",
-                              background: `${COLORS.red}10`, color: COLORS.red,
-                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.red}20`,
+                              background: `${COLORS.chartRed}10`, color: COLORS.chartRed,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.chartRed}20`,
                               cursor: "pointer", transition: "all 0.2s ease",
                             }}
                           >
@@ -6351,8 +6506,8 @@ function GrantsWorkspace() {
                             onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Not Eligible"); }}
                             style={{
                               padding: "6px 14px", borderRadius: "8px",
-                              background: `${COLORS.red}10`, color: COLORS.red,
-                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.red}20`,
+                              background: `${COLORS.chartRed}10`, color: COLORS.chartRed,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.chartRed}20`,
                               cursor: "pointer", transition: "all 0.2s ease",
                             }}
                           >
@@ -6390,8 +6545,8 @@ function GrantsWorkspace() {
                             onClick={(e) => { e.stopPropagation(); handleStageChange(grant.id, "Declined"); }}
                             style={{
                               padding: "6px 14px", borderRadius: "8px",
-                              background: `${COLORS.red}10`, color: COLORS.red,
-                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.red}20`,
+                              background: `${COLORS.chartRed}10`, color: COLORS.chartRed,
+                              fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.chartRed}20`,
                               cursor: "pointer", transition: "all 0.2s ease",
                             }}
                           >
