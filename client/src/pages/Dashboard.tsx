@@ -5678,93 +5678,73 @@ function CardStackNavigator({
   onCardChange: (id: CardId) => void;
   children: Record<CardId, React.ReactNode>;
 }) {
-  const activeIndex = cards.findIndex(c => c.id === activeCard);
-
   return (
-    <div style={{ perspective: "1200px", transformStyle: "preserve-3d", position: "relative", width: "100%", height: "100%" }}>
-      {cards.map((card, idx) => {
-        // Calculate position relative to active card (wrapping)
-        let offset = idx - activeIndex;
-        if (offset < 0) offset += cards.length;
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "0" }}>
+      {/* Tab bar — workspace switcher */}
+      <div style={{
+        display: "flex",
+        gap: "2px",
+        flexShrink: 0,
+        padding: "0 0 0",
+      }}>
+        {cards.map((card) => {
+          const isActive = card.id === activeCard;
+          return (
+            <button
+              key={card.id}
+              onClick={() => onCardChange(card.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "10px 18px",
+                border: "none",
+                borderRadius: "12px 12px 0 0",
+                background: isActive ? GLASS.background : "transparent",
+                backdropFilter: isActive ? GLASS.backdropFilter : "none",
+                color: isActive ? card.color : COLORS.textMuted,
+                fontSize: "12px",
+                fontWeight: isActive ? 700 : 500,
+                cursor: "pointer",
+                transition: "all 0.25s ease",
+                borderBottom: isActive ? `2px solid ${card.color}` : "2px solid transparent",
+                opacity: isActive ? 1 : 0.6,
+              }}
+              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.opacity = "0.9"; e.currentTarget.style.color = card.color; } }}
+              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.opacity = "0.6"; e.currentTarget.style.color = COLORS.textMuted; } }}
+            >
+              <AgentIcon type={card.icon} color={isActive ? card.color : COLORS.textMuted} size={12} />
+              {card.label}
+            </button>
+          );
+        })}
+      </div>
 
-        const isActive = offset === 0;
-        const translateX = offset * 28;
-        const translateY = offset * 20;
-        const rotateY = offset * 5;
-        const scaleVal = 1 - offset * 0.025;
-        const opacity = offset > 3 ? 0 : offset === 0 ? 1 : 0.6 - offset * 0.15;
-
-        return (
+      {/* Active workspace — single card, no stacking */}
+      <div style={{
+        flex: 1,
+        borderRadius: "0 12px 12px 12px",
+        overflow: "hidden",
+        border: `1px solid ${cards.find(c => c.id === activeCard)?.color || COLORS.borderSubtle}25`,
+        background: GLASS.background,
+        backdropFilter: GLASS.backdropFilter,
+        boxShadow: `0 0 20px ${cards.find(c => c.id === activeCard)?.color || COLORS.teal}08, 0 4px 24px rgba(0,0,0,0.2)`,
+        position: "relative",
+      }}>
+        {cards.map((card) => (
           <div
             key={card.id}
-            onClick={() => !isActive && onCardChange(card.id)}
             style={{
               position: "absolute",
               inset: 0,
-              transition: "all 0.4s cubic-bezier(0.23, 1, 0.32, 1)",
-              transform: `translateX(${translateX}px) translateY(${translateY}px) rotateY(${rotateY}deg) scale(${scaleVal})`,
-              zIndex: cards.length - offset,
-              opacity,
-              pointerEvents: isActive ? "auto" : offset <= 2 ? "auto" : "none",
-              cursor: isActive ? "default" : "pointer",
-              borderRadius: "16px",
-              overflow: "hidden",
-              border: `1px solid ${isActive ? card.color + "40" : COLORS.borderSubtle}`,
-              background: GLASS.background,
-              backdropFilter: GLASS.backdropFilter,
-              boxShadow: isActive
-                ? `0 0 30px ${card.color}15, 0 8px 32px rgba(0,0,0,0.3)`
-                : "0 4px 16px rgba(0,0,0,0.2)",
+              opacity: card.id === activeCard ? 1 : 0,
+              pointerEvents: card.id === activeCard ? "auto" : "none",
+              transition: "opacity 0.3s ease",
+              overflow: "auto",
             }}
           >
-            {/* Card header tab showing label when not active */}
-            {!isActive && (
-              <div style={{
-                padding: "12px 20px",
-                borderBottom: `1px solid ${COLORS.borderSubtle}`,
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}>
-                <AgentIcon type={card.icon} color={card.color} size={14} />
-                <span style={{ color: card.color, fontSize: "13px", fontWeight: 600 }}>{card.label}</span>
-              </div>
-            )}
-            {/* Full workspace content only renders for active card */}
-            {isActive && (
-              <div style={{ height: "100%", overflow: "auto" }}>
-                {children[card.id]}
-              </div>
-            )}
+            {children[card.id]}
           </div>
-        );
-      })}
-
-      {/* Navigation dots */}
-      <div style={{
-        position: "absolute",
-        bottom: "-36px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        display: "flex",
-        gap: "8px",
-        zIndex: 20,
-      }}>
-        {cards.map((card) => (
-          <button
-            key={card.id}
-            onClick={() => onCardChange(card.id)}
-            style={{
-              width: card.id === activeCard ? "24px" : "8px",
-              height: "8px",
-              borderRadius: "4px",
-              background: card.id === activeCard ? card.color : COLORS.textFaint,
-              border: "none",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              opacity: card.id === activeCard ? 1 : 0.5,
-            }}
-          />
         ))}
       </div>
     </div>
@@ -6702,7 +6682,7 @@ export default function Dashboard() {
         </div>
 
         {/* Card Stack — fills remaining space */}
-        <div style={{ flex: 1, padding: `${scale * 16}px`, paddingBottom: `${scale * 16 + 48}px`, maxWidth: "1400px", margin: "0 auto", width: "100%", overflow: "hidden", position: "relative" }}>
+        <div style={{ flex: 1, padding: `${scale * 16}px`, maxWidth: "1400px", margin: "0 auto", width: "100%", overflow: "hidden", position: "relative" }}>
           <CardStackNavigator
             cards={WORKSPACE_CARDS}
             activeCard={activeCard}
