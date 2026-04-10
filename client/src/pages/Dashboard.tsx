@@ -697,8 +697,6 @@ const LANES: Lane[] = [
   },
   {
     id: "finance",
-    name: "Finance",
-    color: COLORS.green,
     icon: "chart",
     description: "Crypto scanning, DCA strategy, budget tracking",
     status: "planned",
@@ -4742,22 +4740,6 @@ function SystemStatusCard() {
   const total = connectors.length;
 
   return (
-    <div className="animate-fade-in-up rounded-xl border p-5 flex flex-col gap-4" style={{ ...GLASS, animationDelay: "300ms" }} data-testid="system-status">
-      <h3 className="text-sm font-semibold" style={{ color: COLORS.textPrimary }}>Connectors</h3>
-      <div className="flex items-center gap-5">
-        {/* Donut */}
-        <div className="relative flex-shrink-0" style={{ width: 80, height: 80 }}>
-          <svg width={80} height={80} style={{ transform: "rotate(-90deg)" }}>
-            <circle cx={40} cy={40} r={32} fill="none" stroke={COLORS.border} strokeWidth={8} />
-            <circle cx={40} cy={40} r={32} fill="none" stroke={COLORS.green} strokeWidth={8} strokeDasharray={`${(connected / total) * 201} 201`} strokeLinecap="round" style={{ transition: "stroke-dasharray 1s cubic-bezier(0.22, 1, 0.36, 1)" }} />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-sm font-bold tabular-nums" style={{ color: COLORS.textPrimary }}>{connected}/{total}</span>
-          </div>
-        </div>
-        {/* List */}
-        <div className="flex-1 flex flex-col gap-1.5">
-          {connectors.map((c) => (
             <div key={c.name} className="flex items-center gap-2 text-[11px]">
               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.connected ? COLORS.green : COLORS.textFaint }} />
               <span style={{ color: c.connected ? COLORS.textPrimary : COLORS.textMuted }}>{c.name}</span>
@@ -6274,13 +6256,8 @@ function SaturdayReview() {
 // MAIN DASHBOARD PAGE
 // ═══════════════════════════════════════════
 const DEFAULT_SECTIONS: DashboardSection[] = [
-  { id: "quick-notes", label: "Quick Notes" },
   { id: "tldr", label: "At a Glance" },
-  { id: "kpis", label: "Stats" },
   { id: "agents-active", label: "Agent Network" },
-  { id: "saturday-review", label: "Saturday Review" },
-  { id: "hub-connectors", label: "Hub & Connectors" },
-  { id: "credits", label: "Credit Usage" },
   { id: "agents-planned", label: "Planned Lanes" },
   { id: "roadmap", label: "Roadmap" },
 ];
@@ -6330,71 +6307,8 @@ export default function Dashboard() {
   const ambientGradient = computeAmbientGradient(variant);
 
   const renderSection = (sectionId: string) => {
-    switch (sectionId) {
-      case "quick-notes":
-        return <QuickNotes />;
-      case "tldr":
-        return <TLDRDigest />;
-      case "kpis":
-        return (
-          <div className="animate-fade-in-up rounded-xl border flex items-center justify-between px-5 py-3 flex-wrap gap-y-2" style={{ ...GLASS }}>
-            {[
-              { label: "Agents", value: `${activeAgents}/${totalAgents}`, color: COLORS.teal, detail: "active" },
-              { label: "Lanes", value: "2/4", color: COLORS.gold, detail: "active" },
-              { label: "Tasks", value: "7", color: COLORS.purple, detail: "daily/weekly" },
-              { label: "Connectors", value: "7/7", color: COLORS.green, detail: "linked" },
-            ].map((stat, i) => (
-              <div key={stat.label} className="flex items-center gap-2.5" style={{ minWidth: 0 }}>
-                {i > 0 && <div className="hidden sm:block w-px h-6" style={{ background: COLORS.border }} />}
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: stat.color, boxShadow: `0 0 6px ${stat.color}50` }} />
-                  <span className="text-xs font-medium" style={{ color: COLORS.textMuted }}>{stat.label}</span>
-                  <span className="text-sm font-bold tabular-nums" style={{ color: stat.color }}>{stat.value}</span>
-                  <span className="text-[11px] hidden sm:inline" style={{ color: COLORS.textFaint }}>{stat.detail}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      case "hub-connectors":
-        return (
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-              <div className="lg:col-span-3">
-                <HubAgentsCard />
-              </div>
-              <div className="lg:col-span-2 flex flex-col gap-4">
-                <SystemStatusCard />
-                <MiniCalendar />
-              </div>
-            </div>
-            {/* System deliverables */}
-            {getDeliverablesByLane("System").length > 0 && (
-              <div className="rounded-xl border overflow-hidden" style={{ ...GLASS, borderColor: `${COLORS.teal}15` }}>
-                <div className="px-5 pt-4 pb-2 relative">
-                  <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(to right, ${COLORS.teal}60, ${COLORS.teal}20)` }} />
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${COLORS.teal}10` }}>
-                      <AgentIcon type="hub" color={COLORS.teal} size={16} />
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-semibold" style={{ color: COLORS.teal }}>System</h3>
-                      <p className="text-[11px]" style={{ color: COLORS.textMuted }}>Core infrastructure and tracking</p>
-                    </div>
-                  </div>
-                </div>
-                <DeliverablesList laneName="System" laneColor={COLORS.teal} />
-              </div>
-            )}
-          </div>
-        );
-      case "credits":
-        return (
-          <div className="max-w-2xl">
-            <CreditUsageCard />
-          </div>
-        );
-      case "agents-active":
+    switch (sectionId) {      case "tldr":
+        return <TLDRDigest />;      case "agents-active":
         return (
           <div>
             <SectionHeader title="Agent Network" subtitle="Active lanes and their specialized agents" count={`${activeAgents} active / ${totalAgents} total`} />
@@ -6415,10 +6329,7 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-        );
-      case "saturday-review":
-        return <SaturdayReview />;
-      case "roadmap":
+        );      case "roadmap":
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <BuildYourLifeOS />

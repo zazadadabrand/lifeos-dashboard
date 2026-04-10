@@ -96,7 +96,7 @@ export default async function handler(req: Request) {
       ? `\n\nARTISTS ALREADY IN PIPELINE — skip all of these:\n${existingNames.join('\n')}`
       : '';
 
-    const userMessage = `Scout exactly 5 emerging contemporary artists for Bernard Studia. Every artist must have both a verified website URL and a verified Instagram handle — skip any artist missing either.${exclusionBlock}\n\nReturn exactly 5 artists as JSON.`;
+    const userMessage = `Scout exactly 10 emerging contemporary artists for Bernard Studia. Every artist must have both a verified website URL and a verified Instagram handle — skip any artist missing either.${exclusionBlock}\n\nReturn exactly 10 artists as JSON.`;
 
     const batch = await submitBatch([
       {

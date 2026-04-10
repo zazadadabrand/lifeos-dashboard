@@ -36,6 +36,58 @@ async function pushArtists(artists: any[]): Promise<number> {
   return newArtists.length;
 }
 
+// Auto-push deep-dive enrichment results back into pipeline:snapshot
+async function pushDeepDives(results: any[], artistNames: string[]): Promise<number> {
+  const snapshot = await kvGet('pipeline:snapshot');
+  const artists: any[] = snapshot?.artists ?? [];
+
+  let enriched = 0;
+
+  for (const result of results) {
+    if (!result || !result.artistName) continue;
+
+    // Find matching artist in pipeline by name
+    const idx = artists.findIndex((a: any) =>
+      a.name.toLowerCase().trim() === result.artistName.toLowerCase().trim()
+    );
+
+    if (idx === -1) {
+      // Try matching against the provided artistNames list
+      const matchName = artistNames.find(n =>
+        n.toLowerCase().trim() === result.artistName.toLowerCase().trim()
+      );
+      if (!matchName) continue;
+      // Try again with the matched name
+      const idx2 = artists.findIndex((a: any) =>
+        a.name.toLowerCase().trim() === matchName.toLowerCase().trim()
+      );
+      if (idx2 === -1) continue;
+      artists[idx2] = {
+        ...artists[idx2],
+        hasDeepDive: true,
+        deepDive: result,
+      };
+      enriched++;
+    } else {
+      artists[idx] = {
+        ...artists[idx],
+        hasDeepDive: true,
+        deepDive: result,
+      };
+      enriched++;
+    }
+  }
+
+  if (enriched > 0) {
+    await kvSet('pipeline:snapshot', {
+      artists,
+      snapshotAt: new Date().toISOString(),
+    });
+  }
+
+  return enriched;
+}
+
 // Auto-push job-scout and grants-scout results directly into business:snapshot
 async function pushDeals(deals: any[], agentType: string): Promise<number> {
   const snapshot = await kvGet('business:snapshot');
@@ -159,6 +211,23 @@ export default async function handler(req: Request) {
           if (agentType === 'art-scout') {
             added = await pushArtists(parsed.artists ?? []);
             log.push(`art-scout: +${added} artists`);
+          } else if (agentType === 'deep-dive') {
+            // Deep dive batches have multiple results (one per artist)
+            // Each result line is a separate artist's enrichment
+            const allResults: any[] = [];
+            // First result is already parsed above; collect all result lines
+            allResults.push(parsed);
+            // Parse remaining result lines (batch has one result per request)
+            for (let ri = 1; ri < lines.length; ri++) {
+              const lineText = extractText(lines[ri]);
+              if (lineText) {
+                const lineParsed = parseJSON(lineText);
+                if (lineParsed) allResults.push(lineParsed);
+              }
+            }
+            const artistNames: string[] = entry.artistNames ?? [];
+            added = await pushDeepDives(allResults, artistNames);
+            log.push(`deep-dive: +${added} briefs enriched`);
           } else if (agentType === 'job-scout') {
             added = await pushDeals(parsed.jobs ?? [], agentType);
             log.push(`job-scout: +${added} jobs`);

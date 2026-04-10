@@ -6,6 +6,8 @@ on:
     - cron: '0 12 * * *'
     # Batch Poller — every 2h at odd hours (1,3,5...23 UTC) — never overlaps with noon UTC
     - cron: '0 1,3,5,7,9,11,13,15,17,19,21,23 * * *'
+    # Deep Dive enrichment — runs 30min after scouts (12:30 UTC) to catch newly promoted artists
+    - cron: '30 12 * * *'
   workflow_dispatch:
     inputs:
       agent:
@@ -14,6 +16,7 @@ on:
         type: choice
         options:
           - art-scout
+          - deep-dive
           - job-scout
           - grants-scout
           - batch-poller
@@ -21,7 +24,7 @@ on:
 
 jobs:
   art-scout:
-    name: Art Scout (5 artists)
+    name: Art Scout (10 artists)
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
@@ -30,6 +33,18 @@ jobs:
       - name: Trigger Art Scout
         run: |
           curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/art-scout" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  deep-dive:
+    name: Deep Dive Enrichment (up to 5 artists)
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '30 12 * * *') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'deep-dive' || github.event.inputs.agent == 'all'))
+    steps:
+      - name: Trigger Deep Dive
+        run: |
+          curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/deep-dive" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   job-scout:
