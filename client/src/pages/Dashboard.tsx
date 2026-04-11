@@ -5709,6 +5709,10 @@ function OrbitalHub({
       height: size + 28,
       position: "relative",
       flexShrink: 0,
+      borderRadius: "16px",
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      backdropFilter: "blur(20px)",
     }}>
       {/* SVG layer: ring + connector lines */}
       <svg
@@ -5716,16 +5720,17 @@ function OrbitalHub({
         height={size}
         style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
       >
-        {/* Orbital ring (subtle) */}
+        {/* Orbital ring */}
         <ellipse
           cx={cx}
           cy={cy}
           rx={radius}
           ry={radius * 0.65}
           fill="none"
-          stroke="rgba(255,255,255,0.04)"
+          stroke={`${activeW.color}18`}
           strokeWidth="1"
           strokeDasharray="3 5"
+          style={{ transition: "stroke 0.4s ease" }}
         />
 
         {/* Connector lines from hub to each node */}
@@ -5740,8 +5745,8 @@ function OrbitalHub({
               y1={cy}
               x2={pos.x}
               y2={pos.y}
-              stroke={isActive ? card.color : isHov ? `${card.color}60` : "rgba(255,255,255,0.05)"}
-              strokeWidth={isActive ? 1.5 : 0.7}
+              stroke={isActive ? card.color : isHov ? `${card.color}80` : "rgba(255,255,255,0.12)"}
+              strokeWidth={isActive ? 1.5 : 0.8}
               strokeDasharray={isActive ? "none" : "3 3"}
               style={{ transition: "all 0.4s ease" }}
             />
@@ -5752,21 +5757,21 @@ function OrbitalHub({
       {/* Center hub — active workspace icon */}
       <div style={{
         position: "absolute",
-        left: cx - 18,
-        top: cy - 18,
-        width: 36,
-        height: 36,
+        left: cx - 20,
+        top: cy - 20,
+        width: 40,
+        height: 40,
         borderRadius: "50%",
-        background: `radial-gradient(circle, ${activeW.color}20, transparent 70%)`,
-        border: `1.5px solid ${activeW.color}35`,
+        background: `radial-gradient(circle, ${activeW.color}30, ${activeW.color}08 70%)`,
+        border: `1.5px solid ${activeW.color}50`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: `0 0 20px ${activeW.color}15`,
+        boxShadow: `0 0 24px ${activeW.color}25, inset 0 0 12px ${activeW.color}10`,
         transition: "all 0.4s ease",
         zIndex: 3,
       }}>
-        <AgentIcon type={activeW.icon} color={activeW.color} size={16} />
+        <AgentIcon type={activeW.icon} color={activeW.color} size={17} />
       </div>
 
       {/* Orbital nodes */}
@@ -5774,7 +5779,7 @@ function OrbitalHub({
         const pos = nodePositions[i];
         const isActive = card.id === activeCard;
         const isHov = card.id === hoveredNode;
-        const nodeSize = isActive ? 30 : 24;
+        const nodeSize = isActive ? 32 : 26;
         return (
           <button
             key={card.id}
@@ -5789,24 +5794,24 @@ function OrbitalHub({
               width: nodeSize,
               height: nodeSize,
               borderRadius: "50%",
-              border: `1.5px solid ${isActive ? card.color + "55" : isHov ? card.color + "40" : "rgba(255,255,255,0.08)"}`,
+              border: `1.5px solid ${isActive ? card.color + "70" : isHov ? card.color + "50" : "rgba(255,255,255,0.15)"}`,
               background: isActive
-                ? `radial-gradient(circle, ${card.color}18, transparent 70%)`
+                ? `radial-gradient(circle, ${card.color}28, ${card.color}08 70%)`
                 : isHov
-                  ? `radial-gradient(circle, ${card.color}10, transparent)`
-                  : "rgba(255,255,255,0.03)",
+                  ? `radial-gradient(circle, ${card.color}18, transparent)`
+                  : "rgba(255,255,255,0.06)",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               zIndex: 4,
-              transform: isActive ? "scale(1.1)" : isHov ? "scale(1.08)" : "scale(1)",
-              boxShadow: isActive ? `0 0 16px ${card.color}20` : "none",
+              transform: isActive ? "scale(1.12)" : isHov ? "scale(1.08)" : "scale(1)",
+              boxShadow: isActive ? `0 0 18px ${card.color}30` : "0 1px 4px rgba(0,0,0,0.2)",
               transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
               padding: 0,
             }}
           >
-            <AgentIcon type={card.icon} color={isActive ? card.color : isHov ? card.color : COLORS.textFaint} size={isActive ? 13 : 11} />
+            <AgentIcon type={card.icon} color={isActive ? card.color : isHov ? card.color : COLORS.textMuted} size={isActive ? 14 : 12} />
           </button>
         );
       })}
@@ -5814,14 +5819,14 @@ function OrbitalHub({
       {/* Focus areas — below the orbital */}
       <div style={{
         position: "absolute",
-        bottom: 0,
+        bottom: 4,
         left: 0,
         right: 0,
         display: "flex",
         flexWrap: "wrap",
         gap: "4px",
         justifyContent: "center",
-        padding: "0 4px",
+        padding: "0 6px",
       }}>
         {WORKSPACE_FOCUS[activeCard]?.map((focus, i) => (
           <span
@@ -5831,9 +5836,9 @@ function OrbitalHub({
               fontWeight: 600,
               letterSpacing: "0.04em",
               textTransform: "uppercase",
-              color: `${activeW.color}bb`,
-              background: `${activeW.color}10`,
-              border: `1px solid ${activeW.color}18`,
+              color: `${activeW.color}dd`,
+              background: `${activeW.color}18`,
+              border: `1px solid ${activeW.color}25`,
               padding: "2px 7px",
               borderRadius: "6px",
               whiteSpace: "nowrap",
