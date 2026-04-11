@@ -5687,6 +5687,7 @@ function OrbitalHub({
   onCardChange: (id: CardId) => void;
 }) {
   const [hoveredNode, setHoveredNode] = useState<CardId | null>(null);
+  const [collapsed, setCollapsed] = useState(true);
   const activeIdx = cards.findIndex(c => c.id === activeCard);
   const activeW = cards[activeIdx];
 
@@ -5703,6 +5704,44 @@ function OrbitalHub({
     return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
   });
 
+  // ── Collapsed orb ──
+  if (collapsed) {
+    return (
+      <button
+        onClick={() => setCollapsed(false)}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          border: `2px solid ${activeW.color}60`,
+          background: `linear-gradient(135deg, ${activeW.color}30, rgba(20,22,28,0.9))`,
+          backdropFilter: "blur(16px) saturate(1.4)",
+          boxShadow: `0 0 20px ${activeW.color}25, 0 4px 16px rgba(0,0,0,0.4)`,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+          padding: 0,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "scale(1.12)";
+          e.currentTarget.style.boxShadow = `0 0 28px ${activeW.color}40, 0 4px 20px rgba(0,0,0,0.5)`;
+          e.currentTarget.style.borderColor = `${activeW.color}90`;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "scale(1)";
+          e.currentTarget.style.boxShadow = `0 0 20px ${activeW.color}25, 0 4px 16px rgba(0,0,0,0.4)`;
+          e.currentTarget.style.borderColor = `${activeW.color}60`;
+        }}
+        title="Open workspace hub"
+      >
+        <AgentIcon type={activeW.icon} color={activeW.color} size={20} />
+      </button>
+    );
+  }
+
+  // ── Expanded hub ──
   return (
     <div style={{
       width: size,
@@ -5715,6 +5754,41 @@ function OrbitalHub({
       backdropFilter: "blur(24px) saturate(1.4)",
       boxShadow: "0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)",
     }}>
+      {/* Close button */}
+      <button
+        onClick={() => setCollapsed(true)}
+        style={{
+          position: "absolute",
+          top: 6,
+          right: 6,
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          border: "1px solid rgba(255,255,255,0.15)",
+          background: "rgba(255,255,255,0.06)",
+          color: "rgba(255,255,255,0.4)",
+          fontSize: "11px",
+          lineHeight: "16px",
+          textAlign: "center" as const,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 10,
+          padding: 0,
+          transition: "all 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+          e.currentTarget.style.color = "rgba(255,255,255,0.7)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+          e.currentTarget.style.color = "rgba(255,255,255,0.4)";
+        }}
+        title="Collapse hub"
+      >×</button>
+
       {/* SVG layer: ring + connector lines */}
       <svg
         width={size}
@@ -5798,7 +5872,7 @@ function OrbitalHub({
             }}
           >
             <button
-              onClick={() => onCardChange(card.id)}
+              onClick={() => { onCardChange(card.id); setCollapsed(true); }}
               onMouseEnter={() => setHoveredNode(card.id)}
               onMouseLeave={() => setHoveredNode(null)}
               title={card.label}
