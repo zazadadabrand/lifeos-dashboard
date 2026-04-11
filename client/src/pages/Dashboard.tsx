@@ -7445,34 +7445,34 @@ export default function Dashboard() {
           </CollapsibleSection>
         </div>
 
-        {/* Card Stack + Orbital Hub — fills remaining space */}
+        {/* Card Stack — fills remaining space */}
         <div style={{ flex: 1, padding: `${scale * 16}px`, maxWidth: "1400px", margin: "0 auto", width: "100%", overflow: "hidden", position: "relative" }}>
-          <div style={{ display: "flex", height: "100%", gap: "8px" }}>
-            {/* Card Stack — main workspace area */}
-            <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-              <CardStackNavigator
-                cards={WORKSPACE_CARDS}
-                activeCard={activeCard}
-                onCardChange={setActiveCard}
-              >
-                {{
-                  "art-advisory": <ArtAdvisoryWorkspace />,
-                  "outreach": <OutreachWorkspace />,
-                  "jobs": <JobsWorkspace />,
-                  "grants": <GrantsWorkspace />,
-                }}
-              </CardStackNavigator>
-            </div>
+          <CardStackNavigator
+            cards={WORKSPACE_CARDS}
+            activeCard={activeCard}
+            onCardChange={setActiveCard}
+          >
+            {{
+              "art-advisory": <ArtAdvisoryWorkspace />,
+              "outreach": <OutreachWorkspace />,
+              "jobs": <JobsWorkspace />,
+              "grants": <GrantsWorkspace />,
+            }}
+          </CardStackNavigator>
+        </div>
 
-            {/* Orbital Hub — right side navigator */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "8px", flexShrink: 0 }}>
-              <OrbitalHub
-                cards={WORKSPACE_CARDS}
-                activeCard={activeCard}
-                onCardChange={setActiveCard}
-              />
-            </div>
-          </div>
+        {/* Orbital Hub — floating top-right */}
+        <div style={{
+          position: "absolute",
+          top: "12px",
+          right: "12px",
+          zIndex: 8,
+        }}>
+          <OrbitalHub
+            cards={WORKSPACE_CARDS}
+            activeCard={activeCard}
+            onCardChange={setActiveCard}
+          />
         </div>
       </main>
     </div>
