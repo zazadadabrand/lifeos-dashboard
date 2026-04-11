@@ -6129,6 +6129,111 @@ function OutreachWorkspace() {
     setContacts(prev => prev.map(c => c.id === contactId ? { ...c, stage: newStage } : c));
   };
 
+  /* ── Dropdown stage selector (same pattern as Art Advisory) ── */
+  const OutreachStageSelector = ({ contact }: { contact: OutreachContact }) => {
+    const [open, setOpen] = useState(false);
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (btnRef.current?.contains(e.target as Node)) return;
+        if (menuRef.current?.contains(e.target as Node)) return;
+        setOpen(false);
+      };
+      if (open) document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [open]);
+
+    useEffect(() => {
+      if (open && btnRef.current) {
+        const rect = btnRef.current.getBoundingClientRect();
+        setMenuPos({ top: rect.bottom + 4, left: rect.left });
+      }
+    }, [open]);
+
+    const stageColor = OUTREACH_STAGE_COLORS[contact.stage];
+
+    return (
+      <>
+        <button
+          ref={btnRef}
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            padding: "3px 10px", borderRadius: "8px",
+            border: `1px solid ${stageColor}40`,
+            background: `${stageColor}10`,
+            color: stageColor,
+            fontSize: "11px", fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: stageColor }} />
+          {contact.stage}
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>
+            <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        {open && menuPos && ReactDOM.createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: "fixed",
+              top: menuPos.top,
+              left: menuPos.left,
+              zIndex: 9999,
+              minWidth: 170,
+              borderRadius: "10px",
+              border: `1px solid ${COLORS.border}`,
+              background: "rgba(20,20,30,0.97)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              padding: "4px 0",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            }}
+          >
+            {OUTREACH_STAGES.map(stage => {
+              const sc = OUTREACH_STAGE_COLORS[stage];
+              const isCurrent = contact.stage === stage;
+              return (
+                <button
+                  key={stage}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStageChange(contact.id, stage);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: "8px",
+                    padding: "7px 12px", border: "none", background: "transparent",
+                    color: isCurrent ? sc : COLORS.textSecondary,
+                    fontSize: "11px", fontWeight: isCurrent ? 600 : 400,
+                    cursor: "pointer", textAlign: "left",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: sc, opacity: isCurrent ? 1 : 0.5, flexShrink: 0 }} />
+                  {stage}
+                  {isCurrent && (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: "auto" }}>
+                      <path d="M2 6L5 9L10 3" stroke={sc} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
+      </>
+    );
+  };
+
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
@@ -6208,18 +6313,7 @@ function OutreachWorkspace() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span style={{ color: COLORS.textPrimary, fontSize: "14px", fontWeight: 600 }}>{contact.name}</span>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: "8px",
-                        fontSize: "10px",
-                        fontWeight: 600,
-                        background: `${stageColor}20`,
-                        color: stageColor,
-                      }}
-                    >
-                      {contact.stage}
-                    </span>
+                    <OutreachStageSelector contact={contact} />
                   </div>
                   <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "2px" }}>
                     {contact.title}
@@ -6228,121 +6322,24 @@ function OutreachWorkspace() {
                     {contact.company}
                   </p>
                 </div>
-                {/* Action buttons */}
+                {/* Quick actions */}
                 <div style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
                   {contact.stage === "Review" && (
-                    <>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Approved"); }}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: "8px",
-                          border: `1px solid ${COLORS.teal}50`,
-                          background: `${COLORS.teal}15`,
-                          color: COLORS.teal,
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        ✓ Approve
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setContacts(prev => prev.filter(c => c.id !== contact.id)); }}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: "8px",
-                          border: `1px solid ${COLORS.textFaint}40`,
-                          background: "transparent",
-                          color: COLORS.textMuted,
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Skip
-                      </button>
-                    </>
-                  )}
-                  {contact.stage === "Approved" && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Drafted"); }}
+                      onClick={(e) => { e.stopPropagation(); setContacts(prev => prev.filter(c => c.id !== contact.id)); }}
                       style={{
                         padding: "4px 10px",
                         borderRadius: "8px",
-                        border: `1px solid ${COLORS.gold}50`,
-                        background: `${COLORS.gold}15`,
-                        color: COLORS.gold,
+                        border: `1px solid ${COLORS.textFaint}40`,
+                        background: "transparent",
+                        color: COLORS.textMuted,
                         fontSize: "11px",
                         fontWeight: 600,
                         cursor: "pointer",
                       }}
                     >
-                      Draft Email
+                      Skip
                     </button>
-                  )}
-                  {contact.stage === "Drafted" && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Sent"); }}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: "8px",
-                        border: `1px solid ${COLORS.purple}50`,
-                        background: `${COLORS.purple}15`,
-                        color: COLORS.purple,
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Mark Sent
-                    </button>
-                  )}
-                  {contact.stage === "Sent" && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Replied"); }}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: "8px",
-                        border: `1px solid ${COLORS.green}50`,
-                        background: `${COLORS.green}15`,
-                        color: COLORS.green,
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Got Reply
-                    </button>
-                  )}
-                  {contact.stage === "Replied" && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Meeting Booked"); }}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: "8px",
-                        border: `1px solid ${COLORS.coral}50`,
-                        background: `${COLORS.coral}15`,
-                        color: COLORS.coral,
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Book Meeting
-                    </button>
-                  )}
-                  {contact.stage === "Meeting Booked" && (
-                    <span style={{
-                      padding: "4px 10px",
-                      borderRadius: "8px",
-                      background: `${COLORS.coral}15`,
-                      color: COLORS.coral,
-                      fontSize: "11px",
-                      fontWeight: 600,
-                    }}>
-                      ✓ Booked
-                    </span>
                   )}
                 </div>
               </div>
@@ -6434,35 +6431,6 @@ function OutreachWorkspace() {
                       <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "3px 0 0", fontStyle: "italic" }}>{contact.notes}</p>
                     </div>
                   )}
-                  {/* Stage progression in expanded view */}
-                  <div style={{ marginTop: "14px" }}>
-                    <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Move to stage</span>
-                    <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
-                      {OUTREACH_STAGES.map(stage => {
-                        const isCurrentStage = contact.stage === stage;
-                        const sc = OUTREACH_STAGE_COLORS[stage];
-                        return (
-                          <button
-                            key={stage}
-                            onClick={(e) => { e.stopPropagation(); if (!isCurrentStage) handleStageChange(contact.id, stage); }}
-                            style={{
-                              padding: "4px 10px",
-                              borderRadius: "8px",
-                              border: `1px solid ${isCurrentStage ? sc + "80" : sc + "30"}`,
-                              background: isCurrentStage ? `${sc}25` : "transparent",
-                              color: isCurrentStage ? sc : COLORS.textMuted,
-                              fontSize: "10px",
-                              fontWeight: isCurrentStage ? 700 : 500,
-                              cursor: isCurrentStage ? "default" : "pointer",
-                              transition: "all 0.2s ease",
-                            }}
-                          >
-                            {isCurrentStage ? `● ${stage}` : stage}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
                   {/* Quick actions in expanded view */}
                   <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
                     {contact.email && (
