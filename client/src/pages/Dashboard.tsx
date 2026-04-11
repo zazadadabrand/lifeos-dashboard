@@ -5667,6 +5667,190 @@ function QuickNotes() {
 // ═══════════════════════════════════════════
 // CARD STACK NAVIGATOR COMPONENT
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// ORBITAL HUB — workspace focus navigator
+// ═══════════════════════════════════════════
+const WORKSPACE_FOCUS: Record<CardId, string[]> = {
+  "art-advisory": ["Scout pipeline", "Taste profiles", "Collector leads"],
+  "outreach": ["Warm intros", "Email drafts", "Follow-ups"],
+  "jobs": ["Applications", "Interview prep", "Networking"],
+  "grants": ["Deadlines", "Eligibility", "Submissions"],
+};
+
+function OrbitalHub({
+  cards,
+  activeCard,
+  onCardChange,
+}: {
+  cards: WorkspaceCard[];
+  activeCard: CardId;
+  onCardChange: (id: CardId) => void;
+}) {
+  const [hoveredNode, setHoveredNode] = useState<CardId | null>(null);
+  const activeIdx = cards.findIndex(c => c.id === activeCard);
+  const activeW = cards[activeIdx];
+
+  // Orbital geometry
+  const size = 180;
+  const cx = size / 2;
+  const cy = size / 2 + 4;
+  const radius = 56;
+
+  // Spread nodes in a semicircle arc (top half)
+  const nodePositions = cards.map((_, i) => {
+    const angle = -160 + i * (140 / (cards.length - 1));
+    const rad = (angle * Math.PI) / 180;
+    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
+  });
+
+  return (
+    <div style={{
+      width: size,
+      height: size + 28,
+      position: "relative",
+      flexShrink: 0,
+    }}>
+      {/* SVG layer: ring + connector lines */}
+      <svg
+        width={size}
+        height={size}
+        style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
+      >
+        {/* Orbital ring (subtle) */}
+        <ellipse
+          cx={cx}
+          cy={cy}
+          rx={radius}
+          ry={radius * 0.65}
+          fill="none"
+          stroke="rgba(255,255,255,0.04)"
+          strokeWidth="1"
+          strokeDasharray="3 5"
+        />
+
+        {/* Connector lines from hub to each node */}
+        {cards.map((card, i) => {
+          const pos = nodePositions[i];
+          const isActive = card.id === activeCard;
+          const isHov = card.id === hoveredNode;
+          return (
+            <line
+              key={card.id}
+              x1={cx}
+              y1={cy}
+              x2={pos.x}
+              y2={pos.y}
+              stroke={isActive ? card.color : isHov ? `${card.color}60` : "rgba(255,255,255,0.05)"}
+              strokeWidth={isActive ? 1.5 : 0.7}
+              strokeDasharray={isActive ? "none" : "3 3"}
+              style={{ transition: "all 0.4s ease" }}
+            />
+          );
+        })}
+      </svg>
+
+      {/* Center hub — active workspace icon */}
+      <div style={{
+        position: "absolute",
+        left: cx - 18,
+        top: cy - 18,
+        width: 36,
+        height: 36,
+        borderRadius: "50%",
+        background: `radial-gradient(circle, ${activeW.color}20, transparent 70%)`,
+        border: `1.5px solid ${activeW.color}35`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: `0 0 20px ${activeW.color}15`,
+        transition: "all 0.4s ease",
+        zIndex: 3,
+      }}>
+        <AgentIcon type={activeW.icon} color={activeW.color} size={16} />
+      </div>
+
+      {/* Orbital nodes */}
+      {cards.map((card, i) => {
+        const pos = nodePositions[i];
+        const isActive = card.id === activeCard;
+        const isHov = card.id === hoveredNode;
+        const nodeSize = isActive ? 30 : 24;
+        return (
+          <button
+            key={card.id}
+            onClick={() => onCardChange(card.id)}
+            onMouseEnter={() => setHoveredNode(card.id)}
+            onMouseLeave={() => setHoveredNode(null)}
+            title={card.label}
+            style={{
+              position: "absolute",
+              left: pos.x - nodeSize / 2,
+              top: pos.y - nodeSize / 2,
+              width: nodeSize,
+              height: nodeSize,
+              borderRadius: "50%",
+              border: `1.5px solid ${isActive ? card.color + "55" : isHov ? card.color + "40" : "rgba(255,255,255,0.08)"}`,
+              background: isActive
+                ? `radial-gradient(circle, ${card.color}18, transparent 70%)`
+                : isHov
+                  ? `radial-gradient(circle, ${card.color}10, transparent)`
+                  : "rgba(255,255,255,0.03)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 4,
+              transform: isActive ? "scale(1.1)" : isHov ? "scale(1.08)" : "scale(1)",
+              boxShadow: isActive ? `0 0 16px ${card.color}20` : "none",
+              transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+              padding: 0,
+            }}
+          >
+            <AgentIcon type={card.icon} color={isActive ? card.color : isHov ? card.color : COLORS.textFaint} size={isActive ? 13 : 11} />
+          </button>
+        );
+      })}
+
+      {/* Focus areas — below the orbital */}
+      <div style={{
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        display: "flex",
+        flexWrap: "wrap",
+        gap: "4px",
+        justifyContent: "center",
+        padding: "0 4px",
+      }}>
+        {WORKSPACE_FOCUS[activeCard]?.map((focus, i) => (
+          <span
+            key={i}
+            style={{
+              fontSize: "8px",
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              color: `${activeW.color}bb`,
+              background: `${activeW.color}10`,
+              border: `1px solid ${activeW.color}18`,
+              padding: "2px 7px",
+              borderRadius: "6px",
+              whiteSpace: "nowrap",
+              transition: "all 0.3s ease",
+            }}
+          >
+            {focus}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// CARD STACK NAVIGATOR
+// ═══════════════════════════════════════════
 function CardStackNavigator({
   cards,
   activeCard,
@@ -7256,20 +7440,34 @@ export default function Dashboard() {
           </CollapsibleSection>
         </div>
 
-        {/* Card Stack — fills remaining space */}
+        {/* Card Stack + Orbital Hub — fills remaining space */}
         <div style={{ flex: 1, padding: `${scale * 16}px`, maxWidth: "1400px", margin: "0 auto", width: "100%", overflow: "hidden", position: "relative" }}>
-          <CardStackNavigator
-            cards={WORKSPACE_CARDS}
-            activeCard={activeCard}
-            onCardChange={setActiveCard}
-          >
-            {{
-              "art-advisory": <ArtAdvisoryWorkspace />,
-              "outreach": <OutreachWorkspace />,
-              "jobs": <JobsWorkspace />,
-              "grants": <GrantsWorkspace />,
-            }}
-          </CardStackNavigator>
+          <div style={{ display: "flex", height: "100%", gap: "8px" }}>
+            {/* Card Stack — main workspace area */}
+            <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+              <CardStackNavigator
+                cards={WORKSPACE_CARDS}
+                activeCard={activeCard}
+                onCardChange={setActiveCard}
+              >
+                {{
+                  "art-advisory": <ArtAdvisoryWorkspace />,
+                  "outreach": <OutreachWorkspace />,
+                  "jobs": <JobsWorkspace />,
+                  "grants": <GrantsWorkspace />,
+                }}
+              </CardStackNavigator>
+            </div>
+
+            {/* Orbital Hub — right side navigator */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "8px", flexShrink: 0 }}>
+              <OrbitalHub
+                cards={WORKSPACE_CARDS}
+                activeCard={activeCard}
+                onCardChange={setActiveCard}
+              />
+            </div>
+          </div>
         </div>
       </main>
     </div>
