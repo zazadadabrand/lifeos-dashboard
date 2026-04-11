@@ -6281,6 +6281,69 @@ function OutreachWorkspace() {
                       Draft Email
                     </button>
                   )}
+                  {contact.stage === "Drafted" && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Sent"); }}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "8px",
+                        border: `1px solid ${COLORS.purple}50`,
+                        background: `${COLORS.purple}15`,
+                        color: COLORS.purple,
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Mark Sent
+                    </button>
+                  )}
+                  {contact.stage === "Sent" && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Replied"); }}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "8px",
+                        border: `1px solid ${COLORS.green}50`,
+                        background: `${COLORS.green}15`,
+                        color: COLORS.green,
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Got Reply
+                    </button>
+                  )}
+                  {contact.stage === "Replied" && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleStageChange(contact.id, "Meeting Booked"); }}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "8px",
+                        border: `1px solid ${COLORS.coral}50`,
+                        background: `${COLORS.coral}15`,
+                        color: COLORS.coral,
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Book Meeting
+                    </button>
+                  )}
+                  {contact.stage === "Meeting Booked" && (
+                    <span style={{
+                      padding: "4px 10px",
+                      borderRadius: "8px",
+                      background: `${COLORS.coral}15`,
+                      color: COLORS.coral,
+                      fontSize: "11px",
+                      fontWeight: 600,
+                    }}>
+                      ✓ Booked
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -6371,6 +6434,35 @@ function OutreachWorkspace() {
                       <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "3px 0 0", fontStyle: "italic" }}>{contact.notes}</p>
                     </div>
                   )}
+                  {/* Stage progression in expanded view */}
+                  <div style={{ marginTop: "14px" }}>
+                    <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Move to stage</span>
+                    <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
+                      {OUTREACH_STAGES.map(stage => {
+                        const isCurrentStage = contact.stage === stage;
+                        const sc = OUTREACH_STAGE_COLORS[stage];
+                        return (
+                          <button
+                            key={stage}
+                            onClick={(e) => { e.stopPropagation(); if (!isCurrentStage) handleStageChange(contact.id, stage); }}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: "8px",
+                              border: `1px solid ${isCurrentStage ? sc + "80" : sc + "30"}`,
+                              background: isCurrentStage ? `${sc}25` : "transparent",
+                              color: isCurrentStage ? sc : COLORS.textMuted,
+                              fontSize: "10px",
+                              fontWeight: isCurrentStage ? 700 : 500,
+                              cursor: isCurrentStage ? "default" : "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            {isCurrentStage ? `● ${stage}` : stage}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   {/* Quick actions in expanded view */}
                   <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
                     {contact.email && (
