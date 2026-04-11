@@ -5782,38 +5782,63 @@ function OrbitalHub({
         const isHov = card.id === hoveredNode;
         const nodeSize = isActive ? 32 : 28;
         return (
-          <button
+          <div
             key={card.id}
-            onClick={() => onCardChange(card.id)}
-            onMouseEnter={() => setHoveredNode(card.id)}
-            onMouseLeave={() => setHoveredNode(null)}
-            title={card.label}
             style={{
               position: "absolute",
-              left: pos.x - nodeSize / 2,
+              left: pos.x - 24,
               top: pos.y - nodeSize / 2,
-              width: nodeSize,
-              height: nodeSize,
-              borderRadius: "50%",
-              border: `1.5px solid ${isActive ? card.color + "80" : isHov ? card.color + "60" : "rgba(255,255,255,0.25)"}`,
-              background: isActive
-                ? `linear-gradient(135deg, ${card.color}35, ${card.color}15)`
-                : isHov
-                  ? `linear-gradient(135deg, ${card.color}25, ${card.color}08)`
-                  : "rgba(255,255,255,0.10)",
-              cursor: "pointer",
+              width: 48,
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
+              gap: "3px",
               zIndex: 4,
-              transform: isActive ? "scale(1.12)" : isHov ? "scale(1.08)" : "scale(1)",
-              boxShadow: isActive ? `0 0 16px ${card.color}40, 0 2px 6px rgba(0,0,0,0.3)` : "0 2px 6px rgba(0,0,0,0.25)",
-              transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-              padding: 0,
+              pointerEvents: "none",
             }}
           >
-            <AgentIcon type={card.icon} color={isActive ? card.color : isHov ? card.color : "rgba(255,255,255,0.55)"} size={isActive ? 14 : 12} />
-          </button>
+            <button
+              onClick={() => onCardChange(card.id)}
+              onMouseEnter={() => setHoveredNode(card.id)}
+              onMouseLeave={() => setHoveredNode(null)}
+              title={card.label}
+              style={{
+                width: nodeSize,
+                height: nodeSize,
+                borderRadius: "50%",
+                border: `1.5px solid ${isActive ? card.color + "80" : isHov ? card.color + "60" : "rgba(255,255,255,0.25)"}`,
+                background: isActive
+                  ? `linear-gradient(135deg, ${card.color}35, ${card.color}15)`
+                  : isHov
+                    ? `linear-gradient(135deg, ${card.color}25, ${card.color}08)`
+                    : "rgba(255,255,255,0.10)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transform: isActive ? "scale(1.12)" : isHov ? "scale(1.08)" : "scale(1)",
+                boxShadow: isActive ? `0 0 16px ${card.color}40, 0 2px 6px rgba(0,0,0,0.3)` : "0 2px 6px rgba(0,0,0,0.25)",
+                transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                padding: 0,
+                pointerEvents: "auto",
+              }}
+            >
+              <AgentIcon type={card.icon} color={isActive ? card.color : isHov ? card.color : "rgba(255,255,255,0.55)"} size={isActive ? 14 : 12} />
+            </button>
+            <span style={{
+              fontSize: "8px",
+              fontWeight: isActive ? 700 : 500,
+              color: isActive ? "#ffffff" : "rgba(255,255,255,0.6)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              lineHeight: 1,
+              whiteSpace: "nowrap",
+              textShadow: "0 1px 3px rgba(0,0,0,0.6)",
+              transition: "all 0.3s ease",
+            }}>
+              {card.label}
+            </span>
+          </div>
         );
       })}
 
@@ -6340,13 +6365,254 @@ function ArtAdvisoryWorkspace() {
 // PLACEHOLDER WORKSPACE COMPONENTS
 // ═══════════════════════════════════════════
 function JobsWorkspace() {
+  const [jobs, setJobs] = useState<BusinessDeal[]>(() =>
+    _businessDeals.filter(d => d.type === "Job")
+  );
+  const [activeStage, setActiveStage] = useState<"all" | JobAppStage>("all");
+  const [expandedJob, setExpandedJob] = useState<string | null>(null);
+
+  // Re-sync when _businessDeals changes (after fetch)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const fresh = _businessDeals.filter(d => d.type === "Job");
+      if (fresh.length !== jobs.length) setJobs(fresh);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [jobs.length]);
+
+  const filtered = activeStage === "all" ? jobs : jobs.filter(j => (j.applicationJourney ?? "Bookmarked") === activeStage);
+
+  const stageCounts = JOB_APP_STAGES.reduce((acc, s) => {
+    acc[s] = jobs.filter(j => (j.applicationJourney ?? "Bookmarked") === s).length;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const handleStageChange = (jobId: string, newStage: JobAppStage) => {
+    const targetDealStage = JOB_TO_DEAL_STAGE[newStage];
+    setJobs(prev => prev.map(j => j.id === jobId ? {
+      ...j,
+      applicationJourney: newStage,
+      interviewStage: newStage,
+      journeyHistory: [...(j.journeyHistory || []), { stage: newStage, date: new Date().toISOString() }],
+      ...(targetDealStage ? { stage: targetDealStage } : {}),
+    } : j));
+    // Also update module-level cache
+    const idx = _businessDeals.findIndex(d => d.id === jobId);
+    if (idx >= 0) {
+      (_businessDeals[idx] as any).applicationJourney = newStage;
+      (_businessDeals[idx] as any).interviewStage = newStage;
+      if (targetDealStage) (_businessDeals[idx] as any).stage = targetDealStage;
+    }
+  };
+
+  const activeCount = jobs.filter(j => !JOB_APP_TERMINAL.includes(j.applicationJourney ?? "Bookmarked" as any)).length;
+  const offerCount = jobs.filter(j => j.applicationJourney === "Offer" || j.applicationJourney === "Negotiating").length;
+
+  if (!_businessLoaded) {
+    return (
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
+        <div style={{ width: "20px", height: "20px", border: `2px solid ${COLORS.purple}40`, borderTopColor: COLORS.purple, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+        <p style={{ color: COLORS.textMuted, fontSize: "13px" }}>Loading jobs data…</p>
+      </div>
+    );
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
+        <AgentIcon type="briefcase" color={COLORS.purple} size={32} />
+        <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700 }}>Jobs Pipeline</h2>
+        <p style={{ color: COLORS.textMuted, fontSize: "13px", textAlign: "center", maxWidth: "360px" }}>
+          No job applications found yet. Add jobs from the board view or they'll appear here when scouted.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
-      <AgentIcon type="briefcase" color={COLORS.purple} size={32} />
-      <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700 }}>Jobs Pipeline</h2>
-      <p style={{ color: COLORS.textMuted, fontSize: "13px", textAlign: "center", maxWidth: "300px" }}>
-        Job applications, interview tracking, and follow-ups. Coming soon.
-      </p>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <div style={{ padding: "20px 24px 0", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div>
+            <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700, margin: 0 }}>
+              Jobs Pipeline
+            </h2>
+            <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "2px" }}>
+              {jobs.length} application{jobs.length !== 1 ? "s" : ""} · {activeCount} active · {offerCount} offer{offerCount !== 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
+
+        {/* Stage filter pills */}
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+          {(["all", ...JOB_APP_STAGES] as const).map((stage) => {
+            const isActive = activeStage === stage;
+            const count = stage === "all" ? jobs.length : (stageCounts[stage] || 0);
+            const stageColor = stage === "all" ? COLORS.purple : JOB_APP_COLORS[stage as JobAppStage] || COLORS.purple;
+            return (
+              <button
+                key={stage}
+                onClick={() => setActiveStage(stage as any)}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: "20px",
+                  border: `1px solid ${isActive ? stageColor : COLORS.borderSubtle}`,
+                  background: isActive ? `${stageColor}20` : "transparent",
+                  color: isActive ? stageColor : COLORS.textMuted,
+                  fontSize: "11px",
+                  fontWeight: isActive ? 700 : 500,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {stage === "all" ? "All" : stage} ({count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Job cards */}
+      <div style={{ flex: 1, overflow: "auto", padding: "0 24px 20px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {filtered.map((job) => {
+            const isExpanded = expandedJob === job.id;
+            const currentStage = job.applicationJourney ?? "Bookmarked";
+            const stageColor = JOB_APP_COLORS[currentStage] || COLORS.purple;
+            const stageIdx = JOB_APP_STAGES.indexOf(currentStage);
+            const nextStage = stageIdx >= 0 && stageIdx < JOB_APP_STAGES.length - 1 ? JOB_APP_STAGES[stageIdx + 1] : null;
+            return (
+              <div
+                key={job.id}
+                onClick={() => setExpandedJob(isExpanded ? null : job.id)}
+                style={{
+                  background: GLASS.background,
+                  backdropFilter: GLASS.backdropFilter,
+                  borderRadius: "12px",
+                  border: `1px solid ${COLORS.borderSubtle}`,
+                  padding: "16px 20px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = `${stageColor}50`;
+                  e.currentTarget.style.boxShadow = `0 0 12px ${stageColor}10`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = COLORS.borderSubtle;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                {/* Top row */}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                      <span style={{
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        background: `${stageColor}20`,
+                        color: stageColor,
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                      }}>
+                        {currentStage}
+                      </span>
+                      <span style={{ color: COLORS.textPrimary, fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {job.role || job.name}
+                      </span>
+                    </div>
+                    <p style={{ color: COLORS.textMuted, fontSize: "12px", margin: "2px 0 0" }}>
+                      {job.company || job.client}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    {job.salaryRange && (
+                      <div style={{ color: COLORS.green, fontSize: "14px", fontWeight: 700 }}>
+                        {job.salaryRange}
+                      </div>
+                    )}
+                    {job.url && (
+                      <a
+                        href={job.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ color: COLORS.teal, fontSize: "11px", textDecoration: "none" }}
+                      >
+                        View listing →
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+                    {job.description && (
+                      <div style={{ marginBottom: "10px" }}>
+                        <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Notes</span>
+                        <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5 }}>{job.description}</p>
+                      </div>
+                    )}
+
+                    {/* Journey progress */}
+                    {job.journeyHistory && job.journeyHistory.length > 0 && (
+                      <div style={{ marginBottom: "10px" }}>
+                        <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Journey</span>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
+                          {job.journeyHistory.map((h, hi) => (
+                            <span key={hi} style={{
+                              fontSize: "10px", fontWeight: 500,
+                              padding: "2px 8px", borderRadius: "8px",
+                              background: `${JOB_APP_COLORS[h.stage] || COLORS.textMuted}15`,
+                              color: JOB_APP_COLORS[h.stage] || COLORS.textMuted,
+                              border: `1px solid ${JOB_APP_COLORS[h.stage] || COLORS.textMuted}25`,
+                            }}>
+                              {h.stage} · {new Date(h.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+                      {nextStage && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStageChange(job.id, nextStage); }}
+                          style={{
+                            padding: "6px 14px", borderRadius: "8px",
+                            background: `${JOB_APP_COLORS[nextStage]}15`, color: JOB_APP_COLORS[nextStage],
+                            fontSize: "11px", fontWeight: 600, border: `1px solid ${JOB_APP_COLORS[nextStage]}30`,
+                            cursor: "pointer", transition: "all 0.2s ease",
+                          }}
+                        >
+                          → {nextStage}
+                        </button>
+                      )}
+                      {!JOB_APP_TERMINAL.includes(currentStage as any) && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStageChange(job.id, "Withdrawn"); }}
+                          style={{
+                            padding: "6px 14px", borderRadius: "8px",
+                            background: `${COLORS.chartRed}10`, color: COLORS.chartRed,
+                            fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.chartRed}20`,
+                            cursor: "pointer", transition: "all 0.2s ease",
+                          }}
+                        >
+                          Withdraw
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
