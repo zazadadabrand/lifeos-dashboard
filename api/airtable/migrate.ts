@@ -86,9 +86,9 @@ function mapJob(d: any) {
       'Salary Range': d.salaryRange || '',
       'URL': d.url || undefined,
       'Contact Name': d.contactName || '',
-      'Contact Email': d.contactEmail || undefined,
+      'Contact Email': d.contactEmail && d.contactEmail.includes('@') ? d.contactEmail : undefined,
       'Notes': d.notes || '',
-      'Date Added': d.addedAt || d.dateAdded || undefined,
+      'Date Added': (d.addedAt || d.dateAdded || '').substring(0, 10) || undefined,
     },
   };
 }
@@ -104,7 +104,7 @@ function mapGrant(d: any) {
       'Eligibility': d.eligibility || '',
       'Why Fit': d.whyFit || '',
       'Notes': d.notes || '',
-      'Date Added': d.addedAt || d.dateAdded || undefined,
+      'Date Added': (d.addedAt || d.dateAdded || '').substring(0, 10) || undefined,
     },
   };
 }
