@@ -6371,6 +6371,22 @@ function JobsWorkspace() {
   const [activeStage, setActiveStage] = useState<"all" | JobAppStage>("all");
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
 
+  // Trigger fetch if not loaded yet
+  useEffect(() => {
+    if (!_businessLoaded) {
+      fetchBusinessSnapshot().then(snapshot => {
+        if (snapshot) {
+          _businessDeals = snapshot.deals;
+          _businessLoaded = true;
+          setJobs(_businessDeals.filter(d => d.type === "Job"));
+        } else {
+          _businessLoaded = true;
+          setJobs([]);
+        }
+      });
+    }
+  }, []);
+
   // Re-sync when _businessDeals changes (after fetch)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -6623,6 +6639,22 @@ function GrantsWorkspace() {
   );
   const [activeStage, setActiveStage] = useState<"all" | GrantStage>("all");
   const [expandedGrant, setExpandedGrant] = useState<string | null>(null);
+
+  // Trigger fetch if not loaded yet
+  useEffect(() => {
+    if (!_businessLoaded) {
+      fetchBusinessSnapshot().then(snapshot => {
+        if (snapshot) {
+          _businessDeals = snapshot.deals;
+          _businessLoaded = true;
+          setGrants(_businessDeals.filter(d => d.type === "Grant"));
+        } else {
+          _businessLoaded = true;
+          setGrants([]);
+        }
+      });
+    }
+  }, []);
 
   // Re-sync when _businessDeals changes (after fetch)
   useEffect(() => {
