@@ -1064,7 +1064,7 @@ interface WorkspaceCard {
 }
 
 const WORKSPACE_CARDS: WorkspaceCard[] = [
-  { id: "art-advisory", label: "Art Advisory", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
+  { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
   { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },
   { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },
   { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },
@@ -5874,90 +5874,6 @@ function CardStackNavigator({
   return (
     <div style={{ display: "flex", height: "100%", gap: "0" }}>
 
-      {/* ── Left rail: mini window thumbnails ── */}
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "6px",
-        flexShrink: 0,
-        width: "54px",
-        padding: "4px 0",
-        justifyContent: "flex-start",
-      }}>
-        {cards.map((card) => {
-          const isActive = card.id === activeCard;
-          return (
-            <button
-              key={card.id}
-              onClick={() => onCardChange(card.id)}
-              title={card.label}
-              style={{
-                width: "48px",
-                height: "40px",
-                border: "none",
-                borderRadius: "8px",
-                background: isActive
-                  ? `linear-gradient(135deg, ${card.color}30, ${card.color}12)`
-                  : "rgba(255,255,255,0.04)",
-                cursor: "pointer",
-                transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-                position: "relative",
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "3px",
-                outline: isActive ? `1.5px solid ${card.color}60` : "1.5px solid transparent",
-                boxShadow: isActive
-                  ? `0 0 12px ${card.color}20, 0 2px 8px rgba(0,0,0,0.3)`
-                  : "0 1px 4px rgba(0,0,0,0.15)",
-                transform: isActive ? "scale(1.05)" : "scale(1)",
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.background = `linear-gradient(135deg, ${card.color}20, ${card.color}08)`;
-                  e.currentTarget.style.outline = `1.5px solid ${card.color}35`;
-                  e.currentTarget.style.transform = "scale(1.08)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                  e.currentTarget.style.outline = "1.5px solid transparent";
-                  e.currentTarget.style.transform = "scale(1)";
-                }
-              }}
-            >
-              {/* Glow bar at top of active thumbnail */}
-              {isActive && (
-                <div style={{
-                  position: "absolute",
-                  top: 0,
-                  left: "20%",
-                  right: "20%",
-                  height: "2px",
-                  borderRadius: "0 0 2px 2px",
-                  background: card.color,
-                  boxShadow: `0 0 8px ${card.color}80`,
-                }} />
-              )}
-              <AgentIcon type={card.icon} color={isActive ? card.color : COLORS.textMuted} size={14} />
-              <span style={{
-                fontSize: "7px",
-                fontWeight: isActive ? 700 : 500,
-                color: isActive ? card.color : COLORS.textFaint,
-                letterSpacing: "0.3px",
-                textTransform: "uppercase",
-                lineHeight: 1,
-              }}>
-                {card.label.split(" ")[0]}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* ── Main workspace window ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
 
@@ -7462,20 +7378,22 @@ export default function Dashboard() {
           </CardStackNavigator>
         </div>
 
-        {/* Orbital Hub — floating top-right */}
-        <div style={{
-          position: "absolute",
-          top: "12px",
-          right: "12px",
-          zIndex: 8,
-        }}>
-          <OrbitalHub
-            cards={WORKSPACE_CARDS}
-            activeCard={activeCard}
-            onCardChange={setActiveCard}
-          />
-        </div>
       </main>
+
+      {/* Orbital Hub — fixed top-right, above main (z2) and below header (z10) */}
+      <div style={{
+        position: "fixed",
+        top: "68px",
+        right: "16px",
+        zIndex: 5,
+        pointerEvents: "auto",
+      }}>
+        <OrbitalHub
+          cards={WORKSPACE_CARDS}
+          activeCard={activeCard}
+          onCardChange={setActiveCard}
+        />
+      </div>
     </div>
   );
 }
