@@ -7118,10 +7118,29 @@ interface DigestLine {
 }
 
 function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNavigateToCard: (id: CardId) => void }) {
+  const [, forceUpdate] = useState(0);
+
+  // Trigger business data fetch so Jobs/Grants show real numbers
+  useEffect(() => {
+    if (!_businessLoaded) {
+      fetchBusinessSnapshot().then(snapshot => {
+        if (snapshot) {
+          _businessDeals = snapshot.deals;
+          _businessLoaded = true;
+        } else {
+          _businessLoaded = true;
+        }
+        forceUpdate(n => n + 1);
+      });
+    }
+  }, []);
+
   const LANE_TO_CARD: Record<string, CardId> = {
     "Art Advisory": "art-advisory",
     "Outreach": "outreach",
     "Business": "outreach",
+    "Jobs": "jobs",
+    "Grants": "grants",
   };
 
   const now = new Date();
@@ -7193,6 +7212,52 @@ function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNa
     lane: "Outreach",
   });
 
+  // Jobs
+  const jobDeals = _businessDeals.filter(d => d.type === "Job");
+  const jobActive = jobDeals.filter(d => !JOB_APP_TERMINAL.includes(d.applicationStage as JobAppStage));
+  const jobInterviewing = jobDeals.filter(d => ["Phone Screen", "Interview", "Final Round"].includes(d.applicationStage || ""));
+  const jobOffers = jobDeals.filter(d => ["Offer", "Negotiating", "Accepted"].includes(d.applicationStage || ""));
+  const jobApplied = jobDeals.filter(d => d.applicationStage === "Applied");
+  const jobStatus = _businessLoaded
+    ? `${jobActive.length} active · ${jobApplied.length} applied · ${jobInterviewing.length} interviewing`
+    : "Loading…";
+  const jobDetail = _businessLoaded
+    ? jobOffers.length > 0
+      ? `${jobOffers.length} offer${jobOffers.length > 1 ? "s" : ""} in pipeline`
+      : jobInterviewing.length > 0
+        ? `${jobInterviewing.length} in interview stages`
+        : `${jobDeals.length} total applications tracked`
+    : "Fetching job pipeline data";
+  lines.push({
+    icon: "briefcase",
+    label: "Jobs",
+    color: COLORS.purple,
+    status: jobStatus,
+    detail: jobDetail,
+  });
+
+  // Grants
+  const grantDeals = _businessDeals.filter(d => d.type === "Grant");
+  const grantActive = grantDeals.filter(d => !GRANT_TERMINAL.includes(d.grantStage as GrantStage));
+  const grantApplying = grantDeals.filter(d => ["Applying", "Submitted"].includes(d.grantStage || ""));
+  const grantAwarded = grantDeals.filter(d => d.grantStage === "Awarded");
+  const grantStatus = _businessLoaded
+    ? `${grantActive.length} active · ${grantApplying.length} in progress · ${grantAwarded.length} awarded`
+    : "Loading…";
+  const grantDetail = _businessLoaded
+    ? grantAwarded.length > 0
+      ? `${grantAwarded.length} grant${grantAwarded.length > 1 ? "s" : ""} awarded`
+      : grantApplying.length > 0
+        ? `${grantApplying.length} application${grantApplying.length > 1 ? "s" : ""} pending`
+        : `${grantDeals.length} opportunities tracked`
+    : "Fetching grant pipeline data";
+  lines.push({
+    icon: "bars",
+    label: "Grants",
+    color: COLORS.gold,
+    status: grantStatus,
+    detail: grantDetail,
+  });
 
   // Credits
   lines.push({
