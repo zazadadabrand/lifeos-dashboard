@@ -34,6 +34,8 @@
     { "source": "/api/cron/deep-dive",     "destination": "/api/cron/deep-dive"     },
     { "source": "/api/test/art-scout",           "destination": "/api/test/art-scout"           },
     { "source": "/api/test/set-artist-email",   "destination": "/api/test/set-artist-email"   },
+    { "source": "/api/airtable/proxy",      "destination": "/api/airtable/proxy"      },
+    { "source": "/api/airtable/migrate",     "destination": "/api/airtable/migrate"    },
     { "source": "/api/ping",               "destination": "/api/ping"               },
     { "source": "/(.*)",                    "destination": "/index.html"              }
   ]

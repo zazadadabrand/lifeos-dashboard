@@ -1048,6 +1048,7 @@ interface PipelineArtist {
   antRating: string;
   hasDeepDive: boolean;
   deepDive: any | null;
+  _airtableId?: string;
 }
 
 // ═══════════════════════════════════════════
@@ -1133,6 +1134,49 @@ async function tryFetch(url: string): Promise<Response | null> {
   } catch { return null; }
 }
 
+// ═══════ Airtable Integration ═══════
+const AIRTABLE_PROXY = '/api/airtable/proxy';
+
+async function airtableList(table: string): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIRTABLE_PROXY}?table=${table}`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.records || [];
+  } catch { return []; }
+}
+
+async function airtableUpdate(table: string, recordId: string, fields: Record<string, any>): Promise<boolean> {
+  try {
+    const res = await fetch(`${AIRTABLE_PROXY}?table=${table}&id=${recordId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+async function airtableCreate(table: string, fields: Record<string, any>): Promise<any | null> {
+  try {
+    const res = await fetch(`${AIRTABLE_PROXY}?table=${table}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.records?.[0] || null;
+  } catch { return null; }
+}
+
+async function airtableDelete(table: string, recordId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${AIRTABLE_PROXY}?table=${table}&id=${recordId}`, { method: 'DELETE' });
+    return res.ok;
+  } catch { return false; }
+}
+
 async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; snapshotAt: string } | null> {
   try {
     const snapshotRes = await tryFetch(SNAPSHOT_BLOB_URL);
@@ -1187,6 +1231,32 @@ async function fetchPipelineSnapshot(): Promise<{ artists: PipelineArtist[]; sna
   }
 }
 
+// Airtable-backed artist pipeline fetch
+async function fetchArtistsFromAirtable(): Promise<PipelineArtist[]> {
+  const records = await airtableList('artists');
+  return records.map((r: any, i: number) => ({
+    sheetRow: i + 1,
+    dateScouted: r.fields['Date Scouted'] || '',
+    batch: r.fields['Batch'] || '',
+    name: r.fields['Name'] || '',
+    location: r.fields['Location'] || '',
+    medium: r.fields['Medium'] || '',
+    score: r.fields['Score'] || 0,
+    priceRange: r.fields['Price Range'] || '',
+    whyInteresting: r.fields['Why Interesting'] || '',
+    showsPress: r.fields['Shows Press'] || '',
+    link: r.fields['Link'] || '',
+    instagram: r.fields['Instagram'] || '',
+    website: r.fields['Website'] || '',
+    email: r.fields['Email'] || '',
+    status: (r.fields['Status'] as VettingStage) || 'Scouted',
+    antRating: r.fields['Ant Rating'] || '',
+    hasDeepDive: false,
+    deepDive: null,
+    _airtableId: r.id,
+  }));
+}
+
 async function pushStageChange(artistName: string, newStage: VettingStage, sheetRow: number): Promise<boolean> {
   try {
     const readRes = await tryFetch(WRITE_BLOB_URL);
@@ -1236,28 +1306,43 @@ function ScoutedArtistsReview() {
   const [changingStage, setChangingStage] = useState<string | null>(null);
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load artists from JSONBlob on mount
+  // Load artists from Airtable first, fall back to JSONBlob
   const loadArtists = useCallback(async (showStatus = true) => {
     if (showStatus) {
       setSyncing(true);
       setSyncStatus("syncing");
     }
-    const snapshot = await fetchPipelineSnapshot();
-    if (snapshot && snapshot.artists.length > 0) {
-      // Apply any pending local changes on top of snapshot
-      const merged = snapshot.artists.map(a => ({
+
+    // Try Airtable first
+    const airtableArtists = await fetchArtistsFromAirtable();
+    if (airtableArtists.length > 0) {
+      const merged = airtableArtists.map(a => ({
         ...a,
         status: (_pendingChanges[a.name] || a.status) as VettingStage,
       }));
       _pipelineArtists = merged;
-      _lastSyncTime = snapshot.snapshotAt;
+      _lastSyncTime = new Date().toISOString();
       _pipelineLoaded = true;
       setArtists(merged);
       if (showStatus) setSyncStatus("success");
-    } else if (!_pipelineLoaded) {
-      // Fallback — keep empty state but mark as loaded
-      _pipelineLoaded = true;
-      if (showStatus) setSyncStatus("error");
+    } else {
+      // Fallback to KV
+      const snapshot = await fetchPipelineSnapshot();
+      if (snapshot && snapshot.artists.length > 0) {
+        const merged = snapshot.artists.map(a => ({
+          ...a,
+          status: (_pendingChanges[a.name] || a.status) as VettingStage,
+        }));
+        _pipelineArtists = merged;
+        _lastSyncTime = snapshot.snapshotAt;
+        _pipelineLoaded = true;
+        setArtists(merged);
+        if (showStatus) setSyncStatus("success");
+      } else if (!_pipelineLoaded) {
+        // Fallback — keep empty state but mark as loaded
+        _pipelineLoaded = true;
+        if (showStatus) setSyncStatus("error");
+      }
     }
     if (showStatus) {
       setSyncing(false);
@@ -1281,7 +1366,7 @@ function ScoutedArtistsReview() {
   const handleStageChange = async (artist: PipelineArtist, newStage: VettingStage) => {
     if (artist.status === newStage) return;
     setChangingStage(artist.name);
-    
+
     // Optimistic update
     _pendingChanges[artist.name] = newStage;
     const updated = artists.map(a =>
@@ -1289,7 +1374,7 @@ function ScoutedArtistsReview() {
     );
     _pipelineArtists = updated;
     setArtists(updated);
-    
+
     // Push change to changes blob
     const ok = await pushStageChange(artist.name, newStage, artist.sheetRow);
     if (!ok) {
@@ -1303,6 +1388,10 @@ function ScoutedArtistsReview() {
     } else {
       // Also update snapshot blob so it stays in sync for next reload
       updateSnapshotBlob(_pipelineArtists);
+      // Write to Airtable if artist has an Airtable ID
+      if (artist._airtableId) {
+        airtableUpdate('artists', artist._airtableId, { 'Status': newStage });
+      }
     }
     setChangingStage(null);
   };
@@ -2585,6 +2674,8 @@ const AGENT_RESULTS_URL = `${PIPE_API}/api/agent/results`;
 let _businessDeals: BusinessDeal[] = [];
 let _businessLoaded = false;
 let _businessLastSync: string | null = null;
+let _airtableJobIds: Record<string, string> = {};
+let _airtableGrantIds: Record<string, string> = {};
 
 async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapshotAt: string } | null> {
   try {
@@ -2627,6 +2718,22 @@ async function fetchBusinessSnapshot(): Promise<{ deals: BusinessDeal[]; snapsho
   } catch {
     return null;
   }
+}
+
+async function syncJobsFromAirtable(): Promise<void> {
+  const records = await airtableList('jobs');
+  records.forEach((r: any) => {
+    const key = `${r.fields['Name']}|${r.fields['Company']}`;
+    _airtableJobIds[key] = r.id;
+  });
+}
+
+async function syncGrantsFromAirtable(): Promise<void> {
+  const records = await airtableList('grants');
+  records.forEach((r: any) => {
+    const key = `${r.fields['Name']}|${r.fields['Organization']}`;
+    _airtableGrantIds[key] = r.id;
+  });
 }
 
 async function pushBusinessChange(change: any): Promise<boolean> {
@@ -2703,6 +2810,9 @@ function BusinessPipeline() {
       _businessLoaded = true;
       setDeals(snapshot.deals);
       if (showStatus) setSyncStatus("success");
+      // Also sync Jobs and Grants from Airtable to build ID mappings
+      syncJobsFromAirtable();
+      syncGrantsFromAirtable();
     } else if (!_businessLoaded) {
       _businessLoaded = true;
       if (showStatus) setSyncStatus("error");
@@ -2756,6 +2866,10 @@ function BusinessPipeline() {
       setDeals(reverted);
     } else {
       updateBusinessSnapshotBlob(updated);
+      // Sync to Airtable
+      const jobKey = `${deal.name}|${deal.company || deal.client}`;
+      const atId = _airtableJobIds[jobKey];
+      if (atId) airtableUpdate('jobs', atId, { 'Stage': newAppStage });
     }
     setChangingStage(null);
   };
@@ -2773,6 +2887,10 @@ function BusinessPipeline() {
       setDeals(reverted);
     } else {
       updateBusinessSnapshotBlob(updated);
+      // Sync to Airtable
+      const grantKey = `${deal.grantName || deal.name}|${deal.organization || deal.client}`;
+      const atId = _airtableGrantIds[grantKey];
+      if (atId) airtableUpdate('grants', atId, { 'Stage': newStage });
     }
     setChangingStage(null);
   };
@@ -6115,9 +6233,30 @@ function CardStackNavigator({
 // OUTREACH WORKSPACE COMPONENT
 // ═══════════════════════════════════════════
 function OutreachWorkspace() {
-  const [contacts, setContacts] = useState<OutreachContact[]>(SEED_OUTREACH_CONTACTS);
+  const [contacts, setContacts] = useState<OutreachContact[]>([]);
   const [activeStage, setActiveStage] = useState<"all" | OutreachStage>("all");
   const [selectedContact, setSelectedContact] = useState<OutreachContact | null>(null);
+
+  // Load contacts from Airtable on mount
+  useEffect(() => {
+    airtableList('outreach').then(records => {
+      if (records.length > 0) {
+        const mapped: OutreachContact[] = records.map((r: any) => ({
+          id: r.id,
+          name: r.fields['Name'] || '',
+          title: r.fields['Title'] || '',
+          company: r.fields['Company'] || '',
+          email: r.fields['Email'] || '',
+          linkedIn: r.fields['LinkedIn'] || '',
+          source: r.fields['Source'] || '',
+          stage: (r.fields['Stage'] as OutreachStage) || 'Review',
+          notes: r.fields['Notes'] || '',
+          dateAdded: r.fields['Date Added'] || '',
+        }));
+        setContacts(mapped);
+      }
+    });
+  }, []);
 
   const filtered = activeStage === "all" ? contacts : contacts.filter(c => c.stage === activeStage);
   const stageCounts = OUTREACH_STAGES.reduce((acc, s) => {
@@ -6127,6 +6266,7 @@ function OutreachWorkspace() {
 
   const handleStageChange = (contactId: string, newStage: OutreachStage) => {
     setContacts(prev => prev.map(c => c.id === contactId ? { ...c, stage: newStage } : c));
+    airtableUpdate('outreach', contactId, { 'Stage': newStage });
   };
 
   /* ── Dropdown stage selector (same pattern as Art Advisory) ── */
