@@ -10,11 +10,11 @@ export const config = { runtime: 'edge' };
 
 import { kvGet } from '../lib/kv';
 
-const BASE_ID = 'appRiVlukeNES8GO3';
+const BASE_ID = 'apppZ2gNZ9tjORpvp';
 const TABLES: Record<string, string> = {
-  artists: 'tbl24XojZAZ17nfHe',
-  jobs:    'tbl6rwdbWpN2IpaNc',
-  grants:  'tblhGYQzsyvhQIZKi',
+  artists: 'tblHBC8yJQbejxqHg',
+  jobs:    'tbl2j7sXApKFtQ8kG',
+  grants:  'tbl8Yr902XCzid47O',
 };
 
 const CORS = {

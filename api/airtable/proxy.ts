@@ -10,13 +10,13 @@ export const config = { runtime: 'edge' };
  * DELETE /api/airtable/proxy?table=Outreach&id=recXYZ → delete record
  */
 
-const BASE_ID = 'appRiVlukeNES8GO3';
+const BASE_ID = 'apppZ2gNZ9tjORpvp';
 
 const ALLOWED_TABLES: Record<string, string> = {
-  'artists':  'tbl24XojZAZ17nfHe',
-  'outreach': 'tblFFHO1omVQIpvFk',
-  'jobs':     'tbl6rwdbWpN2IpaNc',
-  'grants':   'tblhGYQzsyvhQIZKi',
+  'artists':  'tblHBC8yJQbejxqHg',
+  'outreach': 'tbluGWIHohMkLlJVb',
+  'jobs':     'tbl2j7sXApKFtQ8kG',
+  'grants':   'tbl8Yr902XCzid47O',
 };
 
 const CORS = {
