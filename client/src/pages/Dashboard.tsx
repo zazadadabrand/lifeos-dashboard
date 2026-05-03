@@ -1054,7 +1054,7 @@ interface PipelineArtist {
 // ═══════════════════════════════════════════
 // CARD STACK & WORKSPACE TYPES
 // ═══════════════════════════════════════════
-type CardId = "art-advisory" | "outreach" | "jobs" | "grants";
+type CardId = "art-advisory" | "outreach" | "jobs" | "grants"; // outreach & grants hidden but types kept
 
 interface WorkspaceCard {
   id: CardId;
@@ -1066,9 +1066,9 @@ interface WorkspaceCard {
 
 const WORKSPACE_CARDS: WorkspaceCard[] = [
   { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
-  { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },
+  // { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },  // SHELVED
   { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },
-  { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },
+  // { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },  // SHELVED
 ];
 
 // ═══════════════════════════════════════════
@@ -1251,8 +1251,8 @@ async function fetchArtistsFromAirtable(): Promise<PipelineArtist[]> {
     email: r.fields['Email'] || '',
     status: (r.fields['Status'] as VettingStage) || 'Scouted',
     antRating: r.fields['Ant Rating'] || '',
-    hasDeepDive: false,
-    deepDive: null,
+    hasDeepDive: !!(r.fields['Deep Dive Data']),
+    deepDive: (() => { try { return r.fields['Deep Dive Data'] ? JSON.parse(r.fields['Deep Dive Data']) : null; } catch { return null; } })(),
     _airtableId: r.id,
   }));
 }
@@ -1870,14 +1870,18 @@ function ScoutedArtistsReview() {
                 )}
               </>
             ) : (
-              /* Loading / Researching state */
-              <div className="rounded-lg border p-8 flex flex-col items-center justify-center gap-3" style={{ ...SOLID_CARD, borderColor: COLORS.borderSubtle }}>
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="animate-spin" style={{ animationDuration: "2s" }}>
-                  <circle cx="16" cy="16" r="12" stroke={COLORS.borderSubtle} strokeWidth="3" />
-                  <path d="M16 4a12 12 0 0 1 12 12" stroke={COLORS.purple} strokeWidth="3" strokeLinecap="round" />
-                </svg>
-                <span className="text-[13px] font-medium" style={{ color: COLORS.purple }}>Researching artist...</span>
-                <span className="text-[11px]" style={{ color: COLORS.textFaint }}>Gathering press clippings, interviews, and character signals</span>
+              /* No enrichment data yet — show helpful empty state */
+              <div className="rounded-lg border p-6 flex flex-col items-center justify-center gap-3 text-center" style={{ ...SOLID_CARD, borderColor: `${COLORS.purple}20` }}>
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: `${COLORS.purple}12` }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="9" stroke={COLORS.purple} strokeWidth="1.5" strokeDasharray="3 3" />
+                    <path d="M12 8v4M12 15v.5" stroke={COLORS.purple} strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <span className="text-[13px] font-medium" style={{ color: COLORS.purple }}>Research Not Yet Available</span>
+                <span className="text-[11px] leading-relaxed max-w-[280px]" style={{ color: COLORS.textFaint }}>
+                  Deep dive enrichment (press clippings, representation status, character signals) hasn't been generated for this artist yet.
+                </span>
               </div>
             )}
           </div>
@@ -8008,9 +8012,9 @@ export default function Dashboard() {
           >
             {{
               "art-advisory": <ArtAdvisoryWorkspace />,
-              "outreach": <OutreachWorkspace />,
+              // "outreach": <OutreachWorkspace />,  // SHELVED
               "jobs": <JobsWorkspace />,
-              "grants": <GrantsWorkspace />,
+              // "grants": <GrantsWorkspace />,  // SHELVED
             }}
           </CardStackNavigator>
         </div>
