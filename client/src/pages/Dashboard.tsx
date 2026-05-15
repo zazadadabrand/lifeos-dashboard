@@ -1067,7 +1067,7 @@ interface WorkspaceCard {
 const WORKSPACE_CARDS: WorkspaceCard[] = [
   { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
   // { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },  // SHELVED
-  { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },
+  // { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },  // SHELVED
   // { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },  // SHELVED
 ];
 
@@ -8013,7 +8013,7 @@ export default function Dashboard() {
             {{
               "art-advisory": <ArtAdvisoryWorkspace />,
               // "outreach": <OutreachWorkspace />,  // SHELVED
-              "jobs": <JobsWorkspace />,
+              // "jobs": <JobsWorkspace />,  // SHELVED
               // "grants": <GrantsWorkspace />,  // SHELVED
             }}
           </CardStackNavigator>
