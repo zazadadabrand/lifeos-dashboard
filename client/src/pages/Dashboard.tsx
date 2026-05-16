@@ -1018,14 +1018,15 @@ const SNAPSHOT_BLOB_URL = `${PIPE_API}/api/pipeline/snapshot`;
 const WRITE_BLOB_URL = `${PIPE_API}/api/pipeline/changes`;
 
 // Pipeline stages in order
-type VettingStage = "Scouted" | "Deep Dive" | "Shortlisted" | "In Conversation" | "Active" | "Declined";
-const PIPELINE_STAGES: VettingStage[] = ["Scouted", "Deep Dive", "Shortlisted", "In Conversation", "Active", "Declined"];
+type VettingStage = "Scouted" | "Deep Dive" | "Shortlisted" | "In Conversation" | "Active" | "Brief Featured" | "Declined";
+const PIPELINE_STAGES: VettingStage[] = ["Scouted", "Deep Dive", "Shortlisted", "In Conversation", "Active", "Brief Featured", "Declined"];
 const STAGE_COLORS: Record<VettingStage, string> = {
   "Scouted": COLORS.textMuted,
   "Deep Dive": COLORS.teal,
   "Shortlisted": COLORS.gold,
   "In Conversation": COLORS.purple,
   "Active": COLORS.green,
+  "Brief Featured": COLORS.coral,
   "Declined": COLORS.chartRed,
 };
 
@@ -1937,8 +1938,18 @@ function ScoutedArtistsReview() {
                 {nextLabel}
               </button>
             )}
+            {/* Brief Feature button */}
+            {artist.status !== "Declined" && artist.status !== "Brief Featured" && (
+              <button
+                onClick={() => { handleStageChange(artist, "Brief Featured"); onClose(); }}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-[11px] font-medium transition-all duration-200 hover:bg-orange-500/10"
+                style={{ borderColor: `${COLORS.coral}30`, color: COLORS.coral }}
+              >
+                Brief Feature
+              </button>
+            )}
             {/* Decline button */}
-            {artist.status !== "Declined" && (
+            {artist.status !== "Declined" && artist.status !== "Brief Featured" && (
               <button
                 onClick={() => { handleStageChange(artist, "Declined"); onClose(); }}
                 className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-[11px] font-medium transition-all duration-200 hover:bg-red-500/10"
@@ -2068,7 +2079,7 @@ function ScoutedArtistsReview() {
               className="rounded-lg border p-3 transition-all duration-200 group"
               style={{
                 ...GLASS_ALT,
-                borderColor: artist.status === "Active" ? `${COLORS.green}30` : artist.status === "Declined" ? `${COLORS.chartRed}20` : artist.status === "Shortlisted" ? `${COLORS.gold}20` : artist.status === "Deep Dive" ? `${COLORS.teal}20` : COLORS.borderSubtle,
+                borderColor: artist.status === "Active" ? `${COLORS.green}30` : artist.status === "Declined" ? `${COLORS.chartRed}20` : artist.status === "Shortlisted" ? `${COLORS.gold}20` : artist.status === "Deep Dive" ? `${COLORS.teal}20` : artist.status === "Brief Featured" ? `${COLORS.coral}20` : COLORS.borderSubtle,
                 opacity: artist.status === "Declined" ? 0.5 : 1,
               }}
             >
