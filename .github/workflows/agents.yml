@@ -16,6 +16,7 @@ on:
         type: choice
         options:
           - art-scout
+          - clipping-scout
           - deep-dive
           - job-scout
           - grants-scout
@@ -33,6 +34,18 @@ jobs:
       - name: Trigger Art Scout
         run: |
           curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/art-scout" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  clipping-scout:
+    name: Clipping Scout (12 leads/day)
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'clipping-scout' || github.event.inputs.agent == 'all'))
+    steps:
+      - name: Trigger Clipping Scout
+        run: |
+          curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/clipping-scout" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   deep-dive:

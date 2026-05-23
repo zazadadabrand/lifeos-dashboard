@@ -17,6 +17,7 @@ const ALLOWED_TABLES: Record<string, string> = {
   'outreach': 'tbluGWIHohMkLlJVb',
   'jobs':     'tbl2j7sXApKFtQ8kG',
   'grants':   'tbl8Yr902XCzid47O',
+  'clipping': 'tblVkuHFCD96iJ4ia',
 };
 
 const CORS = {

@@ -1056,7 +1056,7 @@ interface PipelineArtist {
 // ═══════════════════════════════════════════
 // CARD STACK & WORKSPACE TYPES
 // ═══════════════════════════════════════════
-type CardId = "art-advisory" | "outreach" | "jobs" | "grants"; // outreach & grants hidden but types kept
+type CardId = "art-advisory" | "clipping" | "outreach" | "jobs" | "grants"; // outreach & grants hidden but types kept
 
 interface WorkspaceCard {
   id: CardId;
@@ -1068,6 +1068,7 @@ interface WorkspaceCard {
 
 const WORKSPACE_CARDS: WorkspaceCard[] = [
   { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
+  { id: "clipping", label: "Clipping", icon: "signal", color: COLORS.coral, description: "YT clipping-native creator leads, daily scout, outreach pipeline" },
   // { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },  // SHELVED
   // { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },  // SHELVED
   // { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },  // SHELVED
@@ -6662,6 +6663,229 @@ function ArtAdvisoryWorkspace() {
 }
 
 // ═══════════════════════════════════════════
+// CLIPPING WORKSPACE (YT Clipping Leads)
+// ═══════════════════════════════════════════
+type ClippingStage = "Scouted" | "Vetting" | "Approved" | "Outreach" | "Client" | "Pass";
+const CLIPPING_STAGES: ClippingStage[] = ["Scouted", "Vetting", "Approved", "Outreach", "Client", "Pass"];
+const CLIPPING_STAGE_COLORS: Record<ClippingStage, string> = {
+  "Scouted": COLORS.textMuted,
+  "Vetting": COLORS.teal,
+  "Approved": COLORS.gold,
+  "Outreach": COLORS.purple,
+  "Client": COLORS.green,
+  "Pass": COLORS.chartRed,
+};
+
+interface ClippingLead {
+  channelName: string;
+  dateScouted: string;
+  batch: string;
+  lane: string;
+  subs: string;
+  score: number;
+  whyClip: string;
+  showsPress: string;
+  ytHandle: string;
+  website: string;
+  instagram: string;
+  email: string;
+  contactStatus: string;
+  status: ClippingStage;
+  antRating: string;
+  _airtableId: string;
+}
+
+async function fetchClippingFromAirtable(): Promise<ClippingLead[]> {
+  const records = await airtableList('clipping');
+  return records.map((r: any) => ({
+    channelName: r.fields['Channel Name'] || '',
+    dateScouted: r.fields['Date Scouted'] || '',
+    batch: r.fields['Batch'] || '',
+    lane: r.fields['Lane'] || '',
+    subs: r.fields['Subs'] || '',
+    score: r.fields['Score'] || 0,
+    whyClip: r.fields['Why Clip'] || '',
+    showsPress: r.fields['Shows Press'] || '',
+    ytHandle: r.fields['YT Handle'] || '',
+    website: r.fields['Website'] || '',
+    instagram: r.fields['Instagram'] || '',
+    email: r.fields['Email'] || '',
+    contactStatus: r.fields['Contact Status'] || '',
+    status: (r.fields['Status'] as ClippingStage) || 'Scouted',
+    antRating: r.fields['Ant Rating'] || '',
+    _airtableId: r.id,
+  }));
+}
+
+function ClippingStageSelector({ lead, onChange }: { lead: ClippingLead; onChange: (s: ClippingStage) => void }) {
+  const [saving, setSaving] = useState(false);
+  return (
+    <select
+      value={lead.status}
+      disabled={saving}
+      onChange={async (e) => {
+        const next = e.target.value as ClippingStage;
+        setSaving(true);
+        const ok = await airtableUpdate('clipping', lead._airtableId, { 'Status': next });
+        setSaving(false);
+        if (ok) onChange(next);
+      }}
+      style={{
+        background: "rgba(0,0,0,0.3)",
+        color: CLIPPING_STAGE_COLORS[lead.status],
+        border: `1px solid ${CLIPPING_STAGE_COLORS[lead.status]}`,
+        borderRadius: "6px",
+        padding: "4px 8px",
+        fontSize: "12px",
+        fontWeight: 600,
+        cursor: saving ? "wait" : "pointer",
+      }}
+    >
+      {CLIPPING_STAGES.map(s => <option key={s} value={s} style={{ background: COLORS.bg, color: COLORS.textPrimary }}>{s}</option>)}
+    </select>
+  );
+}
+
+function ClippingReview() {
+  const [leads, setLeads] = useState<ClippingLead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<ClippingStage | "All">("All");
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+
+  const load = async () => {
+    const data = await fetchClippingFromAirtable();
+    data.sort((a, b) => (b.score || 0) - (a.score || 0));
+    setLeads(data);
+    setLastSync(new Date());
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 5 * 60 * 1000); // auto-sync every 5 min
+    return () => clearInterval(id);
+  }, []);
+
+  const filtered = filter === "All" ? leads : leads.filter(l => l.status === filter);
+  const counts = CLIPPING_STAGES.reduce((acc, s) => { acc[s] = leads.filter(l => l.status === s).length; return acc; }, {} as Record<string, number>);
+
+  const onStageChange = (id: string, next: ClippingStage) => {
+    setLeads(prev => prev.map(l => l._airtableId === id ? { ...l, status: next } : l));
+  };
+
+  return (
+    <div style={{ padding: "20px", color: COLORS.textPrimary }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: "20px", color: COLORS.textOnDark }}>YT Clipping Leads</h2>
+          <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "4px" }}>
+            {leads.length} creators · daily scout adds ≥10/day
+            {lastSync && ` · synced ${lastSync.toLocaleTimeString()}`}
+          </div>
+        </div>
+        <button
+          onClick={load}
+          style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textSecondary, border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}
+        >
+          ↻ Refresh
+        </button>
+      </div>
+
+      {/* Stage filter chips */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+        {(["All", ...CLIPPING_STAGES] as const).map(s => {
+          const active = filter === s;
+          const c = s === "All" ? COLORS.textSecondary : CLIPPING_STAGE_COLORS[s as ClippingStage];
+          const n = s === "All" ? leads.length : (counts[s] || 0);
+          return (
+            <button
+              key={s}
+              onClick={() => setFilter(s as ClippingStage | "All")}
+              style={{
+                background: active ? c : "rgba(255,255,255,0.05)",
+                color: active ? COLORS.bg : c,
+                border: `1px solid ${c}`,
+                borderRadius: "14px",
+                padding: "4px 12px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {s} {n > 0 && `· ${n}`}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>Loading leads…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>No leads in this stage yet.</div>
+      ) : (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {filtered.map(lead => (
+            <div
+              key={lead._airtableId}
+              style={{
+                background: "rgba(200,210,220,0.05)",
+                border: `1px solid ${COLORS.borderSubtle}`,
+                borderRadius: "10px",
+                padding: "14px 16px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: "200px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "15px", fontWeight: 600, color: COLORS.textOnDark }}>{lead.channelName}</span>
+                    {lead.subs && <span style={{ fontSize: "12px", color: COLORS.textMuted }}>{lead.subs} subs</span>}
+                    {lead.lane && (
+                      <span style={{ fontSize: "11px", color: COLORS.teal, border: `1px solid ${COLORS.teal}`, borderRadius: "10px", padding: "1px 8px" }}>{lead.lane}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "6px", lineHeight: 1.5 }}>{lead.whyClip}</div>
+                  {lead.showsPress && (
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "6px", lineHeight: 1.4 }}>{lead.showsPress}</div>
+                  )}
+                  <div style={{ display: "flex", gap: "12px", marginTop: "8px", flexWrap: "wrap", fontSize: "12px" }}>
+                    {lead.website && <a href={lead.website} target="_blank" rel="noreferrer" style={{ color: COLORS.coral }}>YouTube ↗</a>}
+                    {lead.instagram && <span style={{ color: COLORS.textMuted }}>IG {lead.instagram}</span>}
+                    {lead.email
+                      ? <a href={`mailto:${lead.email}`} style={{ color: COLORS.green }}>{lead.email}</a>
+                      : <span style={{ color: COLORS.textFaint }}>{lead.contactStatus || "no email"}</span>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "8px" }}>
+                  <div style={{
+                    fontSize: "16px",
+                    fontWeight: 700,
+                    color: lead.score >= 85 ? COLORS.green : lead.score >= 70 ? COLORS.gold : COLORS.textMuted,
+                    border: `1px solid ${lead.score >= 85 ? COLORS.green : lead.score >= 70 ? COLORS.gold : COLORS.borderSubtle}`,
+                    borderRadius: "8px",
+                    padding: "2px 10px",
+                  }}>
+                    {lead.score || "—"}
+                  </div>
+                  <ClippingStageSelector lead={lead} onChange={(s) => onStageChange(lead._airtableId, s)} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClippingWorkspace() {
+  return (
+    <div style={{ height: "100%", overflow: "auto" }}>
+      <ClippingReview />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
 // PLACEHOLDER WORKSPACE COMPONENTS
 // ═══════════════════════════════════════════
 function JobsWorkspace() {
@@ -8034,6 +8258,7 @@ export default function Dashboard() {
           >
             {{
               "art-advisory": <ArtAdvisoryWorkspace />,
+              "clipping": <ClippingWorkspace />,
               // "outreach": <OutreachWorkspace />,  // SHELVED
               // "jobs": <JobsWorkspace />,  // SHELVED
               // "grants": <GrantsWorkspace />,  // SHELVED

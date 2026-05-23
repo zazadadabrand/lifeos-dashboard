@@ -36,6 +36,7 @@ function getProtectedArrayField(key: string): string | null {
   if (key === 'pipeline:snapshot') return 'artists';
   if (key === 'business:snapshot') return 'deals';
   if (key === 'family:snapshot') return 'ideas';
+  if (key === 'clipping:snapshot') return 'leads';
   return null;
 }
 

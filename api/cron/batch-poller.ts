@@ -161,6 +161,86 @@ async function pushDeals(deals: any[], agentType: string): Promise<number> {
   return newDeals.length;
 }
 
+// Mirror new clipping leads into the Airtable "Clipping Leads" table so the
+// workspace (which reads Airtable first) surfaces them. Best-effort.
+const CLIPPING_BASE_ID = 'apppZ2gNZ9tjORpvp';
+const CLIPPING_TABLE_ID = 'tblVkuHFCD96iJ4ia';
+
+async function airtableCreateClipping(leads: any[]): Promise<void> {
+  const pat = process.env.AIRTABLE_PAT;
+  if (!pat || leads.length === 0) return;
+
+  const records = leads.map((l: any) => ({
+    fields: {
+      'Channel Name': l.channelName ?? l.name ?? '',
+      'Date Scouted': l.dateScouted ?? today(),
+      'Batch': l.batch ?? `clipping-scout-${today()}`,
+      'Lane': l.lane ?? '',
+      'Subs': l.subs ?? '',
+      'Score': typeof l.score === 'number' ? l.score : (parseInt(l.score, 10) || 0),
+      'Why Clip': l.whyClip ?? '',
+      'Shows Press': l.showsPress ?? '',
+      'YT Handle': l.ytHandle ?? '',
+      'Website': l.youtubeUrl ?? l.website ?? '',
+      'Instagram': l.instagram ?? '',
+      'Email': l.email ?? '',
+      'Contact Status': l.contactStatus ?? 'Private / none found',
+      'Status': l.status ?? 'Scouted',
+    },
+  }));
+
+  // Airtable max 10 records per create request
+  for (let i = 0; i < records.length; i += 10) {
+    const batch = records.slice(i, i + 10);
+    try {
+      await fetch(`https://api.airtable.com/v0/${CLIPPING_BASE_ID}/${CLIPPING_TABLE_ID}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${pat}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ records: batch, typecast: true }),
+      });
+    } catch (e) {
+      console.error('[batch-poller] airtableCreateClipping failed', e);
+    }
+  }
+}
+
+// Auto-push clipping-scout results into clipping:snapshot (dedup) + Airtable
+async function pushLeads(leads: any[]): Promise<number> {
+  const snapshot = await kvGet('clipping:snapshot');
+  const existing: any[] = snapshot?.leads ?? [];
+  const existingNames = new Set(
+    existing.map((l: any) => (l.channelName ?? l.name ?? '').toLowerCase().trim()).filter(Boolean)
+  );
+
+  const newLeads = leads
+    .filter((l: any) => {
+      const name = (l.channelName ?? l.name ?? '').toLowerCase().trim();
+      return name && !existingNames.has(name);
+    })
+    .map((l: any) => ({
+      dateScouted: today(),
+      batch: `clipping-scout-${today()}`,
+      antRating: '',
+      ...l,
+      status: l.status ?? 'Scouted',
+    }));
+
+  if (newLeads.length === 0) return 0;
+
+  await kvSet('clipping:snapshot', {
+    leads: [...existing, ...newLeads],
+    snapshotAt: new Date().toISOString(),
+  });
+
+  // Mirror to Airtable for the workspace UI (best-effort)
+  await airtableCreateClipping(newLeads);
+
+  return newLeads.length;
+}
+
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS });
@@ -234,6 +314,9 @@ export default async function handler(req: Request) {
           } else if (agentType === 'grants-scout') {
             added = await pushDeals(parsed.grants ?? [], agentType);
             log.push(`grants-scout: +${added} grants`);
+          } else if (agentType === 'clipping-scout') {
+            added = await pushLeads(parsed.leads ?? []);
+            log.push(`clipping-scout: +${added} leads`);
           }
           processed++;
         } else {
