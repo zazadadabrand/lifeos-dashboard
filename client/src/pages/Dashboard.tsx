@@ -6665,33 +6665,36 @@ function ArtAdvisoryWorkspace() {
 // ═══════════════════════════════════════════
 // CLIPPING WORKSPACE (YT Clipping Leads)
 // ═══════════════════════════════════════════
-type ClippingStage = "Scouted" | "Vetting" | "Approved" | "Outreach" | "Client" | "Pass";
-const CLIPPING_STAGES: ClippingStage[] = ["Scouted", "Vetting", "Approved", "Outreach", "Client", "Pass"];
+// Stages mirror the "YT Clipping Prospects — V2" Airtable table (field: Stage)
+type ClippingStage = "New" | "Channel verified" | "Outreach drafted" | "Sent" | "Replied" | "Booked" | "Won" | "Lost" | "Pass";
+const CLIPPING_STAGES: ClippingStage[] = ["New", "Channel verified", "Outreach drafted", "Sent", "Replied", "Booked", "Won", "Lost", "Pass"];
 const CLIPPING_STAGE_COLORS: Record<ClippingStage, string> = {
-  "Scouted": COLORS.textMuted,
-  "Vetting": COLORS.teal,
-  "Approved": COLORS.gold,
-  "Outreach": COLORS.purple,
-  "Client": COLORS.green,
-  "Pass": COLORS.chartRed,
+  "New": COLORS.textMuted,
+  "Channel verified": COLORS.teal,
+  "Outreach drafted": "#5b9bd5",
+  "Sent": COLORS.gold,
+  "Replied": COLORS.purple,
+  "Booked": COLORS.green,
+  "Won": "#2e9e4f",
+  "Lost": COLORS.chartRed,
+  "Pass": COLORS.textFaint,
 };
 
 interface ClippingLead {
   channelName: string;
-  dateScouted: string;
-  batch: string;
+  dateAdded: string;
   lane: string;
   subs: string;
-  score: number;
   whyClip: string;
-  showsPress: string;
+  bio: string;
   ytHandle: string;
-  website: string;
-  instagram: string;
+  youtubeUrl: string;
+  linkedin: string;
   email: string;
   contactStatus: string;
+  serviceability: string;
   status: ClippingStage;
-  antRating: string;
+  nextAction: string;
   _airtableId: string;
 }
 
@@ -6699,20 +6702,19 @@ async function fetchClippingFromAirtable(): Promise<ClippingLead[]> {
   const records = await airtableList('clipping');
   return records.map((r: any) => ({
     channelName: r.fields['Channel Name'] || '',
-    dateScouted: r.fields['Date Scouted'] || '',
-    batch: r.fields['Batch'] || '',
+    dateAdded: r.fields['Date Added'] || '',
     lane: r.fields['Lane'] || '',
     subs: r.fields['Subs'] || '',
-    score: r.fields['Score'] || 0,
-    whyClip: r.fields['Why Clip'] || '',
-    showsPress: r.fields['Shows Press'] || '',
+    whyClip: r.fields['Why Clip / Fit'] || '',
+    bio: r.fields['Bio'] || '',
     ytHandle: r.fields['YT Handle'] || '',
-    website: r.fields['Website'] || '',
-    instagram: r.fields['Instagram'] || '',
-    email: r.fields['Email'] || '',
+    youtubeUrl: r.fields['YouTube URL'] || '',
+    linkedin: r.fields['LinkedIn'] || '',
+    email: r.fields['Primary Contact'] || '',
     contactStatus: r.fields['Contact Status'] || '',
-    status: (r.fields['Status'] as ClippingStage) || 'Scouted',
-    antRating: r.fields['Ant Rating'] || '',
+    serviceability: r.fields['Serviceability'] || '',
+    status: (r.fields['Stage'] as ClippingStage) || 'New',
+    nextAction: r.fields['Next Action'] || '',
     _airtableId: r.id,
   }));
 }
@@ -6726,7 +6728,7 @@ function ClippingStageSelector({ lead, onChange }: { lead: ClippingLead; onChang
       onChange={async (e) => {
         const next = e.target.value as ClippingStage;
         setSaving(true);
-        const ok = await airtableUpdate('clipping', lead._airtableId, { 'Status': next });
+        const ok = await airtableUpdate('clipping', lead._airtableId, { 'Stage': next });
         setSaving(false);
         if (ok) onChange(next);
       }}
@@ -6754,7 +6756,15 @@ function ClippingReview() {
 
   const load = async () => {
     const data = await fetchClippingFromAirtable();
-    data.sort((a, b) => (b.score || 0) - (a.score || 0));
+    // No numeric score in V2 — sort by subscriber count (parse "3.9M" / "830K"), unknowns last
+    const subsToNum = (s: string) => {
+      const m = (s || '').trim().match(/^([\d.]+)\s*([KMB]?)/i);
+      if (!m) return -1;
+      const n = parseFloat(m[1]);
+      const mult = m[2].toUpperCase() === 'B' ? 1e9 : m[2].toUpperCase() === 'M' ? 1e6 : m[2].toUpperCase() === 'K' ? 1e3 : 1;
+      return n * mult;
+    };
+    data.sort((a, b) => subsToNum(b.subs) - subsToNum(a.subs));
     setLeads(data);
     setLastSync(new Date());
     setLoading(false);
@@ -6779,7 +6789,7 @@ function ClippingReview() {
         <div>
           <h2 style={{ margin: 0, fontSize: "20px", color: COLORS.textOnDark }}>YT Clipping Leads</h2>
           <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "4px" }}>
-            {leads.length} creators · daily scout adds ≥10/day
+            {leads.length} v2 prospects · fed daily by the YT Clipping Leads scout
             {lastSync && ` · synced ${lastSync.toLocaleTimeString()}`}
           </div>
         </div>
@@ -6843,29 +6853,28 @@ function ClippingReview() {
                       <span style={{ fontSize: "11px", color: COLORS.teal, border: `1px solid ${COLORS.teal}`, borderRadius: "10px", padding: "1px 8px" }}>{lead.lane}</span>
                     )}
                   </div>
-                  <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "6px", lineHeight: 1.5 }}>{lead.whyClip}</div>
-                  {lead.showsPress && (
-                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "6px", lineHeight: 1.4 }}>{lead.showsPress}</div>
+                  {lead.whyClip && <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "6px", lineHeight: 1.5 }}>{lead.whyClip}</div>}
+                  {lead.bio && (
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "6px", lineHeight: 1.4 }}>{lead.bio}</div>
                   )}
                   <div style={{ display: "flex", gap: "12px", marginTop: "8px", flexWrap: "wrap", fontSize: "12px" }}>
-                    {lead.website && <a href={lead.website} target="_blank" rel="noreferrer" style={{ color: COLORS.coral }}>YouTube ↗</a>}
-                    {lead.instagram && <span style={{ color: COLORS.textMuted }}>IG {lead.instagram}</span>}
+                    {lead.youtubeUrl && <a href={lead.youtubeUrl} target="_blank" rel="noreferrer" style={{ color: COLORS.coral }}>YouTube ↗</a>}
+                    {lead.linkedin && <a href={lead.linkedin} target="_blank" rel="noreferrer" style={{ color: "#5b9bd5" }}>LinkedIn ↗</a>}
                     {lead.email
                       ? <a href={`mailto:${lead.email}`} style={{ color: COLORS.green }}>{lead.email}</a>
                       : <span style={{ color: COLORS.textFaint }}>{lead.contactStatus || "no email"}</span>}
                   </div>
+                  {lead.nextAction && (
+                    <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px" }}>→ {lead.nextAction}</div>
+                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "8px" }}>
-                  <div style={{
-                    fontSize: "16px",
-                    fontWeight: 700,
-                    color: lead.score >= 85 ? COLORS.green : lead.score >= 70 ? COLORS.gold : COLORS.textMuted,
-                    border: `1px solid ${lead.score >= 85 ? COLORS.green : lead.score >= 70 ? COLORS.gold : COLORS.borderSubtle}`,
-                    borderRadius: "8px",
-                    padding: "2px 10px",
-                  }}>
-                    {lead.score || "—"}
-                  </div>
+                  {lead.contactStatus && (
+                    <span style={{ fontSize: "10px", color: COLORS.textMuted, border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "10px", padding: "1px 8px", whiteSpace: "nowrap" }}>{lead.contactStatus}</span>
+                  )}
+                  {lead.serviceability && (
+                    <span style={{ fontSize: "10px", color: COLORS.textFaint, whiteSpace: "nowrap" }}>{lead.serviceability}</span>
+                  )}
                   <ClippingStageSelector lead={lead} onChange={(s) => onStageChange(lead._airtableId, s)} />
                 </div>
               </div>

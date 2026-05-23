@@ -10,14 +10,20 @@ export const config = { runtime: 'edge' };
  * DELETE /api/airtable/proxy?table=Outreach&id=recXYZ → delete record
  */
 
-const BASE_ID = 'apppZ2gNZ9tjORpvp';
+const BASE_ID = 'apppZ2gNZ9tjORpvp';            // LifeOS base (default)
+const BERNARD_OPS_BASE_ID = 'appRiVlukeNES8GO3'; // Bernard Studia Ops base
 
 const ALLOWED_TABLES: Record<string, string> = {
   'artists':  'tblHBC8yJQbejxqHg',
   'outreach': 'tbluGWIHohMkLlJVb',
   'jobs':     'tbl2j7sXApKFtQ8kG',
   'grants':   'tbl8Yr902XCzid47O',
-  'clipping': 'tblVkuHFCD96iJ4ia',
+  'clipping': 'tbl8by0SmTy4BFbaE',  // YT Clipping Prospects — V2, in Bernard Studia Ops base (see TABLE_BASES)
+};
+
+// Tables that live outside the default LifeOS base. Falls back to BASE_ID when absent.
+const TABLE_BASES: Record<string, string> = {
+  'clipping': BERNARD_OPS_BASE_ID,
 };
 
 const CORS = {
@@ -62,7 +68,8 @@ export default async function handler(req: Request) {
       return jsonResp({ error: `Unknown table: ${tableParam}. Allowed: ${Object.keys(ALLOWED_TABLES).join(', ')}` }, 400);
     }
 
-    const basePath = `${BASE_ID}/${tableId}`;
+    const baseId = TABLE_BASES[tableParam] || BASE_ID;
+    const basePath = `${baseId}/${tableId}`;
 
     // GET — list or get single
     if (req.method === 'GET') {

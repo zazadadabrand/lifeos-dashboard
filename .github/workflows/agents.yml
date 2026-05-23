@@ -36,12 +36,16 @@ jobs:
           curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/art-scout" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
+  # DEPRECATED 2026-05-23: the live "daily-yt-clipping-leads" scheduled task is the single
+  # clipping pipeline (writes to Bernard Studia Ops > YT Clipping Prospects — V2, which the
+  # dashboard now reads directly). This GitHub Actions scout wrote to a parallel LifeOS table
+  # and is no longer on the daily schedule. Left as manual-only so nothing auto-runs it; do not
+  # add it back to the '0 12 * * *' schedule or the 'all' fan-out.
   clipping-scout:
-    name: Clipping Scout (12 leads/day)
+    name: Clipping Scout (DEPRECATED — manual only)
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
-      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'clipping-scout' || github.event.inputs.agent == 'all'))
+      github.event_name == 'workflow_dispatch' && github.event.inputs.agent == 'clipping-scout'
     steps:
       - name: Trigger Clipping Scout
         run: |
