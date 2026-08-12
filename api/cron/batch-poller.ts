@@ -241,6 +241,90 @@ async function pushLeads(leads: any[]): Promise<number> {
   return newLeads.length;
 }
 
+// ═══════════════════════════════════════════
+// CD SCOUT — daily creative director curation
+// Completion contract: drop anything under 8, dedup against cd-scout:seen
+// (forever registry), append new names to it, create rows in the Airtable
+// "CD Pipeline" table (LifeOS base) with Stage = Curated.
+// ═══════════════════════════════════════════
+const CD_BASE_ID = 'apppZ2gNZ9tjORpvp';   // LifeOS base
+const CD_TABLE_ID = 'tblH2zLUwGm6OoGle';  // CD Pipeline
+
+async function airtableCreateCDs(cds: any[]): Promise<void> {
+  const pat = process.env.AIRTABLE_PAT;
+  if (!pat || cds.length === 0) return;
+
+  const records = cds.map((c: any) => ({
+    fields: {
+      'Name': c.name ?? '',
+      'Date': today(),
+      'Role': c.role ?? '',
+      'Disciplines': c.disciplines ?? '',
+      'Tier': c.tier ?? (c.total >= 12 ? 'Study' : 'Watch'),
+      'Total': typeof c.total === 'number' ? c.total : 0,
+      'World': c.scores?.worldCoherence ?? 0,
+      'Range': c.scores?.range ?? 0,
+      'Taste': c.scores?.tasteSignal ?? 0,
+      'Study': c.scores?.studyYield ?? 0,
+      'Proximity': c.scores?.proximity ?? 0,
+      'Signature Work 1': c.signatureWorks?.[0]?.url ?? '',
+      'Signature Work 2': c.signatureWorks?.[1]?.url ?? '',
+      'Signature Work 3': c.signatureWorks?.[2]?.url ?? '',
+      'Why': c.whyTheyMadeTheCut ?? '',
+      'Study Note': [
+        c.studyNote ?? '',
+        // Preserve work titles alongside URLs (URL fields hold links only)
+        ...(Array.isArray(c.signatureWorks)
+          ? [`\n\nWorks: ${c.signatureWorks.map((w: any) => w?.title).filter(Boolean).join(' · ')}`]
+          : []),
+      ].join(''),
+      'Links': c.links ?? '',
+      'Stage': 'Curated',
+      'Batch': `cd-scout-${today()}`,
+    },
+  }));
+
+  for (let i = 0; i < records.length; i += 10) {
+    const batch = records.slice(i, i + 10);
+    try {
+      await fetch(`https://api.airtable.com/v0/${CD_BASE_ID}/${CD_TABLE_ID}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${pat}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ records: batch, typecast: true }),
+      });
+    } catch (e) {
+      console.error('[batch-poller] airtableCreateCDs failed', e);
+    }
+  }
+}
+
+async function pushCDs(cds: any[]): Promise<number> {
+  // Score floor: anything under 8 is dropped by the poller
+  const scored = cds.filter((c: any) => c.name && (typeof c.total === 'number' ? c.total : 0) >= 8);
+
+  // Dedup against the forever registry (case-insensitive)
+  const seen = await kvGet('cd-scout:seen');
+  const seenNames: string[] = seen?.names ?? [];
+  const seenSet = new Set(seenNames.map((n: string) => n.toLowerCase().trim()));
+
+  const fresh = scored.filter((c: any) => !seenSet.has(c.name.toLowerCase().trim()));
+  if (fresh.length === 0) return 0;
+
+  // Append names to the registry — they never resurface, even after Pass
+  await kvSet('cd-scout:seen', {
+    names: [...seenNames, ...fresh.map((c: any) => c.name)],
+    updatedAt: new Date().toISOString(),
+  });
+
+  // Rows land in the Airtable CD Pipeline table as Curated
+  await airtableCreateCDs(fresh);
+
+  return fresh.length;
+}
+
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS });
@@ -317,6 +401,9 @@ export default async function handler(req: Request) {
           } else if (agentType === 'clipping-scout') {
             added = await pushLeads(parsed.leads ?? []);
             log.push(`clipping-scout: +${added} leads`);
+          } else if (agentType === 'cd-scout') {
+            added = await pushCDs(parsed.cds ?? []);
+            log.push(`cd-scout: +${added} CDs`);
           }
           processed++;
         } else {

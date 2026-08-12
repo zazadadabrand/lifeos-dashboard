@@ -622,19 +622,9 @@ const LANES: Lane[] = [
     name: "Family & Life",
     color: COLORS.gold,
     icon: "heart",
-    description: "Siyah, Zoey, Kel'li coordination, wellness tracking",
+    description: "Zoey, Kel'li coordination, wellness tracking",
     status: "planned",
     agents: [
-      {
-        id: "siyah",
-        name: "Siyah Agent",
-        codename: "Siyah",
-        role: "Son (20)",
-        description: "Proactively plans activities, conversation topics, and milestone moments. Tracks Saturday calls and bi-weekly visits",
-        status: "active",
-        schedule: "Saturdays",
-        icon: "person",
-      },
       {
         id: "zoey",
         name: "Zoey Agent",
@@ -1056,7 +1046,7 @@ interface PipelineArtist {
 // ═══════════════════════════════════════════
 // CARD STACK & WORKSPACE TYPES
 // ═══════════════════════════════════════════
-type CardId = "art-advisory" | "clipping" | "outreach" | "jobs" | "grants"; // outreach & grants hidden but types kept
+type CardId = "art-advisory" | "clipping" | "cd-review" | "outreach" | "jobs" | "grants"; // outreach & grants hidden but types kept
 
 interface WorkspaceCard {
   id: CardId;
@@ -1069,6 +1059,7 @@ interface WorkspaceCard {
 const WORKSPACE_CARDS: WorkspaceCard[] = [
   { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
   { id: "clipping", label: "Clipping", icon: "signal", color: COLORS.coral, description: "YT clipping-native creator leads, daily scout, outreach pipeline" },
+  { id: "cd-review", label: "CD Review", icon: "telescope", color: COLORS.purple, description: "Daily creative director curation — taste curriculum + latent collaborators" },
   // { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },  // SHELVED
   // { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },  // SHELVED
   // { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },  // SHELVED
@@ -2306,10 +2297,9 @@ const FAMILY_STAGE_COLORS: Record<FamilyIdeaStage, string> = {
   "Declined": COLORS.chartRed,
 };
 
-type FamilyPerson = "Siyah" | "Zoey" | "Kel'li" | "Family";
-const FAMILY_PEOPLE: FamilyPerson[] = ["Siyah", "Zoey", "Kel'li", "Family"];
+type FamilyPerson = "Zoey" | "Kel'li" | "Family";
+const FAMILY_PEOPLE: FamilyPerson[] = ["Zoey", "Kel'li", "Family"];
 const PERSON_COLORS: Record<FamilyPerson, string> = {
-  "Siyah": COLORS.teal,
   "Zoey": COLORS.purple,
   "Kel'li": COLORS.coral,
   "Family": COLORS.gold,
@@ -4947,7 +4937,6 @@ function MiniCalendar() {
   const blanks = Array.from({ length: firstDay }, (_, i) => i);
   const today = etNow.getDate();
   const birthday = 25;
-  const saturdays = days.filter((d) => new Date(year, month, d).getDay() === 6);
 
   return (
     <div className="rounded-lg p-3" style={{ ...GLASS_ALT }}>
@@ -4956,7 +4945,6 @@ function MiniCalendar() {
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-sm" style={{ background: COLORS.teal }} /> Today
           <span className="w-2 h-2 rounded-sm" style={{ background: COLORS.gold }} /> Birthday
-          <span className="w-2 h-2 rounded-sm" style={{ background: `${COLORS.teal}25` }} /> Siyah Call
         </span>
       </div>
       <div className="grid grid-cols-7 gap-0.5 text-center">
@@ -4967,14 +4955,12 @@ function MiniCalendar() {
         {days.map((d) => {
           const isToday = d === today;
           const isBirthday = d === birthday;
-          const isSaturday = saturdays.includes(d);
           let bg = "transparent";
           let textColor = COLORS.textMuted;
           let fontWeight = 400;
 
           if (isToday) { bg = COLORS.teal; textColor = COLORS.bg; fontWeight = 700; }
           else if (isBirthday) { bg = `${COLORS.gold}25`; textColor = COLORS.gold; fontWeight = 700; }
-          else if (isSaturday) { bg = `${COLORS.teal}12`; textColor = COLORS.teal; }
 
           return (
             <div key={d} className="relative text-[11px] tabular-nums rounded-sm py-0.5 leading-tight" style={{ background: bg, color: textColor, fontWeight }}>
@@ -5817,6 +5803,7 @@ function QuickNotes() {
 // ═══════════════════════════════════════════
 const WORKSPACE_FOCUS: Record<CardId, string[]> = {
   "art-advisory": ["Scout pipeline", "Taste profiles", "Collector leads"],
+  "cd-review": ["Daily taste call", "Study notes", "Latent collaborators"],
   "outreach": ["Warm intros", "Email drafts", "Follow-ups"],
   "jobs": ["Applications", "Interview prep", "Networking"],
   "grants": ["Deadlines", "Eligibility", "Submissions"],
@@ -6663,6 +6650,290 @@ function ArtAdvisoryWorkspace() {
 }
 
 // ═══════════════════════════════════════════
+// CD REVIEW WORKSPACE (Daily Creative Director Curation)
+// ═══════════════════════════════════════════
+// Fed daily by /api/cron/cd-scout → batch-poller → Airtable "CD Pipeline".
+// Every card carries one studyNote — the daily transferable takeaway.
+type CDStage = "Curated" | "Deep Dive" | "In Network" | "Pass";
+const CD_STAGES: CDStage[] = ["Curated", "Deep Dive", "In Network", "Pass"];
+const CD_STAGE_COLORS: Record<CDStage, string> = {
+  "Curated": COLORS.textMuted,
+  "Deep Dive": COLORS.purple,
+  "In Network": "#5b9bd5",
+  "Pass": COLORS.textFaint,
+};
+const CD_TIER_COLORS: Record<string, string> = {
+  "Study": COLORS.gold,
+  "Watch": COLORS.teal,
+};
+const CD_CRITERIA: { key: "world" | "range" | "taste" | "study" | "proximity"; label: string }[] = [
+  { key: "world", label: "World coherence" },
+  { key: "range", label: "Range" },
+  { key: "taste", label: "Taste signal" },
+  { key: "study", label: "Study yield" },
+  { key: "proximity", label: "Proximity" },
+];
+
+interface CDCard {
+  _airtableId: string;
+  name: string;
+  date: string;
+  role: string;
+  disciplines: string;
+  tier: string;
+  total: number;
+  world: number;
+  range: number;
+  taste: number;
+  study: number;
+  proximity: number;
+  works: string[];
+  why: string;
+  studyNote: string;
+  links: string;
+  stage: CDStage;
+}
+
+async function fetchCDsFromAirtable(): Promise<CDCard[]> {
+  const records = await airtableList('cds');
+  return records.map((r: any) => ({
+    _airtableId: r.id,
+    name: r.fields['Name'] || '',
+    date: r.fields['Date'] || '',
+    role: r.fields['Role'] || '',
+    disciplines: r.fields['Disciplines'] || '',
+    tier: r.fields['Tier'] || 'Watch',
+    total: typeof r.fields['Total'] === 'number' ? r.fields['Total'] : 0,
+    world: typeof r.fields['World'] === 'number' ? r.fields['World'] : 0,
+    range: typeof r.fields['Range'] === 'number' ? r.fields['Range'] : 0,
+    taste: typeof r.fields['Taste'] === 'number' ? r.fields['Taste'] : 0,
+    study: typeof r.fields['Study'] === 'number' ? r.fields['Study'] : 0,
+    proximity: typeof r.fields['Proximity'] === 'number' ? r.fields['Proximity'] : 0,
+    works: [r.fields['Signature Work 1'], r.fields['Signature Work 2'], r.fields['Signature Work 3']].filter(Boolean),
+    why: r.fields['Why'] || '',
+    studyNote: r.fields['Study Note'] || '',
+    links: r.fields['Links'] || '',
+    stage: (r.fields['Stage'] as CDStage) || 'Curated',
+  }));
+}
+
+function CDStageSelector({ cd, onChange }: { cd: CDCard; onChange: (s: CDStage) => void }) {
+  const [saving, setSaving] = useState(false);
+  return (
+    <select
+      value={cd.stage}
+      disabled={saving}
+      onChange={async (e) => {
+        const next = e.target.value as CDStage;
+        setSaving(true);
+        const ok = await airtableUpdate('cds', cd._airtableId, { 'Stage': next });
+        setSaving(false);
+        if (ok) onChange(next);
+      }}
+      style={{
+        background: "rgba(0,0,0,0.3)",
+        color: CD_STAGE_COLORS[cd.stage],
+        border: `1px solid ${CD_STAGE_COLORS[cd.stage]}`,
+        borderRadius: "6px",
+        padding: "4px 8px",
+        fontSize: "12px",
+        fontWeight: 600,
+        cursor: saving ? "wait" : "pointer",
+      }}
+    >
+      {CD_STAGES.map(s => <option key={s} value={s} style={{ background: COLORS.bg, color: COLORS.textPrimary }}>{s}</option>)}
+    </select>
+  );
+}
+
+function CDReview() {
+  const [cds, setCds] = useState<CDCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<CDStage | "All" | "Today">("Today");
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [scoresOpen, setScoresOpen] = useState<Record<string, boolean>>({});
+
+  const load = async () => {
+    const data = await fetchCDsFromAirtable();
+    // Newest batch first, then score descending within a day
+    data.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.total - a.total);
+    setCds(data);
+    setLastSync(new Date());
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const latestDate = cds.length > 0 ? cds.reduce((m, c) => (c.date > m ? c.date : m), '') : '';
+  const filtered =
+    filter === "All" ? cds :
+    filter === "Today" ? cds.filter(c => c.date === latestDate && c.stage !== "Pass") :
+    cds.filter(c => c.stage === filter);
+  const counts = CD_STAGES.reduce((acc, s) => { acc[s] = cds.filter(c => c.stage === s).length; return acc; }, {} as Record<string, number>);
+  const todayCount = cds.filter(c => c.date === latestDate && c.stage !== "Pass").length;
+
+  const onStageChange = (id: string, next: CDStage) => {
+    setCds(prev => prev.map(c => c._airtableId === id ? { ...c, stage: next } : c));
+  };
+
+  return (
+    <div style={{ padding: "20px", color: COLORS.textPrimary }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: "20px", color: COLORS.textOnDark }}>CD Review</h2>
+          <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "4px" }}>
+            {cds.length} creative directors · fed daily by CD Scout · one study note per card
+            {lastSync && ` · synced ${lastSync.toLocaleTimeString()}`}
+          </div>
+        </div>
+        <button
+          onClick={load}
+          style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textSecondary, border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}
+        >
+          ↻ Refresh
+        </button>
+      </div>
+
+      {/* Stage filter chips — "Today" is the daily review block */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+        {(["Today", "All", ...CD_STAGES] as const).map(s => {
+          const active = filter === s;
+          const c = s === "Today" ? COLORS.gold : s === "All" ? COLORS.textSecondary : CD_STAGE_COLORS[s as CDStage];
+          const n = s === "Today" ? todayCount : s === "All" ? cds.length : (counts[s] || 0);
+          return (
+            <button
+              key={s}
+              onClick={() => setFilter(s as CDStage | "All" | "Today")}
+              style={{
+                background: active ? c : "rgba(255,255,255,0.05)",
+                color: active ? COLORS.bg : c,
+                border: `1px solid ${c}`,
+                borderRadius: "14px",
+                padding: "4px 12px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {s} {n > 0 && `· ${n}`}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>Loading creative directors…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>
+          {filter === "Today" ? "No cards for the latest batch yet — CD Scout runs daily at 08:00 ET." : "No CDs in this stage yet."}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {filtered.map(cd => {
+            const tierColor = CD_TIER_COLORS[cd.tier] || COLORS.textMuted;
+            const scoreOpen = !!scoresOpen[cd._airtableId];
+            const scoreVals: Record<string, number> = { world: cd.world, range: cd.range, taste: cd.taste, study: cd.study, proximity: cd.proximity };
+            return (
+              <div
+                key={cd._airtableId}
+                style={{
+                  background: "rgba(200,210,220,0.05)",
+                  border: `1px solid ${cd.tier === "Study" ? `${tierColor}55` : COLORS.borderSubtle}`,
+                  borderRadius: "10px",
+                  padding: "14px 16px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: "220px" }}>
+                    {/* Name · role · tier badge */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "15px", fontWeight: 600, color: COLORS.textOnDark }}>{cd.name}</span>
+                      <span style={{ fontSize: "10px", fontWeight: 700, color: tierColor, border: `1px solid ${tierColor}`, borderRadius: "10px", padding: "1px 8px", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                        {cd.tier} · {cd.total}/15
+                      </span>
+                      {cd.date && <span style={{ fontSize: "11px", color: COLORS.textFaint }}>{cd.date}</span>}
+                    </div>
+                    {(cd.role || cd.disciplines) && (
+                      <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "3px" }}>
+                        {cd.role}{cd.role && cd.disciplines ? " · " : ""}{cd.disciplines && <span style={{ color: COLORS.teal }}>{cd.disciplines}</span>}
+                      </div>
+                    )}
+
+                    {/* Why they made the cut */}
+                    {cd.why && <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "8px", lineHeight: 1.5 }}>{cd.why}</div>}
+
+                    {/* Study note — the daily takeaway, visually called out */}
+                    {cd.studyNote && (
+                      <div style={{
+                        marginTop: "10px",
+                        padding: "10px 12px",
+                        background: `${COLORS.gold}12`,
+                        borderLeft: `3px solid ${COLORS.gold}`,
+                        borderRadius: "0 8px 8px 0",
+                        fontSize: "12px",
+                        color: COLORS.textOnDark,
+                        lineHeight: 1.55,
+                        whiteSpace: "pre-line",
+                      }}>
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: COLORS.gold, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Study note</span>
+                        {cd.studyNote}
+                      </div>
+                    )}
+
+                    {/* Signature works + links */}
+                    <div style={{ display: "flex", gap: "12px", marginTop: "10px", flexWrap: "wrap", fontSize: "12px" }}>
+                      {cd.works.map((w, i) => (
+                        <a key={i} href={w} target="_blank" rel="noreferrer" style={{ color: COLORS.coral }}>Work {i + 1} ↗</a>
+                      ))}
+                      {cd.links && cd.links.split(/[·,\s]+/).filter(l => l.startsWith('http')).map((l, i) => (
+                        <a key={`l${i}`} href={l} target="_blank" rel="noreferrer" style={{ color: "#5b9bd5" }}>
+                          {l.includes('instagram.com') ? 'Instagram ↗' : 'Site ↗'}
+                        </a>
+                      ))}
+                    </div>
+
+                    {/* Score breakdown — collapsed by default */}
+                    <div
+                      onClick={() => setScoresOpen(p => ({ ...p, [cd._airtableId]: !scoreOpen }))}
+                      style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", cursor: "pointer", userSelect: "none" }}
+                    >
+                      {scoreOpen ? "▾" : "▸"} Score breakdown
+                    </div>
+                    {scoreOpen && (
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "6px", marginLeft: "14px" }}>
+                        {CD_CRITERIA.map(({ key, label }) => (
+                          <span key={key} style={{ fontSize: "11px", color: COLORS.textSecondary }}>
+                            {label} <span style={{ fontWeight: 700, color: scoreVals[key] >= 3 ? COLORS.gold : scoreVals[key] >= 2 ? COLORS.teal : COLORS.textMuted }}>{scoreVals[key]}</span><span style={{ color: COLORS.textFaint }}>/3</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <CDStageSelector cd={cd} onChange={(s) => onStageChange(cd._airtableId, s)} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CDReviewWorkspace() {
+  return (
+    <div style={{ height: "100%", overflow: "auto" }}>
+      <CDReview />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
 // CLIPPING WORKSPACE (YT Clipping Leads)
 // ═══════════════════════════════════════════
 // Stages mirror the "YT Clipping Prospects — V2" Airtable table (field: Stage)
@@ -6886,10 +7157,271 @@ function ClippingReview() {
   );
 }
 
+// ═══════════════════════════════════════════
+// CLIP PRODUCTION TRACKER (Clip Sources + Clips)
+// ═══════════════════════════════════════════
+type ProdStage = "Sourced" | "Suggested" | "Cut" | "Finalized" | "Sent";
+const PROD_STAGES: ProdStage[] = ["Sourced", "Suggested", "Cut", "Finalized", "Sent"];
+const PROD_STAGE_COLORS: Record<ProdStage, string> = {
+  "Sourced": COLORS.textMuted,
+  "Suggested": COLORS.teal,
+  "Cut": COLORS.gold,
+  "Finalized": COLORS.purple,
+  "Sent": COLORS.green,
+};
+
+interface ClipSource {
+  _airtableId: string;
+  title: string;
+  show: string;
+  guest: string;
+  youtubeUrl: string;
+  videoId: string;
+  duration: string;
+  dateSourced: string;
+  tools: string[];
+  clipCount: number;
+  stage: ProdStage;
+  notes: string;
+}
+
+interface Clip {
+  _airtableId: string;
+  title: string;
+  sourceId: string | null;
+  tool: string;
+  opusScore: number | null;
+  aspect: string;
+  duration: string;
+  stage: ProdStage;
+  sentTo: string;
+  notes: string;
+}
+
+async function fetchClipSources(): Promise<ClipSource[]> {
+  const records = await airtableList('clipsources');
+  return records.map((r: any) => ({
+    _airtableId: r.id,
+    title: r.fields['Source Title'] || '',
+    show: r.fields['Show / Channel'] || '',
+    guest: r.fields['Guest / Topic'] || '',
+    youtubeUrl: r.fields['YouTube URL'] || '',
+    videoId: r.fields['Video ID'] || '',
+    duration: r.fields['Duration'] || '',
+    dateSourced: r.fields['Date Sourced'] || '',
+    tools: Array.isArray(r.fields['Tools Used']) ? r.fields['Tools Used'] : [],
+    clipCount: typeof r.fields['Clip Count'] === 'number' ? r.fields['Clip Count'] : 0,
+    stage: (r.fields['Stage'] as ProdStage) || 'Sourced',
+    notes: r.fields['Notes'] || '',
+  }));
+}
+
+async function fetchClips(): Promise<Clip[]> {
+  const records = await airtableList('clips');
+  return records.map((r: any) => ({
+    _airtableId: r.id,
+    title: r.fields['Clip Title'] || '',
+    sourceId: Array.isArray(r.fields['Source']) ? (r.fields['Source'][0] || null) : null,
+    tool: r.fields['Tool'] || '',
+    opusScore: typeof r.fields['Opus Score'] === 'number' ? r.fields['Opus Score'] : null,
+    aspect: r.fields['Aspect'] || '',
+    duration: r.fields['Duration'] || '',
+    stage: (r.fields['Stage'] as ProdStage) || 'Sourced',
+    sentTo: r.fields['Sent To'] || '',
+    notes: r.fields['Notes'] || '',
+  }));
+}
+
+function ProdStagePill({ stage }: { stage: ProdStage }) {
+  const c = PROD_STAGE_COLORS[stage] || COLORS.textMuted;
+  return (
+    <span style={{ fontSize: "10px", fontWeight: 600, color: c, border: `1px solid ${c}`, borderRadius: "10px", padding: "1px 8px", whiteSpace: "nowrap" }}>
+      {stage}
+    </span>
+  );
+}
+
+function ProdStageSelector({ value, onSave }: { value: ProdStage; onSave: (s: ProdStage) => Promise<boolean> }) {
+  const [saving, setSaving] = useState(false);
+  return (
+    <select
+      value={value}
+      disabled={saving}
+      onChange={async (e) => {
+        const next = e.target.value as ProdStage;
+        setSaving(true);
+        await onSave(next);
+        setSaving(false);
+      }}
+      style={{
+        background: "rgba(0,0,0,0.3)",
+        color: PROD_STAGE_COLORS[value],
+        border: `1px solid ${PROD_STAGE_COLORS[value]}`,
+        borderRadius: "6px",
+        padding: "4px 8px",
+        fontSize: "12px",
+        fontWeight: 600,
+        cursor: saving ? "wait" : "pointer",
+      }}
+    >
+      {PROD_STAGES.map(s => <option key={s} value={s} style={{ background: COLORS.bg, color: COLORS.textPrimary }}>{s}</option>)}
+    </select>
+  );
+}
+
+function ClipProduction() {
+  const [sources, setSources] = useState<ClipSource[]>([]);
+  const [clips, setClips] = useState<Clip[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const load = async () => {
+    const [s, c] = await Promise.all([fetchClipSources(), fetchClips()]);
+    // Newest-sourced first; unknown dates last
+    s.sort((a, b) => (b.dateSourced || '').localeCompare(a.dateSourced || ''));
+    setSources(s);
+    setClips(c);
+    setLastSync(new Date());
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const clipsBySource = clips.reduce((acc, c) => {
+    const k = c.sourceId || '_none';
+    (acc[k] = acc[k] || []).push(c);
+    return acc;
+  }, {} as Record<string, Clip[]>);
+
+  const onSourceStage = async (id: string, next: ProdStage) => {
+    const ok = await airtableUpdate('clipsources', id, { 'Stage': next });
+    if (ok) setSources(prev => prev.map(s => s._airtableId === id ? { ...s, stage: next } : s));
+    return ok;
+  };
+
+  // Pipeline rollup across all sources
+  const pipeline = PROD_STAGES.reduce((acc, st) => { acc[st] = sources.filter(s => s.stage === st).length; return acc; }, {} as Record<string, number>);
+  const totalClips = clips.length;
+
+  return (
+    <div style={{ padding: "20px", color: COLORS.textPrimary }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+        <div style={{ fontSize: "12px", color: COLORS.textMuted }}>
+          {sources.length} source videos · {totalClips} clips
+          {lastSync && ` · synced ${lastSync.toLocaleTimeString()}`}
+        </div>
+        <button
+          onClick={load}
+          style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textSecondary, border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}
+        >
+          ↻ Refresh
+        </button>
+      </div>
+
+      {/* Compact pipeline rollup (read-only, no buttons) */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+        {PROD_STAGES.map(st => (
+          <span key={st} style={{ fontSize: "11px", color: PROD_STAGE_COLORS[st], border: `1px solid ${PROD_STAGE_COLORS[st]}`, borderRadius: "12px", padding: "3px 10px", opacity: pipeline[st] ? 1 : 0.4 }}>
+            {st} · {pipeline[st] || 0}
+          </span>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>Loading production…</div>
+      ) : sources.length === 0 ? (
+        <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>No source videos yet.</div>
+      ) : (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {sources.map(src => {
+            const srcClips = clipsBySource[src._airtableId] || [];
+            const isOpen = !!expanded[src._airtableId];
+            return (
+              <div
+                key={src._airtableId}
+                style={{ background: "rgba(200,210,220,0.05)", border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "10px", padding: "14px 16px" }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: "220px" }}>
+                    <div
+                      onClick={() => setExpanded(p => ({ ...p, [src._airtableId]: !isOpen }))}
+                      style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", cursor: "pointer" }}
+                    >
+                      <span style={{ color: COLORS.textMuted, fontSize: "12px", width: "12px" }}>{isOpen ? "▾" : "▸"}</span>
+                      <span style={{ fontSize: "15px", fontWeight: 600, color: COLORS.textOnDark }}>{src.title}</span>
+                      <span style={{ fontSize: "12px", color: COLORS.textMuted }}>{srcClips.length || src.clipCount} clips</span>
+                    </div>
+                    <div style={{ display: "flex", gap: "12px", marginTop: "6px", marginLeft: "20px", flexWrap: "wrap", fontSize: "12px", color: COLORS.textSecondary }}>
+                      {src.duration && <span>{src.duration}</span>}
+                      {src.tools.length > 0 && <span style={{ color: COLORS.textMuted }}>{src.tools.join(" + ")}</span>}
+                      {src.youtubeUrl && <a href={src.youtubeUrl} target="_blank" rel="noreferrer" style={{ color: COLORS.coral }}>YouTube ↗</a>}
+                    </div>
+                    {src.notes && <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "6px", marginLeft: "20px", lineHeight: 1.4 }}>{src.notes}</div>}
+                  </div>
+                  <ProdStageSelector value={src.stage} onSave={(s) => onSourceStage(src._airtableId, s)} />
+                </div>
+
+                {isOpen && srcClips.length > 0 && (
+                  <div style={{ marginTop: "12px", marginLeft: "20px", borderLeft: `1px solid ${COLORS.borderSubtle}`, paddingLeft: "12px", display: "grid", gap: "6px" }}>
+                    {srcClips
+                      .slice()
+                      .sort((a, b) => (b.opusScore ?? -1) - (a.opusScore ?? -1))
+                      .map(clip => (
+                        <div key={clip._airtableId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", flex: 1, minWidth: "200px" }}>
+                            {clip.opusScore != null && (
+                              <span style={{ fontSize: "11px", fontWeight: 700, color: COLORS.gold, minWidth: "24px" }}>{clip.opusScore}</span>
+                            )}
+                            <span style={{ fontSize: "13px", color: COLORS.textSecondary }}>{clip.title}</span>
+                            {clip.tool && <span style={{ fontSize: "10px", color: COLORS.textFaint }}>{clip.tool}</span>}
+                            {clip.aspect && <span style={{ fontSize: "10px", color: COLORS.textFaint }}>{clip.aspect}</span>}
+                          </div>
+                          <ProdStagePill stage={clip.stage} />
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClippingWorkspace() {
+  const [view, setView] = useState<"leads" | "production">("leads");
   return (
     <div style={{ height: "100%", overflow: "auto" }}>
-      <ClippingReview />
+      {/* Lightweight text toggle — single minimal control, no button clutter */}
+      <div style={{ display: "flex", gap: "18px", padding: "16px 20px 0", alignItems: "center" }}>
+        {(["leads", "production"] as const).map(v => {
+          const active = view === v;
+          return (
+            <span
+              key={v}
+              onClick={() => setView(v)}
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                color: active ? COLORS.textOnDark : COLORS.textMuted,
+                borderBottom: active ? `2px solid ${COLORS.coral}` : "2px solid transparent",
+                paddingBottom: "4px",
+              }}
+            >
+              {v === "leads" ? "Leads" : "Production"}
+            </span>
+          );
+        })}
+      </div>
+      {view === "leads" ? <ClippingReview /> : <ClipProduction />}
     </div>
   );
 }
@@ -8268,6 +8800,7 @@ export default function Dashboard() {
             {{
               "art-advisory": <ArtAdvisoryWorkspace />,
               "clipping": <ClippingWorkspace />,
+              "cd-review": <CDReviewWorkspace />,
               // "outreach": <OutreachWorkspace />,  // SHELVED
               // "jobs": <JobsWorkspace />,  // SHELVED
               // "grants": <GrantsWorkspace />,  // SHELVED
