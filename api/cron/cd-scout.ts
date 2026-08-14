@@ -5,7 +5,7 @@ import { submitBatch, WEB_SEARCH_TOOL } from '../lib/anthropic-batch';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 const MODEL = 'claude-sonnet-4-6';
-const MAX_TOKENS = 8192;
+const MAX_TOKENS = 32000;
 
 const SYSTEM_PROMPT = `You are the CD Scout for Bernard Studia, an Atlanta-based creative studio founded by Ant Kinnel. This is a DAILY TASTE-DEVELOPMENT tool: every card you produce is studied as part of a creative direction curriculum. Secondary purpose: flag creative directors with realistic collaboration overlap with Bernard Studia's lanes (culture, commerce, faith, diasporic work).
 
