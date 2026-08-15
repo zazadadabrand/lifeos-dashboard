@@ -3,6 +3,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
   "framework": null,
+  "crons": [
+    { "path": "/api/cron/cd-scout",     "schedule": "0 11 * * *" },
+    { "path": "/api/cron/batch-poller", "schedule": "0 15 * * *" }
+  ],
   "headers": [
     {
       "source": "/index.html",
