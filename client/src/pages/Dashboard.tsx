@@ -1058,7 +1058,7 @@ interface WorkspaceCard {
 
 const WORKSPACE_CARDS: WorkspaceCard[] = [
   { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
-  { id: "clipping", label: "Clipping", icon: "signal", color: COLORS.coral, description: "YT clipping-native creator leads, daily scout, outreach pipeline" },
+  // { id: "clipping", label: "Clipping", icon: "signal", color: COLORS.coral, description: "YT clipping-native creator leads, daily scout, outreach pipeline" },  // SHELVED
   { id: "cd-review", label: "CD Review", icon: "telescope", color: COLORS.purple, description: "Daily creative director curation — taste curriculum + latent collaborators" },
   // { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },  // SHELVED
   // { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },  // SHELVED
@@ -8799,7 +8799,7 @@ export default function Dashboard() {
           >
             {{
               "art-advisory": <ArtAdvisoryWorkspace />,
-              "clipping": <ClippingWorkspace />,
+              // "clipping": <ClippingWorkspace />,  // SHELVED
               "cd-review": <CDReviewWorkspace />,
               // "outreach": <OutreachWorkspace />,  // SHELVED
               // "jobs": <JobsWorkspace />,  // SHELVED

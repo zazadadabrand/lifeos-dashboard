@@ -7,4 +7,3 @@ vite.config.ts.*
 
 # Local dev data store
 .data/
-.vercel
