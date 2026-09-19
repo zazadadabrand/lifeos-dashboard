@@ -19,11 +19,16 @@ const ALLOWED_TABLES: Record<string, string> = {
   'jobs':     'tbl2j7sXApKFtQ8kG',
   'grants':   'tbl8Yr902XCzid47O',
   'clipping': 'tbl8by0SmTy4BFbaE',  // YT Clipping Prospects — V2, in Bernard Studia Ops base (see TABLE_BASES)
+  'clipsources': 'tblKtAbg12W2m6qxk', // Clip Sources (source videos) — Bernard Studia Ops base
+  'clips':       'tblpwMCiW43m6sneP', // Clips (individual clips) — Bernard Studia Ops base
+  'cds':         'tblH2zLUwGm6OoGle', // CD Pipeline (daily CD Scout curation) — LifeOS base
 };
 
 // Tables that live outside the default LifeOS base. Falls back to BASE_ID when absent.
 const TABLE_BASES: Record<string, string> = {
   'clipping': BERNARD_OPS_BASE_ID,
+  'clipsources': BERNARD_OPS_BASE_ID,
+  'clips': BERNARD_OPS_BASE_ID,
 };
 
 const CORS = {

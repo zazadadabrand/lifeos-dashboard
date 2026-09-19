@@ -3,6 +3,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
   "framework": null,
+  "crons": [
+    { "path": "/api/cron/cd-scout",     "schedule": "0 11 * * *" },
+    { "path": "/api/cron/batch-poller", "schedule": "0 15 * * *" }
+  ],
   "headers": [
     {
       "source": "/index.html",
@@ -30,6 +34,7 @@
     { "source": "/api/agent/results",       "destination": "/api/agent/results"       },
     { "source": "/api/agent/batches",       "destination": "/api/agent/batches"       },
     { "source": "/api/cron/art-scout",      "destination": "/api/cron/art-scout"      },
+    { "source": "/api/cron/cd-scout",       "destination": "/api/cron/cd-scout"       },
     { "source": "/api/cron/job-scout",      "destination": "/api/cron/job-scout"      },
     { "source": "/api/cron/grants-scout",   "destination": "/api/cron/grants-scout"   },
     { "source": "/api/cron/clipping-scout", "destination": "/api/cron/clipping-scout" },

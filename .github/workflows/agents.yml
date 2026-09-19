@@ -16,6 +16,7 @@ on:
         type: choice
         options:
           - art-scout
+          - cd-scout
           - clipping-scout
           - deep-dive
           - job-scout
@@ -34,6 +35,18 @@ jobs:
       - name: Trigger Art Scout
         run: |
           curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/art-scout" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  cd-scout:
+    name: CD Scout (15 creative directors)
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'cd-scout' || github.event.inputs.agent == 'all'))
+    steps:
+      - name: Trigger CD Scout
+        run: |
+          curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/cd-scout" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   # DEPRECATED 2026-05-23: the live "daily-yt-clipping-leads" scheduled task is the single
