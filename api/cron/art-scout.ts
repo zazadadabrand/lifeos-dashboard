@@ -6,6 +6,42 @@ import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 const MODEL = 'claude-sonnet-4-6';
 const MAX_TOKENS = 4096;
+const ARTISTS_BASE_ID = 'apppZ2gNZ9tjORpvp';
+const ARTISTS_TABLE_ID = 'tblHBC8yJQbejxqHg';
+
+function etDate(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
+}
+
+async function pipelineNames(): Promise<string[]> {
+  const names = new Set<string>();
+
+  const snapshot = await kvGet('pipeline:snapshot');
+  for (const artist of snapshot?.artists ?? []) {
+    if (artist?.name) names.add(String(artist.name));
+  }
+
+  const pat = process.env.AIRTABLE_PAT;
+  if (!pat) return [...names];
+
+  let offset: string | undefined;
+  do {
+    const qp = new URLSearchParams({ pageSize: '100' });
+    qp.append('fields[]', 'Name');
+    if (offset) qp.set('offset', offset);
+    const res = await fetch(`https://api.airtable.com/v0/${ARTISTS_BASE_ID}/${ARTISTS_TABLE_ID}?${qp}`, {
+      headers: { Authorization: `Bearer ${pat}` },
+    });
+    if (!res.ok) break;
+    const data = await res.json();
+    for (const record of data.records ?? []) {
+      if (record.fields?.Name) names.add(String(record.fields.Name));
+    }
+    offset = data.offset;
+  } while (offset);
+
+  return [...names];
+}
 
 const SYSTEM_PROMPT = `You are the Art Scout for Bernard Studia, an Atlanta-based creative studio and art advisory firm founded by Ant Kinnel.
 
@@ -88,9 +124,8 @@ export default async function handler(req: Request) {
   }
 
   try {
-    // Load current pipeline to build exclusion list
-    const snapshot = await kvGet('pipeline:snapshot');
-    const existingNames: string[] = (snapshot?.artists ?? []).map((a: any) => a.name).filter(Boolean);
+    // Skip anyone already in KV or the Airtable Artists Pipeline (source of truth for the UI).
+    const existingNames = await pipelineNames();
 
     const exclusionBlock = existingNames.length > 0
       ? `\n\nARTISTS ALREADY IN PIPELINE — skip all of these:\n${existingNames.join('\n')}`
@@ -100,7 +135,7 @@ export default async function handler(req: Request) {
 
     const batch = await submitBatch([
       {
-        custom_id: `art-scout-${new Date().toISOString().split('T')[0]}`,
+        custom_id: `art-scout-${etDate()}`,
         params: {
           model: MODEL,
           max_tokens: MAX_TOKENS,
@@ -128,7 +163,7 @@ export default async function handler(req: Request) {
     });
     await kvSet('agent:batches', { batches });
 
-    return new Response(JSON.stringify({ success: true, batchId: batch.id }), {
+    return new Response(JSON.stringify({ success: true, batchId: batch.id, excluded: existingNames.length }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...CORS },
     });
