@@ -1046,7 +1046,7 @@ interface PipelineArtist {
 // ═══════════════════════════════════════════
 // CARD STACK & WORKSPACE TYPES
 // ═══════════════════════════════════════════
-type CardId = "art-advisory" | "clipping" | "cd-review" | "outreach" | "jobs" | "grants"; // outreach & grants hidden but types kept
+type CardId = "art-advisory" | "clipping" | "cd-review" | "outreach" | "jobs" | "grants" | "substrate"; // outreach & grants hidden but types kept
 
 interface WorkspaceCard {
   id: CardId;
@@ -1060,10 +1060,13 @@ const WORKSPACE_CARDS: WorkspaceCard[] = [
   { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
   // { id: "clipping", label: "Clipping", icon: "signal", color: COLORS.coral, description: "YT clipping-native creator leads, daily scout, outreach pipeline" },  // SHELVED
   { id: "cd-review", label: "CD Review", icon: "telescope", color: COLORS.purple, description: "Daily creative director curation — taste curriculum + latent collaborators" },
+  { id: "substrate", label: "Substrate", icon: "target", color: COLORS.coral, description: "Reverse-engineer outcomes into first-principles stacks" },
   // { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },  // SHELVED
   // { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },  // SHELVED
   // { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },  // SHELVED
 ];
+
+const SUBSTRATE_LIVE_URL = "https://substrate-learning.vercel.app";
 
 // ═══════════════════════════════════════════
 // OUTREACH CONTACT TYPES
@@ -5804,10 +5807,20 @@ function QuickNotes() {
 const WORKSPACE_FOCUS: Record<CardId, string[]> = {
   "art-advisory": ["Scout pipeline", "Taste profiles", "Collector leads"],
   "cd-review": ["Daily taste call", "Study notes", "Latent collaborators"],
+  "substrate": ["Creative Director", "Commission a stack", "Materials 001 · 005"],
+  "clipping": ["Creator leads", "Daily scout", "Outreach"],
   "outreach": ["Warm intros", "Email drafts", "Follow-ups"],
   "jobs": ["Applications", "Interview prep", "Networking"],
   "grants": ["Deadlines", "Eligibility", "Submissions"],
 };
+
+function workspaceCardById(id: CardId, cards: WorkspaceCard[] = WORKSPACE_CARDS): WorkspaceCard | undefined {
+  return cards.find(c => c.id === id);
+}
+
+function laneThemeColor(card?: WorkspaceCard | null): string {
+  return card?.color || COLORS.teal;
+}
 
 function OrbitalHub({
   cards,
@@ -5821,7 +5834,9 @@ function OrbitalHub({
   const [hoveredNode, setHoveredNode] = useState<CardId | null>(null);
   const [collapsed, setCollapsed] = useState(true);
   const activeIdx = cards.findIndex(c => c.id === activeCard);
-  const activeW = cards[activeIdx];
+  const activeW = cards[activeIdx] ?? cards[0];
+  const hubColor = laneThemeColor(activeW);
+  const hubIcon = activeW?.icon || "hub";
 
   // Orbital geometry
   const size = 180;
@@ -5845,10 +5860,10 @@ function OrbitalHub({
           width: 44,
           height: 44,
           borderRadius: "50%",
-          border: `2px solid ${activeW.color}60`,
-          background: `linear-gradient(135deg, ${activeW.color}30, rgba(20,22,28,0.9))`,
+          border: `2px solid ${hubColor}60`,
+          background: `linear-gradient(135deg, ${hubColor}30, rgba(20,22,28,0.9))`,
           backdropFilter: "blur(16px) saturate(1.4)",
-          boxShadow: `0 0 20px ${activeW.color}25, 0 4px 16px rgba(0,0,0,0.4)`,
+          boxShadow: `0 0 20px ${hubColor}25, 0 4px 16px rgba(0,0,0,0.4)`,
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
@@ -5858,17 +5873,17 @@ function OrbitalHub({
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = "scale(1.12)";
-          e.currentTarget.style.boxShadow = `0 0 28px ${activeW.color}40, 0 4px 20px rgba(0,0,0,0.5)`;
-          e.currentTarget.style.borderColor = `${activeW.color}90`;
+          e.currentTarget.style.boxShadow = `0 0 28px ${hubColor}40, 0 4px 20px rgba(0,0,0,0.5)`;
+          e.currentTarget.style.borderColor = `${hubColor}90`;
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = "scale(1)";
-          e.currentTarget.style.boxShadow = `0 0 20px ${activeW.color}25, 0 4px 16px rgba(0,0,0,0.4)`;
-          e.currentTarget.style.borderColor = `${activeW.color}60`;
+          e.currentTarget.style.boxShadow = `0 0 20px ${hubColor}25, 0 4px 16px rgba(0,0,0,0.4)`;
+          e.currentTarget.style.borderColor = `${hubColor}60`;
         }}
         title="Open workspace hub"
       >
-        <AgentIcon type={activeW.icon} color={activeW.color} size={20} />
+        <AgentIcon type={hubIcon} color={hubColor} size={20} />
       </button>
     );
   }
@@ -5934,7 +5949,7 @@ function OrbitalHub({
           rx={radius}
           ry={radius * 0.65}
           fill="none"
-          stroke={`${activeW.color}30`}
+          stroke={`${hubColor}30`}
           strokeWidth="1"
           strokeDasharray="3 5"
           style={{ transition: "stroke 0.4s ease" }}
@@ -5969,16 +5984,16 @@ function OrbitalHub({
         width: 40,
         height: 40,
         borderRadius: "50%",
-        background: `linear-gradient(135deg, ${activeW.color}40, ${activeW.color}15)`,
-        border: `2px solid ${activeW.color}70`,
+        background: `linear-gradient(135deg, ${hubColor}40, ${hubColor}15)`,
+        border: `2px solid ${hubColor}70`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: `0 0 20px ${activeW.color}35, 0 2px 8px rgba(0,0,0,0.3)`,
+        boxShadow: `0 0 20px ${hubColor}35, 0 2px 8px rgba(0,0,0,0.3)`,
         transition: "all 0.4s ease",
         zIndex: 3,
       }}>
-        <AgentIcon type={activeW.icon} color={activeW.color} size={17} />
+        <AgentIcon type={hubIcon} color={hubColor} size={17} />
       </div>
 
       {/* Orbital nodes */}
@@ -6068,9 +6083,9 @@ function OrbitalHub({
               fontWeight: 600,
               letterSpacing: "0.04em",
               textTransform: "uppercase",
-              color: `${activeW.color}ee`,
-              background: `${activeW.color}20`,
-              border: `1px solid ${activeW.color}35`,
+              color: `${hubColor}ee`,
+              background: `${hubColor}20`,
+              border: `1px solid ${hubColor}35`,
               padding: "2px 7px",
               borderRadius: "6px",
               whiteSpace: "nowrap",
@@ -6099,8 +6114,8 @@ function CardStackNavigator({
   onCardChange: (id: CardId) => void;
   children: Record<CardId, React.ReactNode>;
 }) {
-  const activeIdx = cards.findIndex(c => c.id === activeCard);
-  const activeColor = cards[activeIdx]?.color || COLORS.teal;
+  const activeIdx = Math.max(0, cards.findIndex(c => c.id === activeCard));
+  const activeColor = laneThemeColor(cards[activeIdx]);
 
   return (
     <div style={{ display: "flex", height: "100%", gap: "0" }}>
@@ -6929,6 +6944,107 @@ function CDReviewWorkspace() {
   return (
     <div style={{ height: "100%", overflow: "auto" }}>
       <CDReview />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// SUBSTRATE LEARNING WORKSPACE
+// Native LifeOS summary + CTA into the live product.
+// ═══════════════════════════════════════════
+const SUBSTRATE_STACKS = [
+  {
+    name: "Creative Director",
+    status: "Active",
+    detail: "Transdisciplinary culture lane. 5 layers, 57 atoms. Materials 001 (type) and 005 (color) are live.",
+  },
+  {
+    name: "Commission",
+    status: "Engine ready",
+    detail: "Name a destination. The engine builds a first-pass stack of layers, atoms, hours, and pass conditions.",
+  },
+];
+
+function SubstrateLearningWorkspace() {
+  const color = COLORS.coral;
+
+  return (
+    <div style={{ height: "100%", overflow: "auto", padding: "20px 24px", color: COLORS.textPrimary }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: COLORS.textOnDark }}>Substrate Learning</h2>
+            <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color, border: `1px solid ${color}`, borderRadius: "10px", padding: "1px 8px" }}>
+              v11 live
+            </span>
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: "13px", lineHeight: 1.5, color: COLORS.textSecondary, maxWidth: "560px" }}>
+            Reverse engineer a specific outcome into a stack of first principles. Atoms are taught, timed, and tested inside the system.
+          </p>
+        </div>
+        <a
+          href={SUBSTRATE_LIVE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="substrate-open-cta"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            background: `${color}20`,
+            color,
+            border: `1px solid ${color}55`,
+            borderRadius: "8px",
+            padding: "8px 14px",
+            fontSize: "13px",
+            fontWeight: 600,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Open Substrate Learning
+          <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginBottom: "16px" }}>
+        <div style={{ background: "rgba(200,210,220,0.05)", border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "10px", padding: "12px 14px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color, marginBottom: "6px" }}>Status</div>
+          <div style={{ fontSize: "13px", color: COLORS.textPrimary }}>Live on Vercel · Bernard Studia</div>
+          <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "4px" }}>Progress persists in the browser. First confirming engine run is still open.</div>
+        </div>
+        <div style={{ background: "rgba(200,210,220,0.05)", border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "10px", padding: "12px 14px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color, marginBottom: "6px" }}>Shipped</div>
+          <div style={{ fontSize: "12px", color: COLORS.textSecondary, lineHeight: 1.55 }}>
+            Multi-stack home · CD map · Materials 001 and 005 · commission engine · local persistence
+          </div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "8px" }}>
+        Stacks
+      </div>
+      <div style={{ display: "grid", gap: "10px" }}>
+        {SUBSTRATE_STACKS.map((stack) => (
+          <div
+            key={stack.name}
+            style={{
+              background: "rgba(200,210,220,0.05)",
+              border: `1px solid ${COLORS.borderSubtle}`,
+              borderRadius: "10px",
+              padding: "14px 16px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "15px", fontWeight: 600, color: COLORS.textOnDark }}>{stack.name}</span>
+              <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color, border: `1px solid ${color}`, borderRadius: "10px", padding: "1px 8px" }}>
+                {stack.status}
+              </span>
+            </div>
+            <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "6px", lineHeight: 1.5 }}>{stack.detail}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -8257,7 +8373,7 @@ function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNa
                 }}
                 onClick={() => {
                   const cardId = LANE_TO_CARD[line.label];
-                  if (cardId) {
+                  if (cardId && workspaceCardById(cardId)) {
                     onNavigateToCard(cardId);
                   } else if (hasItems) {
                     toggleLane(line.lane);
@@ -8801,6 +8917,7 @@ export default function Dashboard() {
               "art-advisory": <ArtAdvisoryWorkspace />,
               // "clipping": <ClippingWorkspace />,  // SHELVED
               "cd-review": <CDReviewWorkspace />,
+              "substrate": <SubstrateLearningWorkspace />,
               // "outreach": <OutreachWorkspace />,  // SHELVED
               // "jobs": <JobsWorkspace />,  // SHELVED
               // "grants": <GrantsWorkspace />,  // SHELVED
