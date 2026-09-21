@@ -7509,8 +7509,9 @@ function ClippingWorkspace() {
 // Phone Screen / Interview / Final Round share the Interview column.
 // Dropping onto that column writes "Interview". The stage menu writes
 // the real option name. Offer also holds Negotiating and Accepted.
-// Lead also holds Bookmarked. Source is text; URL is the listing.
-// Next Action is optional and may be absent.
+// Lead also holds Bookmarked.
+// Source (fldp3QsfYtHRevc7c) and Next Action (fldoZXIeoBtxl6Bcm) are live
+// text fields on every card. URL stays the listing link.
 // ═══════════════════════════════════════════
 const JOB_LEAD_STAGE = "Lead";
 
@@ -7609,21 +7610,9 @@ function parseJobScoutNotes(notes: string): Pick<JobLead, "location" | "category
   };
 }
 
-function jobListingUrl(job: Pick<JobLead, "url" | "source">): string {
+function jobListingUrl(job: Pick<JobLead, "url">): string {
   if (job.url && /^https?:\/\//i.test(job.url)) return job.url;
-  if (job.source && /^https?:\/\//i.test(job.source)) return job.source;
   return "";
-}
-
-function jobSourceLabel(job: Pick<JobLead, "url" | "source">): string {
-  if (job.source && !/^https?:\/\//i.test(job.source)) return job.source;
-  const listing = jobListingUrl(job);
-  if (!listing) return "";
-  try {
-    return new URL(listing).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
 }
 
 function formatJobDate(iso: string): string {
@@ -7817,8 +7806,7 @@ function JobKanbanCard({
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: job._airtableId });
   const listing = jobListingUrl(job);
-  const sourceLabel = jobSourceLabel(job);
-  const meta = [sourceLabel, job.lane, formatJobDate(job.dateAdded)].filter(Boolean).join(" · ");
+  const found = formatJobDate(job.dateAdded);
 
   return (
     <article
@@ -7850,9 +7838,14 @@ function JobKanbanCard({
         </div>
         <JobStageMenu job={job} saving={saving} onSelect={onStage} />
       </div>
-      {meta && (
-        <div style={{ color: COLORS.textFaint, fontSize: "11px", marginTop: "8px" }}>{meta}</div>
-      )}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 10px", marginTop: "8px", alignItems: "baseline" }}>
+        <span data-testid={`job-source-${job._airtableId}`} style={{ color: COLORS.textSecondary, fontSize: "11px" }}>
+          <span style={{ color: COLORS.textFaint, fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", marginRight: "4px" }}>Source</span>
+          {job.source || "—"}
+        </span>
+        {job.lane && <span style={{ color: COLORS.textFaint, fontSize: "11px" }}>{job.lane}</span>}
+        {found && <span style={{ color: COLORS.textFaint, fontSize: "11px" }}>{found}</span>}
+      </div>
       {listing && (
         <a
           href={listing}
@@ -7865,11 +7858,10 @@ function JobKanbanCard({
           Listing ↗
         </a>
       )}
-      {job.nextAction && (
-        <div style={{ color: COLORS.gold, fontSize: "11px", marginTop: "8px", lineHeight: 1.4 }}>
-          Next · {job.nextAction}
-        </div>
-      )}
+      <div data-testid={`job-next-${job._airtableId}`} style={{ marginTop: "8px", lineHeight: 1.4 }}>
+        <div style={{ color: COLORS.textFaint, fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase" }}>Next action</div>
+        <div style={{ color: job.nextAction ? COLORS.gold : COLORS.textFaint, fontSize: "12px", marginTop: "2px" }}>{job.nextAction || "—"}</div>
+      </div>
       {job.notes && (
         <div style={{ marginTop: "8px" }}>
           <p style={{
