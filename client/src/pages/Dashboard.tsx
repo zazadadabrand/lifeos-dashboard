@@ -4,12 +4,17 @@ import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 import {
   DndContext,
   closestCenter,
+  closestCorners,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
+  useDraggable,
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -1060,7 +1065,7 @@ const WORKSPACE_CARDS: WorkspaceCard[] = [
   { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
   // { id: "clipping", label: "Clipping", icon: "signal", color: COLORS.coral, description: "YT clipping-native creator leads, daily scout, outreach pipeline" },  // SHELVED
   { id: "cd-review", label: "CD Review", icon: "telescope", color: COLORS.purple, description: "Daily creative director curation — taste curriculum + latent collaborators" },
-  { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Daily job-scout leads — Stage=Lead triage" },
+  { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job CRM pipeline" },
   { id: "substrate", label: "Substrate", icon: "target", color: COLORS.coral, description: "Reverse-engineer outcomes into first-principles stacks" },
   // { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },  // SHELVED
   // { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },  // SHELVED
@@ -5810,7 +5815,7 @@ const WORKSPACE_FOCUS: Record<CardId, string[]> = {
   "substrate": ["Creative Director", "Commission a stack", "Materials 001 · 005"],
   "clipping": ["Creator leads", "Daily scout", "Outreach"],
   "outreach": ["Warm intros", "Email drafts", "Follow-ups"],
-  "jobs": ["Lead triage", "Today's batch", "Apply"],
+  "jobs": ["Pipeline", "Next action", "Stage"],
   "grants": ["Deadlines", "Eligibility", "Submissions"],
 };
 
@@ -7497,15 +7502,71 @@ function ClippingWorkspace() {
 }
 
 // ═══════════════════════════════════════════
-// JOBS WORKSPACE — Airtable Jobs, Stage=Lead triage
-// Fields from the Jobs table (via /api/airtable/proxy?table=jobs):
-// Name, Company, Role, Description, Stage, Salary Range, URL,
-// Deadline, Contact Name, Contact Email, Notes, Date Added.
+// JOBS WORKSPACE — Airtable Jobs CRM board
+// Stage options on Jobs (tbl2j7sXApKFtQ8kG), verified 2026-09-21:
+// Lead, Bookmarked, Applied, Phone Screen, Interview, Final Round,
+// Offer, Negotiating, Accepted, Rejected, Withdrawn.
+// Phone Screen / Interview / Final Round share the Interview column.
+// Dropping onto that column writes "Interview". The stage menu writes
+// the real option name. Offer also holds Negotiating and Accepted.
+// Lead also holds Bookmarked.
+// Source (fldp3QsfYtHRevc7c) and Next Action (fldoZXIeoBtxl6Bcm) are live
+// text fields on every card. URL stays the listing link.
 // ═══════════════════════════════════════════
 const JOB_LEAD_STAGE = "Lead";
-const JOB_STAGE_COLORS: Record<string, string> = {
-  ...JOB_APP_COLORS,
-  Lead: COLORS.teal,
+
+type JobBoardColumnId = "lead" | "applied" | "interview" | "offer" | "rejected" | "withdrawn";
+
+interface JobBoardColumn {
+  id: JobBoardColumnId;
+  label: string;
+  writeStage: string;
+  hint?: string;
+  color: string;
+  stages: string[];
+}
+
+const JOB_BOARD_COLUMNS: JobBoardColumn[] = [
+  { id: "lead", label: "Lead", writeStage: "Lead", color: COLORS.teal, stages: ["Lead", "Bookmarked"] },
+  { id: "applied", label: "Applied", writeStage: "Applied", color: COLORS.purple, stages: ["Applied"] },
+  {
+    id: "interview",
+    label: "Interview",
+    writeStage: "Interview",
+    hint: "Phone Screen · Interview · Final Round",
+    color: COLORS.gold,
+    stages: ["Phone Screen", "Interview", "Final Round"],
+  },
+  { id: "offer", label: "Offer", writeStage: "Offer", color: COLORS.green, stages: ["Offer", "Negotiating", "Accepted"] },
+  { id: "rejected", label: "Rejected", writeStage: "Rejected", color: COLORS.chartRed, stages: ["Rejected"] },
+  { id: "withdrawn", label: "Withdrawn", writeStage: "Withdrawn", color: COLORS.textMuted, stages: ["Withdrawn"] },
+];
+
+function jobColumnForStage(stage: string): JobBoardColumnId {
+  return JOB_BOARD_COLUMNS.find(c => c.stages.includes(stage))?.id ?? "lead";
+}
+
+function jobStageColor(stage: string): string {
+  return JOB_BOARD_COLUMNS.find(c => c.stages.includes(stage))?.color ?? COLORS.textMuted;
+}
+
+function stageWrittenOnDrop(current: string, column: JobBoardColumn): string | null {
+  if (column.stages.includes(current)) return null;
+  return column.writeStage;
+}
+
+function columnIdFromDrop(overId: string, jobs: JobLead[]): JobBoardColumnId | null {
+  if (overId.startsWith("job-col:")) {
+    const id = overId.slice("job-col:".length) as JobBoardColumnId;
+    return JOB_BOARD_COLUMNS.some(c => c.id === id) ? id : null;
+  }
+  const card = jobs.find(j => j._airtableId === overId);
+  return card ? jobColumnForStage(card.stage) : null;
+}
+
+const jobBoardCollision: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  return hits.length > 0 ? hits : closestCorners(args);
 };
 
 interface JobLead {
@@ -7517,6 +7578,8 @@ interface JobLead {
   stage: string;
   salaryRange: string;
   url: string;
+  source: string;
+  nextAction: string;
   deadline: string;
   contactName: string;
   contactEmail: string;
@@ -7527,9 +7590,10 @@ interface JobLead {
   priority: string;
   covenant: string;
   batch: string;
+  lane: string;
 }
 
-function parseJobScoutNotes(notes: string): Pick<JobLead, "location" | "category" | "priority" | "covenant" | "batch"> {
+function parseJobScoutNotes(notes: string): Pick<JobLead, "location" | "category" | "priority" | "covenant" | "batch" | "lane"> {
   const map: Record<string, string> = {};
   for (const part of notes.split("|")) {
     const idx = part.indexOf(":");
@@ -7542,7 +7606,20 @@ function parseJobScoutNotes(notes: string): Pick<JobLead, "location" | "category
     priority: map.Priority || "",
     covenant: map.Covenant || "",
     batch: map.Batch || "",
+    lane: map.Lane || "",
   };
+}
+
+function jobListingUrl(job: Pick<JobLead, "url">): string {
+  if (job.url && /^https?:\/\//i.test(job.url)) return job.url;
+  return "";
+}
+
+function formatJobDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function airtableSelectName(value: any): string {
@@ -7550,16 +7627,6 @@ function airtableSelectName(value: any): string {
   if (typeof value === "string") return value;
   if (typeof value === "object" && typeof value.name === "string") return value.name;
   return String(value);
-}
-
-function JobField({ label, children }: { label: string; children?: React.ReactNode }) {
-  if (children == null || children === "") return null;
-  return (
-    <div style={{ marginBottom: "10px" }}>
-      <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</span>
-      <div style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{children}</div>
-    </div>
-  );
 }
 
 let _jobLeads: JobLead[] = [];
@@ -7578,6 +7645,8 @@ async function fetchJobsFromAirtable(): Promise<JobLead[]> {
       stage: airtableSelectName(r.fields["Stage"]) || JOB_LEAD_STAGE,
       salaryRange: r.fields["Salary Range"] || "",
       url: r.fields["URL"] || "",
+      source: r.fields["Source"] || "",
+      nextAction: r.fields["Next Action"] || "",
       deadline: r.fields["Deadline"] || "",
       contactName: r.fields["Contact Name"] || "",
       contactEmail: r.fields["Contact Email"] || "",
@@ -7592,17 +7661,332 @@ async function fetchJobsFromAirtable(): Promise<JobLead[]> {
   return mapped;
 }
 
+function JobStageMenu({
+  job,
+  saving,
+  onSelect,
+}: {
+  job: JobLead;
+  saving: boolean;
+  onSelect: (stage: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const color = jobStageColor(job.stage);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (btnRef.current?.contains(e.target as Node)) return;
+      if (menuRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const menuHeight = 340;
+    const below = rect.bottom + 4;
+    const top = below + menuHeight > window.innerHeight ? Math.max(8, rect.top - menuHeight) : below;
+    setMenuPos({ top, left: Math.min(rect.left, window.innerWidth - 210) });
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        data-testid={`job-stage-${job._airtableId}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Stage for ${job.company || job.role || "job"}: ${job.stage}. Change stage`}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "4px",
+          padding: "2px 8px",
+          borderRadius: "10px",
+          border: `1px solid ${color}55`,
+          background: `${color}18`,
+          color,
+          fontSize: "10px",
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {saving ? "Saving…" : job.stage}
+        <span aria-hidden="true" style={{ fontSize: "8px", opacity: 0.8 }}>{open ? "▴" : "▾"}</span>
+      </button>
+      {open && menuPos && ReactDOM.createPortal(
+        <div
+          ref={menuRef}
+          role="listbox"
+          aria-label="Job stage"
+          style={{
+            position: "fixed",
+            top: menuPos.top,
+            left: menuPos.left,
+            zIndex: 9999,
+            minWidth: "196px",
+            maxHeight: "340px",
+            overflow: "auto",
+            padding: "6px 0",
+            borderRadius: "10px",
+            background: "rgba(16,16,24,0.97)",
+            border: `1px solid ${COLORS.border}`,
+            boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+          }}
+        >
+          {JOB_BOARD_COLUMNS.map(col => (
+            <div key={col.id}>
+              <div style={{ padding: "6px 12px 2px", fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: col.color }}>
+                {col.label}
+              </div>
+              {col.stages.map(stage => {
+                const active = stage === job.stage;
+                return (
+                  <button
+                    key={stage}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpen(false);
+                      onSelect(stage);
+                    }}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "6px 12px",
+                      border: "none",
+                      background: active ? `${col.color}18` : "transparent",
+                      color: active ? col.color : COLORS.textSecondary,
+                      fontSize: "12px",
+                      fontWeight: active ? 700 : 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {stage}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+function JobKanbanCard({
+  job,
+  saving,
+  expanded,
+  onToggleNotes,
+  onStage,
+}: {
+  job: JobLead;
+  saving: boolean;
+  expanded: boolean;
+  onToggleNotes: () => void;
+  onStage: (stage: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: job._airtableId });
+  const listing = jobListingUrl(job);
+  const found = formatJobDate(job.dateAdded);
+
+  return (
+    <article
+      ref={setNodeRef}
+      data-testid={`job-card-${job._airtableId}`}
+      {...listeners}
+      {...attributes}
+      role="group"
+      aria-label={`${job.company || "Job"}, ${job.role || job.name}. Stage ${job.stage}. Drag to another column.`}
+      style={{
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        opacity: isDragging ? 0.4 : 1,
+        background: "rgba(200,210,220,0.06)",
+        border: `1px solid ${COLORS.borderSubtle}`,
+        borderRadius: "10px",
+        padding: "10px 10px 8px",
+        cursor: isDragging ? "grabbing" : "grab",
+        touchAction: "manipulation",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: COLORS.textOnDark, fontSize: "13px", fontWeight: 700, lineHeight: 1.3 }}>
+            {job.company || job.name || "Untitled"}
+          </div>
+          <div style={{ color: COLORS.textSecondary, fontSize: "12px", marginTop: "2px", lineHeight: 1.35 }}>
+            {job.role || job.name}
+          </div>
+        </div>
+        <JobStageMenu job={job} saving={saving} onSelect={onStage} />
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 10px", marginTop: "8px", alignItems: "baseline" }}>
+        <span data-testid={`job-source-${job._airtableId}`} style={{ color: COLORS.textSecondary, fontSize: "11px" }}>
+          <span style={{ color: COLORS.textFaint, fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", marginRight: "4px" }}>Source</span>
+          {job.source || "—"}
+        </span>
+        {job.lane && <span style={{ color: COLORS.textFaint, fontSize: "11px" }}>{job.lane}</span>}
+        {found && <span style={{ color: COLORS.textFaint, fontSize: "11px" }}>{found}</span>}
+      </div>
+      {listing && (
+        <a
+          href={listing}
+          target="_blank"
+          rel="noopener noreferrer"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          style={{ color: COLORS.teal, fontSize: "11px", fontWeight: 600, textDecoration: "none", display: "inline-block", marginTop: "4px" }}
+        >
+          Listing ↗
+        </a>
+      )}
+      <div data-testid={`job-next-${job._airtableId}`} style={{ marginTop: "8px", lineHeight: 1.4 }}>
+        <div style={{ color: COLORS.textFaint, fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase" }}>Next action</div>
+        <div style={{ color: job.nextAction ? COLORS.gold : COLORS.textFaint, fontSize: "12px", marginTop: "2px" }}>{job.nextAction || "—"}</div>
+      </div>
+      {job.notes && (
+        <div style={{ marginTop: "8px" }}>
+          <p style={{
+            color: COLORS.textMuted,
+            fontSize: "11px",
+            lineHeight: 1.45,
+            margin: 0,
+            whiteSpace: expanded ? "pre-wrap" : "normal",
+            overflow: "hidden",
+            display: expanded ? "block" : "-webkit-box",
+            WebkitLineClamp: expanded ? undefined : 2,
+            WebkitBoxOrient: "vertical" as any,
+          }}>
+            {job.notes}
+          </p>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onToggleNotes(); }}
+            style={{ marginTop: "4px", padding: 0, border: "none", background: "transparent", color: COLORS.textFaint, fontSize: "10px", fontWeight: 600, cursor: "pointer" }}
+          >
+            {expanded ? "Hide notes" : "Notes"}
+          </button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function JobKanbanColumn({
+  column,
+  jobs,
+  savingId,
+  expandedId,
+  onToggleNotes,
+  onStage,
+}: {
+  column: JobBoardColumn;
+  jobs: JobLead[];
+  savingId: string | null;
+  expandedId: string | null;
+  onToggleNotes: (id: string) => void;
+  onStage: (job: JobLead, stage: string) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `job-col:${column.id}` });
+  return (
+    <section
+      ref={setNodeRef}
+      data-testid={`job-column-${column.id}`}
+      aria-label={`${column.label} column, ${jobs.length} jobs`}
+      style={{
+        width: "252px",
+        flex: "0 0 252px",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        borderRadius: "12px",
+        border: `1px solid ${isOver ? column.color : COLORS.borderSubtle}`,
+        background: isOver ? `${column.color}14` : "rgba(255,255,255,0.03)",
+      }}
+    >
+      <header style={{ padding: "12px 12px 8px", flexShrink: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+          <span style={{ color: column.color, fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>{column.label}</span>
+          <span style={{ color: COLORS.textFaint, fontSize: "11px", fontVariantNumeric: "tabular-nums" }}>{jobs.length}</span>
+        </div>
+        {column.hint && (
+          <div style={{ color: COLORS.textFaint, fontSize: "10px", marginTop: "4px", lineHeight: 1.35 }}>{column.hint}</div>
+        )}
+      </header>
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 10px", display: "flex", flexDirection: "column", gap: "8px", minHeight: "88px" }}>
+        {jobs.length === 0 && (
+          <div style={{ color: COLORS.textFaint, fontSize: "11px", textAlign: "center", padding: "16px 8px" }}>Drop a job here</div>
+        )}
+        {jobs.map(job => (
+          <JobKanbanCard
+            key={job._airtableId}
+            job={job}
+            saving={savingId === job._airtableId}
+            expanded={expandedId === job._airtableId}
+            onToggleNotes={() => onToggleNotes(job._airtableId)}
+            onStage={(stage) => onStage(job, stage)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function JobDragPreview({ job }: { job: JobLead }) {
+  return (
+    <div style={{
+      width: "236px",
+      padding: "10px 12px",
+      borderRadius: "10px",
+      background: "rgba(22,22,32,0.96)",
+      border: `1px solid ${jobStageColor(job.stage)}88`,
+      boxShadow: "0 12px 32px rgba(0,0,0,0.4)",
+    }}>
+      <div style={{ color: COLORS.textOnDark, fontSize: "13px", fontWeight: 700 }}>{job.company || job.name}</div>
+      <div style={{ color: COLORS.textSecondary, fontSize: "12px", marginTop: "2px" }}>{job.role}</div>
+    </div>
+  );
+}
+
 function JobsWorkspace() {
   const [jobs, setJobs] = useState<JobLead[]>(_jobLeads);
   const [loading, setLoading] = useState(!_jobLeadsLoaded);
-  const [filter, setFilter] = useState<"leads" | "today" | "all">("leads");
-  const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const pendingStage = useRef<Record<string, string>>({});
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const load = useCallback(async () => {
     if (!_jobLeadsLoaded) setLoading(true);
     const data = await fetchJobsFromAirtable();
-    setJobs(data);
+    const pending = pendingStage.current;
+    const merged = Object.keys(pending).length
+      ? data.map(j => pending[j._airtableId] ? { ...j, stage: pending[j._airtableId] } : j)
+      : data;
+    if (merged !== data) _jobLeads = merged;
+    setJobs(merged);
     setLastSync(new Date());
     setLoading(false);
   }, []);
@@ -7613,216 +7997,104 @@ function JobsWorkspace() {
     return () => clearInterval(id);
   }, [load]);
 
-  const leadJobs = jobs.filter(j => j.stage === JOB_LEAD_STAGE);
-  const latestDate = jobs.reduce((m, j) => (j.dateAdded && j.dateAdded > m ? j.dateAdded : m), "");
-  const todayLeads = jobs.filter(j => j.dateAdded === latestDate && j.stage === JOB_LEAD_STAGE);
-  const filtered =
-    filter === "all" ? jobs :
-    filter === "today" ? todayLeads :
-    leadJobs;
+  const commitStage = useCallback(async (job: JobLead, newStage: string) => {
+    if (!newStage || job.stage === newStage) return;
+    const prev = job.stage;
+    pendingStage.current[job._airtableId] = newStage;
+    const apply = (stage: string) => {
+      setJobs(list => list.map(j => j._airtableId === job._airtableId ? { ...j, stage } : j));
+      const idx = _jobLeads.findIndex(j => j._airtableId === job._airtableId);
+      if (idx >= 0) _jobLeads[idx] = { ..._jobLeads[idx], stage };
+    };
+    apply(newStage);
+    setSavingId(job._airtableId);
+    setError(null);
+    const ok = await airtableUpdate("jobs", job._airtableId, { Stage: newStage });
+    setSavingId(current => current === job._airtableId ? null : current);
+    const stillThisWrite = pendingStage.current[job._airtableId] === newStage;
+    if (stillThisWrite) delete pendingStage.current[job._airtableId];
+    if (!ok && stillThisWrite) {
+      apply(prev);
+      setError(`Could not save ${job.company || "this job"} as ${newStage}. Stage is still ${prev}.`);
+    }
+  }, []);
 
-  const chips: { id: "leads" | "today" | "all"; label: string; color: string; count: number }[] = [
-    { id: "leads", label: "Leads", color: COLORS.teal, count: leadJobs.length },
-    { id: "today", label: "Today", color: COLORS.gold, count: todayLeads.length },
-    { id: "all", label: "All", color: COLORS.textSecondary, count: jobs.length },
-  ];
+  const onDragStart = (event: DragStartEvent) => setActiveId(String(event.active.id));
+
+  const onDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const job = jobs.find(j => j._airtableId === String(event.active.id));
+    if (!job || !event.over) return;
+    const columnId = columnIdFromDrop(String(event.over.id), jobs);
+    const column = JOB_BOARD_COLUMNS.find(c => c.id === columnId);
+    if (!column) return;
+    const next = stageWrittenOnDrop(job.stage, column);
+    if (next) commitStage(job, next);
+  };
+
+  const activeJob = jobs.find(j => j._airtableId === activeId) || null;
+  const leadCount = jobs.filter(j => jobColumnForStage(j.stage) === "lead").length;
+  const columns = JOB_BOARD_COLUMNS.map(column => ({
+    column,
+    jobs: jobs.filter(j => jobColumnForStage(j.stage) === column.id),
+  }));
 
   return (
     <div data-testid="jobs-workspace" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "20px 24px 0", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+      <div style={{ padding: "16px 20px 10px", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
           <div>
-            <h2 style={{ color: COLORS.textOnDark, fontSize: "20px", fontWeight: 700, margin: 0 }}>
-              Jobs
-            </h2>
-            <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "4px" }}>
-              {leadJobs.length} lead{leadJobs.length !== 1 ? "s" : ""}
-              {latestDate ? ` · latest batch ${latestDate}` : ""}
+            <h2 style={{ color: COLORS.textOnDark, fontSize: "20px", fontWeight: 700, margin: 0 }}>Jobs</h2>
+            <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "4px", maxWidth: "720px", lineHeight: 1.45 }}>
+              {jobs.length} in pipeline · {leadCount} lead{leadCount !== 1 ? "s" : ""}
               {lastSync ? ` · synced ${lastSync.toLocaleTimeString()}` : ""}
-              {" · fed by job scout via Airtable"}
+              {" · drag a card, or open Stage. Dropping on Interview saves Interview. Phone Screen and Final Round stay when you pick them."}
             </p>
           </div>
           <button
+            type="button"
             onClick={load}
             style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textSecondary, border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}
           >
             ↻ Refresh
           </button>
         </div>
-
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
-          {chips.map(chip => {
-            const active = filter === chip.id;
-            return (
-              <button
-                key={chip.id}
-                onClick={() => setFilter(chip.id)}
-                style={{
-                  background: active ? chip.color : "rgba(255,255,255,0.05)",
-                  color: active ? COLORS.bg : chip.color,
-                  border: `1px solid ${chip.color}`,
-                  borderRadius: "14px",
-                  padding: "4px 12px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                {chip.label}{chip.count > 0 ? ` · ${chip.count}` : ""}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Job cards */}
-      <div style={{ flex: 1, overflow: "auto", padding: "0 24px 20px" }}>
-        {loading ? (
-          <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>Loading job leads…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>
-            {filter === "today"
-              ? "No leads for the latest batch yet — job scout writes Stage=Lead rows to Airtable Jobs."
-              : filter === "leads"
-                ? "No Stage=Lead rows in Airtable Jobs yet."
-                : "No jobs in Airtable yet."}
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {filtered.map((job) => {
-              const isExpanded = expandedJob === job._airtableId;
-              const stageColor = JOB_STAGE_COLORS[job.stage] || COLORS.purple;
-              const title = job.role || job.name;
-              const metaBits = [job.location, job.category, job.dateAdded].filter(Boolean);
-              return (
-                <div
-                  key={job._airtableId}
-                  data-testid={`job-lead-${job._airtableId}`}
-                  onClick={() => setExpandedJob(isExpanded ? null : job._airtableId)}
-                  style={{
-                    background: "rgba(200,210,220,0.05)",
-                    border: `1px solid ${COLORS.borderSubtle}`,
-                    borderRadius: "10px",
-                    padding: "14px 16px",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = `${stageColor}50`;
-                    e.currentTarget.style.boxShadow = `0 0 12px ${stageColor}10`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = COLORS.borderSubtle;
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
-                        <span style={{
-                          padding: "2px 8px",
-                          borderRadius: "10px",
-                          background: `${stageColor}20`,
-                          color: stageColor,
-                          fontSize: "10px",
-                          fontWeight: 700,
-                          letterSpacing: "0.05em",
-                          textTransform: "uppercase",
-                          whiteSpace: "nowrap",
-                        }}>
-                          {job.stage}
-                        </span>
-                        {job.priority && (
-                          <span style={{ fontSize: "10px", fontWeight: 600, color: COLORS.textFaint }}>P{job.priority}</span>
-                        )}
-                        <span style={{ color: COLORS.textOnDark, fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {title}
-                        </span>
-                      </div>
-                      <p style={{ color: COLORS.textSecondary, fontSize: "12px", margin: "2px 0 0" }}>
-                        {job.company}
-                        {metaBits.length > 0 && (
-                          <span style={{ color: COLORS.textFaint }}> · {metaBits.join(" · ")}</span>
-                        )}
-                      </p>
-                      {!isExpanded && job.description && (
-                        <p style={{ color: COLORS.textFaint, fontSize: "12px", margin: "6px 0 0", lineHeight: 1.45, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
-                          {job.description}
-                        </p>
-                      )}
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
-                      {job.salaryRange && (
-                        <div style={{ color: COLORS.green, fontSize: "13px", fontWeight: 700 }}>
-                          {job.salaryRange}
-                        </div>
-                      )}
-                      {job.deadline && (
-                        <div style={{ color: COLORS.gold, fontSize: "11px", fontWeight: 600 }}>
-                          Due {job.deadline}
-                        </div>
-                      )}
-                      {job.url && (
-                        <a
-                          href={job.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ color: COLORS.teal, fontSize: "11px", textDecoration: "none", fontWeight: 600 }}
-                        >
-                          Open listing ↗
-                        </a>
-                      )}
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
-                      <JobField label="Name">{job.name}</JobField>
-                      <JobField label="Company">{job.company}</JobField>
-                      <JobField label="Role">{job.role}</JobField>
-                      <JobField label="Description">{job.description}</JobField>
-                      <JobField label="Stage">{job.stage}</JobField>
-                      <JobField label="Salary Range">{job.salaryRange}</JobField>
-                      <JobField label="URL">
-                        {job.url ? (
-                          <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: COLORS.teal }}>
-                            {job.url}
-                          </a>
-                        ) : null}
-                      </JobField>
-                      <JobField label="Deadline">{job.deadline}</JobField>
-                      <JobField label="Contact Name">{job.contactName}</JobField>
-                      <JobField label="Contact Email">
-                        {job.contactEmail ? (
-                          <a href={`mailto:${job.contactEmail}`} onClick={(e) => e.stopPropagation()} style={{ color: COLORS.teal }}>{job.contactEmail}</a>
-                        ) : null}
-                      </JobField>
-                      <JobField label="Notes">{job.notes}</JobField>
-                      <JobField label="Date Added">{job.dateAdded}</JobField>
-                      {job.covenant && (
-                        <div style={{
-                          marginTop: "4px",
-                          padding: "8px 10px",
-                          background: `${COLORS.gold}12`,
-                          borderLeft: `3px solid ${COLORS.gold}`,
-                          borderRadius: "0 8px 8px 0",
-                          fontSize: "12px",
-                          color: COLORS.textOnDark,
-                          lineHeight: 1.5,
-                        }}>
-                          <span style={{ fontSize: "10px", fontWeight: 700, color: COLORS.gold, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "3px" }}>Covenant</span>
-                          {job.covenant}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        {error && (
+          <div role="alert" style={{ marginTop: "10px", color: COLORS.chartRed, fontSize: "12px" }}>{error}</div>
         )}
       </div>
+
+      {loading && jobs.length === 0 ? (
+        <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>Loading jobs…</div>
+      ) : (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={jobBoardCollision}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setActiveId(null)}
+      >
+      <div style={{ flex: 1, minHeight: 0, overflowX: "auto", overflowY: "hidden", padding: "0 16px 16px" }}>
+        {jobs.length === 0 ? (
+          <div style={{ color: COLORS.textMuted, padding: "28px 8px", textAlign: "center" }}>No jobs in Airtable yet.</div>
+        ) : null}
+        <div style={{ display: "flex", gap: "10px", height: jobs.length === 0 ? "auto" : "100%", minHeight: "280px", minWidth: "min-content", alignItems: "stretch" }}>
+          {columns.map(({ column, jobs: columnJobs }) => (
+            <JobKanbanColumn
+              key={column.id}
+              column={column}
+              jobs={columnJobs}
+              savingId={savingId}
+              expandedId={expandedId}
+              onToggleNotes={(id) => setExpandedId(current => current === id ? null : id)}
+              onStage={commitStage}
+            />
+          ))}
+        </div>
+      </div>
+      <DragOverlay>{activeJob ? <JobDragPreview job={activeJob} /> : null}</DragOverlay>
+      </DndContext>
+      )}
     </div>
   );
 }
@@ -8275,17 +8547,14 @@ function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNa
     lane: "Outreach",
   });
 
-  // Jobs — Airtable Stage=Lead (same source as the Jobs workspace)
-  const jobLeads = _jobLeads.filter(j => j.stage === JOB_LEAD_STAGE);
-  const latestJobDate = jobLeads.reduce((m, j) => (j.dateAdded && j.dateAdded > m ? j.dateAdded : m), "");
-  const todayJobLeads = jobLeads.filter(j => j.dateAdded === latestJobDate);
+  // Jobs — same Airtable source as the Jobs CRM board
+  const jobLeadCount = _jobLeads.filter(j => jobColumnForStage(j.stage) === "lead").length;
+  const jobActiveCount = _jobLeads.filter(j => !["rejected", "withdrawn"].includes(jobColumnForStage(j.stage))).length;
   const jobStatus = _jobLeadsLoaded
-    ? `${jobLeads.length} lead${jobLeads.length !== 1 ? "s" : ""} · ${todayJobLeads.length} in latest batch`
+    ? `${_jobLeads.length} in pipeline · ${jobLeadCount} lead${jobLeadCount !== 1 ? "s" : ""}`
     : "Loading…";
   const jobDetail = _jobLeadsLoaded
-    ? latestJobDate
-      ? `Latest scout ${latestJobDate} · open Jobs to triage`
-      : "No Stage=Lead rows yet"
+    ? `${jobActiveCount} active · open Jobs to move Stage`
     : "Fetching Airtable Jobs";
   lines.push({
     icon: "briefcase",
