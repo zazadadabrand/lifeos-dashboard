@@ -1060,9 +1060,9 @@ const WORKSPACE_CARDS: WorkspaceCard[] = [
   { id: "art-advisory", label: "Art", icon: "palette", color: COLORS.teal, description: "Emerging artist scouting, taste learning, HNWI pipeline" },
   // { id: "clipping", label: "Clipping", icon: "signal", color: COLORS.coral, description: "YT clipping-native creator leads, daily scout, outreach pipeline" },  // SHELVED
   { id: "cd-review", label: "CD Review", icon: "telescope", color: COLORS.purple, description: "Daily creative director curation — taste curriculum + latent collaborators" },
+  { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Daily job-scout leads — Stage=Lead triage" },
   { id: "substrate", label: "Substrate", icon: "target", color: COLORS.coral, description: "Reverse-engineer outcomes into first-principles stacks" },
   // { id: "outreach", label: "Outreach", icon: "signal", color: COLORS.coral, description: "Growth networking, job search, industry connections" },  // SHELVED
-  // { id: "jobs", label: "Jobs", icon: "briefcase", color: COLORS.purple, description: "Job search pipeline and applications" },  // SHELVED
   // { id: "grants", label: "Grants", icon: "bars", color: COLORS.gold, description: "Grant opportunities and applications" },  // SHELVED
 ];
 
@@ -5810,7 +5810,7 @@ const WORKSPACE_FOCUS: Record<CardId, string[]> = {
   "substrate": ["Creative Director", "Commission a stack", "Materials 001 · 005"],
   "clipping": ["Creator leads", "Daily scout", "Outreach"],
   "outreach": ["Warm intros", "Email drafts", "Follow-ups"],
-  "jobs": ["Applications", "Interview prep", "Networking"],
+  "jobs": ["Lead triage", "Today's batch", "Apply"],
   "grants": ["Deadlines", "Eligibility", "Submissions"],
 };
 
@@ -7497,127 +7497,167 @@ function ClippingWorkspace() {
 }
 
 // ═══════════════════════════════════════════
-// PLACEHOLDER WORKSPACE COMPONENTS
+// JOBS WORKSPACE — Airtable Jobs, Stage=Lead triage
+// Fed by CRA daily job scout → Airtable Jobs (LifeOS base).
+// Same proxy path as Art / CD Review: /api/airtable/proxy?table=jobs
 // ═══════════════════════════════════════════
-function JobsWorkspace() {
-  const [jobs, setJobs] = useState<BusinessDeal[]>(() =>
-    _businessDeals.filter(d => d.type === "Job")
-  );
-  const [activeStage, setActiveStage] = useState<"all" | JobAppStage>("all");
-  const [expandedJob, setExpandedJob] = useState<string | null>(null);
+const JOB_LEAD_STAGE = "Lead";
+const JOB_STAGE_COLORS: Record<string, string> = {
+  ...JOB_APP_COLORS,
+  Lead: COLORS.teal,
+};
 
-  // Trigger fetch if not loaded yet
-  useEffect(() => {
-    if (!_businessLoaded) {
-      fetchBusinessSnapshot().then(snapshot => {
-        if (snapshot) {
-          _businessDeals = snapshot.deals;
-          _businessLoaded = true;
-          setJobs(_businessDeals.filter(d => d.type === "Job"));
-        } else {
-          _businessLoaded = true;
-          setJobs([]);
-        }
-      });
-    }
+interface JobLead {
+  _airtableId: string;
+  name: string;
+  company: string;
+  role: string;
+  description: string;
+  stage: string;
+  salaryRange: string;
+  url: string;
+  deadline: string;
+  contactName: string;
+  contactEmail: string;
+  notes: string;
+  dateAdded: string;
+  location: string;
+  category: string;
+  priority: string;
+  covenant: string;
+  batch: string;
+}
+
+function parseJobScoutNotes(notes: string): Pick<JobLead, "location" | "category" | "priority" | "covenant" | "batch"> {
+  const map: Record<string, string> = {};
+  for (const part of notes.split("|")) {
+    const idx = part.indexOf(":");
+    if (idx === -1) continue;
+    map[part.slice(0, idx).trim()] = part.slice(idx + 1).trim();
+  }
+  return {
+    location: map.Location || "",
+    category: map.Category || "",
+    priority: map.Priority || "",
+    covenant: map.Covenant || "",
+    batch: map.Batch || "",
+  };
+}
+
+function airtableSelectName(value: any): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && typeof value.name === "string") return value.name;
+  return String(value);
+}
+
+let _jobLeads: JobLead[] = [];
+let _jobLeadsLoaded = false;
+
+async function fetchJobsFromAirtable(): Promise<JobLead[]> {
+  const records = await airtableList("jobs");
+  const mapped = records.map((r: any) => {
+    const notes = r.fields["Notes"] || "";
+    return {
+      _airtableId: r.id,
+      name: r.fields["Name"] || "",
+      company: r.fields["Company"] || "",
+      role: r.fields["Role"] || "",
+      description: r.fields["Description"] || "",
+      stage: airtableSelectName(r.fields["Stage"]) || JOB_LEAD_STAGE,
+      salaryRange: r.fields["Salary Range"] || "",
+      url: r.fields["URL"] || "",
+      deadline: r.fields["Deadline"] || "",
+      contactName: r.fields["Contact Name"] || "",
+      contactEmail: r.fields["Contact Email"] || "",
+      notes,
+      dateAdded: r.fields["Date Added"] || "",
+      ...parseJobScoutNotes(notes),
+    } as JobLead;
+  });
+  mapped.sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || "") || (a.priority || "9").localeCompare(b.priority || "9") || a.company.localeCompare(b.company));
+  _jobLeads = mapped;
+  _jobLeadsLoaded = true;
+  return mapped;
+}
+
+function JobsWorkspace() {
+  const [jobs, setJobs] = useState<JobLead[]>(_jobLeads);
+  const [loading, setLoading] = useState(!_jobLeadsLoaded);
+  const [filter, setFilter] = useState<"leads" | "today" | "all">("leads");
+  const [expandedJob, setExpandedJob] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+
+  const load = useCallback(async () => {
+    if (!_jobLeadsLoaded) setLoading(true);
+    const data = await fetchJobsFromAirtable();
+    setJobs(data);
+    setLastSync(new Date());
+    setLoading(false);
   }, []);
 
-  // Re-sync when _businessDeals changes (after fetch)
   useEffect(() => {
-    const interval = setInterval(() => {
-      const fresh = _businessDeals.filter(d => d.type === "Job");
-      if (fresh.length !== jobs.length) setJobs(fresh);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [jobs.length]);
+    load();
+    const id = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [load]);
 
-  const filtered = activeStage === "all" ? jobs : jobs.filter(j => (j.applicationJourney ?? "Bookmarked") === activeStage);
+  const leadJobs = jobs.filter(j => j.stage === JOB_LEAD_STAGE);
+  const latestDate = jobs.reduce((m, j) => (j.dateAdded && j.dateAdded > m ? j.dateAdded : m), "");
+  const todayLeads = jobs.filter(j => j.dateAdded === latestDate && j.stage === JOB_LEAD_STAGE);
+  const filtered =
+    filter === "all" ? jobs :
+    filter === "today" ? todayLeads :
+    leadJobs;
 
-  const stageCounts = JOB_APP_STAGES.reduce((acc, s) => {
-    acc[s] = jobs.filter(j => (j.applicationJourney ?? "Bookmarked") === s).length;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const handleStageChange = (jobId: string, newStage: JobAppStage) => {
-    const targetDealStage = JOB_TO_DEAL_STAGE[newStage];
-    setJobs(prev => prev.map(j => j.id === jobId ? {
-      ...j,
-      applicationJourney: newStage,
-      interviewStage: newStage,
-      journeyHistory: [...(j.journeyHistory || []), { stage: newStage, date: new Date().toISOString() }],
-      ...(targetDealStage ? { stage: targetDealStage } : {}),
-    } : j));
-    // Also update module-level cache
-    const idx = _businessDeals.findIndex(d => d.id === jobId);
-    if (idx >= 0) {
-      (_businessDeals[idx] as any).applicationJourney = newStage;
-      (_businessDeals[idx] as any).interviewStage = newStage;
-      if (targetDealStage) (_businessDeals[idx] as any).stage = targetDealStage;
-    }
-  };
-
-  const activeCount = jobs.filter(j => !JOB_APP_TERMINAL.includes(j.applicationJourney ?? "Bookmarked" as any)).length;
-  const offerCount = jobs.filter(j => j.applicationJourney === "Offer" || j.applicationJourney === "Negotiating").length;
-
-  if (!_businessLoaded) {
-    return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
-        <div style={{ width: "20px", height: "20px", border: `2px solid ${COLORS.purple}40`, borderTopColor: COLORS.purple, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-        <p style={{ color: COLORS.textMuted, fontSize: "13px" }}>Loading jobs data…</p>
-      </div>
-    );
-  }
-
-  if (jobs.length === 0) {
-    return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px" }}>
-        <AgentIcon type="briefcase" color={COLORS.purple} size={32} />
-        <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700 }}>Jobs Pipeline</h2>
-        <p style={{ color: COLORS.textMuted, fontSize: "13px", textAlign: "center", maxWidth: "360px" }}>
-          No job applications found yet. Add jobs from the board view or they'll appear here when scouted.
-        </p>
-      </div>
-    );
-  }
+  const chips: { id: "leads" | "today" | "all"; label: string; color: string; count: number }[] = [
+    { id: "leads", label: "Leads", color: COLORS.teal, count: leadJobs.length },
+    { id: "today", label: "Today", color: COLORS.gold, count: todayLeads.length },
+    { id: "all", label: "All", color: COLORS.textSecondary, count: jobs.length },
+  ];
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Header */}
+    <div data-testid="jobs-workspace" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 24px 0", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
           <div>
-            <h2 style={{ color: COLORS.textPrimary, fontSize: "20px", fontWeight: 700, margin: 0 }}>
-              Jobs Pipeline
+            <h2 style={{ color: COLORS.textOnDark, fontSize: "20px", fontWeight: 700, margin: 0 }}>
+              Jobs
             </h2>
-            <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "2px" }}>
-              {jobs.length} application{jobs.length !== 1 ? "s" : ""} · {activeCount} active · {offerCount} offer{offerCount !== 1 ? "s" : ""}
+            <p style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "4px" }}>
+              {leadJobs.length} lead{leadJobs.length !== 1 ? "s" : ""}
+              {latestDate ? ` · latest batch ${latestDate}` : ""}
+              {lastSync ? ` · synced ${lastSync.toLocaleTimeString()}` : ""}
+              {" · fed by job scout via Airtable"}
             </p>
           </div>
+          <button
+            onClick={load}
+            style={{ background: "rgba(255,255,255,0.06)", color: COLORS.textSecondary, border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "6px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}
+          >
+            ↻ Refresh
+          </button>
         </div>
 
-        {/* Stage filter pills */}
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
-          {(["all", ...JOB_APP_STAGES] as const).map((stage) => {
-            const isActive = activeStage === stage;
-            const count = stage === "all" ? jobs.length : (stageCounts[stage] || 0);
-            const stageColor = stage === "all" ? COLORS.purple : JOB_APP_COLORS[stage as JobAppStage] || COLORS.purple;
+          {chips.map(chip => {
+            const active = filter === chip.id;
             return (
               <button
-                key={stage}
-                onClick={() => setActiveStage(stage as any)}
+                key={chip.id}
+                onClick={() => setFilter(chip.id)}
                 style={{
-                  padding: "5px 12px",
-                  borderRadius: "20px",
-                  border: `1px solid ${isActive ? stageColor : COLORS.borderSubtle}`,
-                  background: isActive ? `${stageColor}20` : "transparent",
-                  color: isActive ? stageColor : COLORS.textMuted,
-                  fontSize: "11px",
-                  fontWeight: isActive ? 700 : 500,
+                  background: active ? chip.color : "rgba(255,255,255,0.05)",
+                  color: active ? COLORS.bg : chip.color,
+                  border: `1px solid ${chip.color}`,
+                  borderRadius: "14px",
+                  padding: "4px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
                   cursor: "pointer",
-                  transition: "all 0.2s ease",
                 }}
               >
-                {stage === "all" ? "All" : stage} ({count})
+                {chip.label}{chip.count > 0 ? ` · ${chip.count}` : ""}
               </button>
             );
           })}
@@ -7626,143 +7666,136 @@ function JobsWorkspace() {
 
       {/* Job cards */}
       <div style={{ flex: 1, overflow: "auto", padding: "0 24px 20px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {filtered.map((job) => {
-            const isExpanded = expandedJob === job.id;
-            const currentStage = job.applicationJourney ?? "Bookmarked";
-            const stageColor = JOB_APP_COLORS[currentStage] || COLORS.purple;
-            const stageIdx = JOB_APP_STAGES.indexOf(currentStage);
-            const nextStage = stageIdx >= 0 && stageIdx < JOB_APP_STAGES.length - 1 ? JOB_APP_STAGES[stageIdx + 1] : null;
-            return (
-              <div
-                key={job.id}
-                onClick={() => setExpandedJob(isExpanded ? null : job.id)}
-                style={{
-                  background: GLASS.background,
-                  backdropFilter: GLASS.backdropFilter,
-                  borderRadius: "12px",
-                  border: `1px solid ${COLORS.borderSubtle}`,
-                  padding: "16px 20px",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = `${stageColor}50`;
-                  e.currentTarget.style.boxShadow = `0 0 12px ${stageColor}10`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = COLORS.borderSubtle;
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                {/* Top row */}
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                      <span style={{
-                        padding: "2px 8px",
-                        borderRadius: "10px",
-                        background: `${stageColor}20`,
-                        color: stageColor,
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                      }}>
-                        {currentStage}
-                      </span>
-                      <span style={{ color: COLORS.textPrimary, fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {job.role || job.name}
-                      </span>
+        {loading ? (
+          <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>Loading job leads…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ color: COLORS.textMuted, padding: "40px", textAlign: "center" }}>
+            {filter === "today"
+              ? "No leads for the latest batch yet — job scout writes Stage=Lead rows to Airtable Jobs."
+              : filter === "leads"
+                ? "No Stage=Lead rows in Airtable Jobs yet."
+                : "No jobs in Airtable yet."}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {filtered.map((job) => {
+              const isExpanded = expandedJob === job._airtableId;
+              const stageColor = JOB_STAGE_COLORS[job.stage] || COLORS.purple;
+              const title = job.role || job.name;
+              const metaBits = [job.location, job.category, job.dateAdded].filter(Boolean);
+              return (
+                <div
+                  key={job._airtableId}
+                  data-testid={`job-lead-${job._airtableId}`}
+                  onClick={() => setExpandedJob(isExpanded ? null : job._airtableId)}
+                  style={{
+                    background: "rgba(200,210,220,0.05)",
+                    border: `1px solid ${COLORS.borderSubtle}`,
+                    borderRadius: "10px",
+                    padding: "14px 16px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `${stageColor}50`;
+                    e.currentTarget.style.boxShadow = `0 0 12px ${stageColor}10`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = COLORS.borderSubtle;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                        <span style={{
+                          padding: "2px 8px",
+                          borderRadius: "10px",
+                          background: `${stageColor}20`,
+                          color: stageColor,
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          letterSpacing: "0.05em",
+                          textTransform: "uppercase",
+                          whiteSpace: "nowrap",
+                        }}>
+                          {job.stage}
+                        </span>
+                        {job.priority && (
+                          <span style={{ fontSize: "10px", fontWeight: 600, color: COLORS.textFaint }}>P{job.priority}</span>
+                        )}
+                        <span style={{ color: COLORS.textOnDark, fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {title}
+                        </span>
+                      </div>
+                      <p style={{ color: COLORS.textSecondary, fontSize: "12px", margin: "2px 0 0" }}>
+                        {job.company}
+                        {metaBits.length > 0 && (
+                          <span style={{ color: COLORS.textFaint }}> · {metaBits.join(" · ")}</span>
+                        )}
+                      </p>
                     </div>
-                    <p style={{ color: COLORS.textMuted, fontSize: "12px", margin: "2px 0 0" }}>
-                      {job.company || job.client}
-                    </p>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    {job.salaryRange && (
-                      <div style={{ color: COLORS.green, fontSize: "14px", fontWeight: 700 }}>
-                        {job.salaryRange}
-                      </div>
-                    )}
-                    {job.url && (
-                      <a
-                        href={job.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ color: COLORS.teal, fontSize: "11px", textDecoration: "none" }}
-                      >
-                        View listing →
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                {/* Expanded details */}
-                {isExpanded && (
-                  <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
-                    {job.description && (
-                      <div style={{ marginBottom: "10px" }}>
-                        <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Notes</span>
-                        <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5 }}>{job.description}</p>
-                      </div>
-                    )}
-
-                    {/* Journey progress */}
-                    {job.journeyHistory && job.journeyHistory.length > 0 && (
-                      <div style={{ marginBottom: "10px" }}>
-                        <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Journey</span>
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
-                          {job.journeyHistory.map((h, hi) => (
-                            <span key={hi} style={{
-                              fontSize: "10px", fontWeight: 500,
-                              padding: "2px 8px", borderRadius: "8px",
-                              background: `${JOB_APP_COLORS[h.stage] || COLORS.textMuted}15`,
-                              color: JOB_APP_COLORS[h.stage] || COLORS.textMuted,
-                              border: `1px solid ${JOB_APP_COLORS[h.stage] || COLORS.textMuted}25`,
-                            }}>
-                              {h.stage} · {new Date(h.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                            </span>
-                          ))}
+                    <div style={{ textAlign: "right", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                      {job.salaryRange && (
+                        <div style={{ color: COLORS.green, fontSize: "13px", fontWeight: 700 }}>
+                          {job.salaryRange}
                         </div>
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
-                      {nextStage && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleStageChange(job.id, nextStage); }}
-                          style={{
-                            padding: "6px 14px", borderRadius: "8px",
-                            background: `${JOB_APP_COLORS[nextStage]}15`, color: JOB_APP_COLORS[nextStage],
-                            fontSize: "11px", fontWeight: 600, border: `1px solid ${JOB_APP_COLORS[nextStage]}30`,
-                            cursor: "pointer", transition: "all 0.2s ease",
-                          }}
-                        >
-                          → {nextStage}
-                        </button>
                       )}
-                      {!JOB_APP_TERMINAL.includes(currentStage as any) && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleStageChange(job.id, "Withdrawn"); }}
-                          style={{
-                            padding: "6px 14px", borderRadius: "8px",
-                            background: `${COLORS.chartRed}10`, color: COLORS.chartRed,
-                            fontSize: "11px", fontWeight: 600, border: `1px solid ${COLORS.chartRed}20`,
-                            cursor: "pointer", transition: "all 0.2s ease",
-                          }}
+                      {job.url && (
+                        <a
+                          href={job.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ color: COLORS.teal, fontSize: "11px", textDecoration: "none", fontWeight: 600 }}
                         >
-                          Withdraw
-                        </button>
+                          Open listing ↗
+                        </a>
                       )}
                     </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+
+                  {isExpanded && (
+                    <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
+                      {job.description && (
+                        <div style={{ marginBottom: "10px" }}>
+                          <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Why this seat</span>
+                          <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5 }}>{job.description}</p>
+                        </div>
+                      )}
+                      {job.covenant && (
+                        <div style={{
+                          marginBottom: "10px",
+                          padding: "8px 10px",
+                          background: `${COLORS.gold}12`,
+                          borderLeft: `3px solid ${COLORS.gold}`,
+                          borderRadius: "0 8px 8px 0",
+                          fontSize: "12px",
+                          color: COLORS.textOnDark,
+                          lineHeight: 1.5,
+                        }}>
+                          <span style={{ fontSize: "10px", fontWeight: 700, color: COLORS.gold, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "3px" }}>Covenant</span>
+                          {job.covenant}
+                        </div>
+                      )}
+                      {(job.contactName || job.contactEmail || job.deadline || job.batch) && (
+                        <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", fontSize: "12px", color: COLORS.textMuted }}>
+                          {job.contactName && <span>Contact {job.contactName}</span>}
+                          {job.contactEmail && <a href={`mailto:${job.contactEmail}`} onClick={(e) => e.stopPropagation()} style={{ color: COLORS.teal }}>{job.contactEmail}</a>}
+                          {job.deadline && <span>Deadline {job.deadline}</span>}
+                          {job.batch && <span>{job.batch}</span>}
+                        </div>
+                      )}
+                      {job.notes && !job.covenant && (
+                        <p style={{ color: COLORS.textFaint, fontSize: "11px", margin: "8px 0 0", lineHeight: 1.45 }}>{job.notes}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -8121,7 +8154,7 @@ interface DigestLine {
 function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNavigateToCard: (id: CardId) => void }) {
   const [, forceUpdate] = useState(0);
 
-  // Trigger business data fetch so Jobs/Grants show real numbers
+  // Trigger business + Airtable Jobs fetches so At-a-Glance counts are live
   useEffect(() => {
     if (!_businessLoaded) {
       fetchBusinessSnapshot().then(snapshot => {
@@ -8133,6 +8166,9 @@ function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNa
         }
         forceUpdate(n => n + 1);
       });
+    }
+    if (!_jobLeadsLoaded) {
+      fetchJobsFromAirtable().then(() => forceUpdate(n => n + 1));
     }
   }, []);
 
@@ -8213,28 +8249,25 @@ function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNa
     lane: "Outreach",
   });
 
-  // Jobs
-  const jobDeals = _businessDeals.filter(d => d.type === "Job");
-  const jobActive = jobDeals.filter(d => !JOB_APP_TERMINAL.includes(d.applicationStage as JobAppStage));
-  const jobInterviewing = jobDeals.filter(d => ["Phone Screen", "Interview", "Final Round"].includes(d.applicationStage || ""));
-  const jobOffers = jobDeals.filter(d => ["Offer", "Negotiating", "Accepted"].includes(d.applicationStage || ""));
-  const jobApplied = jobDeals.filter(d => d.applicationStage === "Applied");
-  const jobStatus = _businessLoaded
-    ? `${jobActive.length} active · ${jobApplied.length} applied · ${jobInterviewing.length} interviewing`
+  // Jobs — Airtable Stage=Lead (same source as the Jobs workspace)
+  const jobLeads = _jobLeads.filter(j => j.stage === JOB_LEAD_STAGE);
+  const latestJobDate = jobLeads.reduce((m, j) => (j.dateAdded && j.dateAdded > m ? j.dateAdded : m), "");
+  const todayJobLeads = jobLeads.filter(j => j.dateAdded === latestJobDate);
+  const jobStatus = _jobLeadsLoaded
+    ? `${jobLeads.length} lead${jobLeads.length !== 1 ? "s" : ""} · ${todayJobLeads.length} in latest batch`
     : "Loading…";
-  const jobDetail = _businessLoaded
-    ? jobOffers.length > 0
-      ? `${jobOffers.length} offer${jobOffers.length > 1 ? "s" : ""} in pipeline`
-      : jobInterviewing.length > 0
-        ? `${jobInterviewing.length} in interview stages`
-        : `${jobDeals.length} total applications tracked`
-    : "Fetching job pipeline data";
+  const jobDetail = _jobLeadsLoaded
+    ? latestJobDate
+      ? `Latest scout ${latestJobDate} · open Jobs to triage`
+      : "No Stage=Lead rows yet"
+    : "Fetching Airtable Jobs";
   lines.push({
     icon: "briefcase",
     label: "Jobs",
     color: COLORS.purple,
     status: jobStatus,
     detail: jobDetail,
+    lane: "Jobs",
   });
 
   // Grants
@@ -8871,9 +8904,9 @@ export default function Dashboard() {
               "art-advisory": <ArtAdvisoryWorkspace />,
               // "clipping": <ClippingWorkspace />,  // SHELVED
               "cd-review": <CDReviewWorkspace />,
+              "jobs": <JobsWorkspace />,
               "substrate": <SubstrateLearningWorkspace />,
               // "outreach": <OutreachWorkspace />,  // SHELVED
-              // "jobs": <JobsWorkspace />,  // SHELVED
               // "grants": <GrantsWorkspace />,  // SHELVED
             }}
           </CardStackNavigator>
