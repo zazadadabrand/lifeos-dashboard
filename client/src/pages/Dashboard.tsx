@@ -7498,8 +7498,9 @@ function ClippingWorkspace() {
 
 // ═══════════════════════════════════════════
 // JOBS WORKSPACE — Airtable Jobs, Stage=Lead triage
-// Fed by CRA daily job scout → Airtable Jobs (LifeOS base).
-// Same proxy path as Art / CD Review: /api/airtable/proxy?table=jobs
+// Fields from the Jobs table (via /api/airtable/proxy?table=jobs):
+// Name, Company, Role, Description, Stage, Salary Range, URL,
+// Deadline, Contact Name, Contact Email, Notes, Date Added.
 // ═══════════════════════════════════════════
 const JOB_LEAD_STAGE = "Lead";
 const JOB_STAGE_COLORS: Record<string, string> = {
@@ -7549,6 +7550,16 @@ function airtableSelectName(value: any): string {
   if (typeof value === "string") return value;
   if (typeof value === "object" && typeof value.name === "string") return value.name;
   return String(value);
+}
+
+function JobField({ label, children }: { label: string; children?: React.ReactNode }) {
+  if (children == null || children === "") return null;
+  return (
+    <div style={{ marginBottom: "10px" }}>
+      <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</span>
+      <div style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{children}</div>
+    </div>
+  );
 }
 
 let _jobLeads: JobLead[] = [];
@@ -7734,11 +7745,21 @@ function JobsWorkspace() {
                           <span style={{ color: COLORS.textFaint }}> · {metaBits.join(" · ")}</span>
                         )}
                       </p>
+                      {!isExpanded && job.description && (
+                        <p style={{ color: COLORS.textFaint, fontSize: "12px", margin: "6px 0 0", lineHeight: 1.45, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
+                          {job.description}
+                        </p>
+                      )}
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
                       {job.salaryRange && (
                         <div style={{ color: COLORS.green, fontSize: "13px", fontWeight: 700 }}>
                           {job.salaryRange}
+                        </div>
+                      )}
+                      {job.deadline && (
+                        <div style={{ color: COLORS.gold, fontSize: "11px", fontWeight: 600 }}>
+                          Due {job.deadline}
                         </div>
                       )}
                       {job.url && (
@@ -7757,15 +7778,31 @@ function JobsWorkspace() {
 
                   {isExpanded && (
                     <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${COLORS.borderSubtle}` }}>
-                      {job.description && (
-                        <div style={{ marginBottom: "10px" }}>
-                          <span style={{ color: COLORS.textMuted, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Why this seat</span>
-                          <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5 }}>{job.description}</p>
-                        </div>
-                      )}
+                      <JobField label="Name">{job.name}</JobField>
+                      <JobField label="Company">{job.company}</JobField>
+                      <JobField label="Role">{job.role}</JobField>
+                      <JobField label="Description">{job.description}</JobField>
+                      <JobField label="Stage">{job.stage}</JobField>
+                      <JobField label="Salary Range">{job.salaryRange}</JobField>
+                      <JobField label="URL">
+                        {job.url ? (
+                          <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: COLORS.teal }}>
+                            {job.url}
+                          </a>
+                        ) : null}
+                      </JobField>
+                      <JobField label="Deadline">{job.deadline}</JobField>
+                      <JobField label="Contact Name">{job.contactName}</JobField>
+                      <JobField label="Contact Email">
+                        {job.contactEmail ? (
+                          <a href={`mailto:${job.contactEmail}`} onClick={(e) => e.stopPropagation()} style={{ color: COLORS.teal }}>{job.contactEmail}</a>
+                        ) : null}
+                      </JobField>
+                      <JobField label="Notes">{job.notes}</JobField>
+                      <JobField label="Date Added">{job.dateAdded}</JobField>
                       {job.covenant && (
                         <div style={{
-                          marginBottom: "10px",
+                          marginTop: "4px",
                           padding: "8px 10px",
                           background: `${COLORS.gold}12`,
                           borderLeft: `3px solid ${COLORS.gold}`,
@@ -7777,17 +7814,6 @@ function JobsWorkspace() {
                           <span style={{ fontSize: "10px", fontWeight: 700, color: COLORS.gold, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "3px" }}>Covenant</span>
                           {job.covenant}
                         </div>
-                      )}
-                      {(job.contactName || job.contactEmail || job.deadline || job.batch) && (
-                        <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", fontSize: "12px", color: COLORS.textMuted }}>
-                          {job.contactName && <span>Contact {job.contactName}</span>}
-                          {job.contactEmail && <a href={`mailto:${job.contactEmail}`} onClick={(e) => e.stopPropagation()} style={{ color: COLORS.teal }}>{job.contactEmail}</a>}
-                          {job.deadline && <span>Deadline {job.deadline}</span>}
-                          {job.batch && <span>{job.batch}</span>}
-                        </div>
-                      )}
-                      {job.notes && !job.covenant && (
-                        <p style={{ color: COLORS.textFaint, fontSize: "11px", margin: "8px 0 0", lineHeight: 1.45 }}>{job.notes}</p>
                       )}
                     </div>
                   )}
