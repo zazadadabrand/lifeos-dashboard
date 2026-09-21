@@ -6950,101 +6950,55 @@ function CDReviewWorkspace() {
 
 // ═══════════════════════════════════════════
 // SUBSTRATE LEARNING WORKSPACE
-// Native LifeOS summary + CTA into the live product.
+// Full-bleed embed of the live product. LifeOS has no other
+// in-app product embed, so this is the tab surface.
 // ═══════════════════════════════════════════
-const SUBSTRATE_STACKS = [
-  {
-    name: "Creative Director",
-    status: "Active",
-    detail: "Transdisciplinary culture lane. 5 layers, 57 atoms. Materials 001 (type) and 005 (color) are live.",
-  },
-  {
-    name: "Commission",
-    status: "Engine ready",
-    detail: "Name a destination. The engine builds a first-pass stack of layers, atoms, hours, and pass conditions.",
-  },
-];
-
 function SubstrateLearningWorkspace() {
-  const color = COLORS.coral;
+  const [loaded, setLoaded] = useState(false);
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "20px 24px", color: COLORS.textPrimary }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: COLORS.textOnDark }}>Substrate Learning</h2>
-            <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color, border: `1px solid ${color}`, borderRadius: "10px", padding: "1px 8px" }}>
-              v11 live
-            </span>
-          </div>
-          <p style={{ margin: "6px 0 0", fontSize: "13px", lineHeight: 1.5, color: COLORS.textSecondary, maxWidth: "560px" }}>
-            Reverse engineer a specific outcome into a stack of first principles. Atoms are taught, timed, and tested inside the system.
-          </p>
-        </div>
-        <a
-          href={SUBSTRATE_LIVE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="substrate-open-cta"
+    <div
+      data-testid="substrate-workspace"
+      style={{
+        position: "absolute",
+        inset: 0,
+        overflow: "hidden",
+        background: "#0B101F",
+      }}
+    >
+      {!loaded && (
+        <div
           style={{
-            display: "inline-flex",
+            position: "absolute",
+            inset: 0,
+            display: "flex",
             alignItems: "center",
-            gap: "8px",
-            background: `${color}20`,
-            color,
-            border: `1px solid ${color}55`,
-            borderRadius: "8px",
-            padding: "8px 14px",
+            justifyContent: "center",
+            color: COLORS.textMuted,
             fontSize: "13px",
-            fontWeight: 600,
-            textDecoration: "none",
-            whiteSpace: "nowrap",
+            pointerEvents: "none",
           }}
         >
-          Open Substrate Learning
-          <span aria-hidden="true">↗</span>
-        </a>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginBottom: "16px" }}>
-        <div style={{ background: "rgba(200,210,220,0.05)", border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "10px", padding: "12px 14px" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color, marginBottom: "6px" }}>Status</div>
-          <div style={{ fontSize: "13px", color: COLORS.textPrimary }}>Live on Vercel · Bernard Studia</div>
-          <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "4px" }}>Progress persists in the browser. First confirming engine run is still open.</div>
+          Loading Substrate Learning…
         </div>
-        <div style={{ background: "rgba(200,210,220,0.05)", border: `1px solid ${COLORS.borderSubtle}`, borderRadius: "10px", padding: "12px 14px" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color, marginBottom: "6px" }}>Shipped</div>
-          <div style={{ fontSize: "12px", color: COLORS.textSecondary, lineHeight: 1.55 }}>
-            Multi-stack home · CD map · Materials 001 and 005 · commission engine · local persistence
-          </div>
-        </div>
-      </div>
-
-      <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "8px" }}>
-        Stacks
-      </div>
-      <div style={{ display: "grid", gap: "10px" }}>
-        {SUBSTRATE_STACKS.map((stack) => (
-          <div
-            key={stack.name}
-            style={{
-              background: "rgba(200,210,220,0.05)",
-              border: `1px solid ${COLORS.borderSubtle}`,
-              borderRadius: "10px",
-              padding: "14px 16px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "15px", fontWeight: 600, color: COLORS.textOnDark }}>{stack.name}</span>
-              <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color, border: `1px solid ${color}`, borderRadius: "10px", padding: "1px 8px" }}>
-                {stack.status}
-              </span>
-            </div>
-            <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "6px", lineHeight: 1.5 }}>{stack.detail}</div>
-          </div>
-        ))}
-      </div>
+      )}
+      <iframe
+        src={SUBSTRATE_LIVE_URL}
+        title="Substrate Learning"
+        data-testid="substrate-embed"
+        allow="fullscreen; clipboard-write"
+        referrerPolicy="no-referrer-when-downgrade"
+        onLoad={() => setLoaded(true)}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          border: "none",
+          display: "block",
+          background: "#0B101F",
+        }}
+      />
     </div>
   );
 }
