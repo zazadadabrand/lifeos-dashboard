@@ -6,6 +6,8 @@
  * Docs: https://docs.anthropic.com/en/api/creating-message-batches
  */
 
+import { repairTruncatedJson } from './json-salvage';
+
 const BASE = 'https://api.anthropic.com/v1/messages/batches';
 
 function headers(): Record<string, string> {
@@ -103,21 +105,9 @@ export function extractText(resultItem: any): string | null {
   return textBlocks[textBlocks.length - 1] ?? null;
 }
 
-/** Parse JSON from model output — strips markdown fences and leading prose. */
+/** Parse JSON from model output. Repairs fences, preamble, trailing commas, and truncation. */
 export function parseJSON(text: string): any | null {
-  // Strip ```json ... ``` fences if model wrapped output
-  const fenceStripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  try {
-    return JSON.parse(fenceStripped);
-  } catch { /* try harder below */ }
-
-  // If there's leading prose before the JSON object, extract from first { to last }
-  const start = fenceStripped.indexOf('{');
-  const end = fenceStripped.lastIndexOf('}');
-  if (start !== -1 && end !== -1 && end > start) {
-    try {
-      return JSON.parse(fenceStripped.slice(start, end + 1));
-    } catch { /* give up */ }
-  }
-  return null;
+  const value = repairTruncatedJson(text);
+  if (value === null || value === undefined) return null;
+  return value;
 }

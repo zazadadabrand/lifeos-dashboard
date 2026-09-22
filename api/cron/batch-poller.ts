@@ -1,7 +1,8 @@
 export const config = { runtime: 'edge' };
 
 import { kvGet, kvSet } from '../lib/kv';
-import { getBatch, getBatchResults, extractText, parseJSON } from '../lib/anthropic-batch';
+import { getBatch, getBatchResults, extractText, parseJSON, submitBatch } from '../lib/anthropic-batch';
+import { artScoutFinalizeRequest, planArtScout } from '../lib/art-scout-land';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -522,16 +523,47 @@ export default async function handler(req: Request) {
       // Batch complete — retrieve and auto-push
       const lines = await getBatchResults(batchId);
       const resultLine = lines[0];
+
+      // Art Scout: a paused web_search turn has no JSON. Finalize from the
+      // notes already in the result instead of dropping the batch.
+      if (agentType === 'art-scout') {
+        const plan = planArtScout(resultLine, entry.phase);
+        if (plan.action === 'land') {
+          const result = await pushArtists(plan.artists, etDate(submittedAt));
+          log.push(`art-scout: +${result.added} artists (${result.airtable} in Airtable)`);
+          processed++;
+        } else if (plan.action === 'finalize') {
+          const follow = await submitBatch([artScoutFinalizeRequest(plan.notes, etDate(submittedAt))]);
+          if (!follow) {
+            log.push(`art-scout: ${plan.stopReason} finalize submit failed; keeping ${batchId}`);
+            console.error(`[batch-poller] art-scout finalize submit failed for ${batchId}`);
+            remaining.push(entry);
+          } else {
+            log.push(`art-scout: ${plan.stopReason} had no JSON; queued finalize ${follow.id}`);
+            remaining.push({
+              batchId: follow.id,
+              agentType: 'art-scout',
+              submittedAt,
+              phase: 'finalize',
+              parentBatchId: batchId,
+            });
+          }
+        } else {
+          log.push(`art-scout: ${plan.reason}`);
+          console.error(`[batch-poller] art-scout drop ${batchId}: ${plan.reason}`);
+          const raw = extractText(resultLine);
+          if (raw) console.error('[batch-poller] Raw text:', raw.slice(0, 500));
+        }
+        continue;
+      }
+
       const text = extractText(resultLine);
 
       if (text) {
         const parsed = parseJSON(text);
         if (parsed) {
           let added = 0;
-          if (agentType === 'art-scout') {
-            const result = await pushArtists(parsed.artists ?? [], etDate(submittedAt));
-            log.push(`art-scout: +${result.added} artists (${result.airtable} in Airtable)`);
-          } else if (agentType === 'deep-dive') {
+          if (agentType === 'deep-dive') {
             // Deep dive batches have multiple results (one per artist)
             // Each result line is a separate artist's enrichment
             const allResults: any[] = [];
@@ -572,7 +604,8 @@ export default async function handler(req: Request) {
         log.push(`${agentType}: result type=${failType}`);
         console.error(`[batch-poller] ${agentType} ${batchId} result type: ${failType}`);
       }
-      // Remove from queue regardless of success/failure
+      // Non-art-scout lanes still leave the queue after a terminal result.
+      // Art Scout is handled above: pause_turn is replaced with a finalize batch.
     }
 
     await kvSet('agent:batches', { batches: remaining });
