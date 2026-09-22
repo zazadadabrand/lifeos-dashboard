@@ -2,6 +2,7 @@ export const config = { runtime: 'edge' };
 
 import { kvGet, kvSet } from '../lib/kv';
 import { getBatch, getBatchResults, extractText, parseJSON } from '../lib/anthropic-batch';
+import { planArtScout } from '../lib/art-scout-land';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -522,16 +523,38 @@ export default async function handler(req: Request) {
       // Batch complete — retrieve and auto-push
       const lines = await getBatchResults(batchId);
       const resultLine = lines[0];
+
+      // Art Scout: land salvaged or schema JSON. Prose/empty stays on the
+      // queue with the notes saved. Do not submit a replacement scout.
+      if (agentType === 'art-scout') {
+        const plan = planArtScout(resultLine);
+        if (plan.action === 'land') {
+          const result = await pushArtists(plan.artists, etDate(submittedAt));
+          log.push(`art-scout: +${result.added} artists (${result.airtable} in Airtable)`);
+          processed++;
+        } else {
+          remaining.push({
+            ...entry,
+            held: true,
+            stopReason: plan.stopReason,
+            artifact: plan.artifact,
+          });
+          log.push(`art-scout: held ${batchId} (${plan.reason}); not dequeued`);
+          if (!entry.held) {
+            console.error(`[batch-poller] art-scout held ${batchId}: ${plan.reason}`);
+            console.error('[batch-poller] Raw text:', plan.artifact.excerpt);
+          }
+        }
+        continue;
+      }
+
       const text = extractText(resultLine);
 
       if (text) {
         const parsed = parseJSON(text);
         if (parsed) {
           let added = 0;
-          if (agentType === 'art-scout') {
-            const result = await pushArtists(parsed.artists ?? [], etDate(submittedAt));
-            log.push(`art-scout: +${result.added} artists (${result.airtable} in Airtable)`);
-          } else if (agentType === 'deep-dive') {
+          if (agentType === 'deep-dive') {
             // Deep dive batches have multiple results (one per artist)
             // Each result line is a separate artist's enrichment
             const allResults: any[] = [];
@@ -572,7 +595,8 @@ export default async function handler(req: Request) {
         log.push(`${agentType}: result type=${failType}`);
         console.error(`[batch-poller] ${agentType} ${batchId} result type: ${failType}`);
       }
-      // Remove from queue regardless of success/failure
+      // Non-art-scout lanes still leave the queue after a terminal result.
+      // Art Scout prose/empty is held above and is not removed.
     }
 
     await kvSet('agent:batches', { batches: remaining });

@@ -2,15 +2,38 @@ export const config = { runtime: 'edge' };
 
 import { kvGet, kvSet } from '../lib/kv';
 import { submitBatch, WEB_SEARCH_TOOL } from '../lib/anthropic-batch';
+import { ART_SCOUT_MAX_TOKENS, ART_SCOUT_MODEL, ART_SCOUT_OUTPUT_CONFIG, ART_SCOUT_SEARCH_BUDGET } from '../lib/art-scout-land';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
-const MODEL = 'claude-sonnet-4-6';
-const MAX_TOKENS = 4096;
+const MODEL = ART_SCOUT_MODEL;
+const MAX_TOKENS = ART_SCOUT_MAX_TOKENS;
 const ARTISTS_BASE_ID = 'apppZ2gNZ9tjORpvp';
 const ARTISTS_TABLE_ID = 'tblHBC8yJQbejxqHg';
 
-function etDate(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
+function etDate(iso?: string): string {
+  const parsed = iso ? new Date(iso) : new Date();
+  const when = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(when);
+}
+
+async function artistsBatchExists(batchName: string): Promise<boolean> {
+  const pat = process.env.AIRTABLE_PAT;
+  if (!pat) return false;
+  const qp = new URLSearchParams({
+    pageSize: '1',
+    filterByFormula: `{Batch}="${batchName}"`,
+  });
+  qp.append('fields[]', 'Name');
+  try {
+    const res = await fetch(`https://api.airtable.com/v0/${ARTISTS_BASE_ID}/${ARTISTS_TABLE_ID}?${qp}`, {
+      headers: { Authorization: `Bearer ${pat}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return (data.records?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
 }
 
 async function pipelineNames(): Promise<string[]> {
@@ -94,7 +117,7 @@ HARD RULES:
 3. Do NOT suggest artists already listed in the pipeline (provided in user message).
 4. Artists may be of any background — prioritize underrepresented voices broadly, but taste fit and pre-discovery status come first.
 5. All artists must be actively producing work in 2024–2026 — verify via recent posts or exhibition listings.
-6. Return ONLY valid JSON. No prose before or after.
+6. Your final message is grammar-constrained JSON matching the request schema: {"artists":[...]}. Research notes are not a result. When the search budget is spent, stop searching and emit that object for every artist you have fully verified. Fewer than 10 is success. An empty artists array is success when nobody is fully verified.
 
 RESPONSE FORMAT (return exactly this JSON structure, no markdown fences):
 {
@@ -131,16 +154,50 @@ export default async function handler(req: Request) {
       ? `\n\nARTISTS ALREADY IN PIPELINE — skip all of these:\n${existingNames.join('\n')}`
       : '';
 
-    const userMessage = `Scout exactly 10 emerging contemporary artists for Bernard Studia. Every artist must have both a verified website URL and a verified Instagram handle — skip any artist missing either.${exclusionBlock}\n\nReturn exactly 10 artists as JSON.`;
+    const day = etDate();
+    const batchName = `art-scout-${day}`;
+
+    // One in-flight curation per ET day. A held prose batch is not a curation:
+    // it landed zero rows and must not block a manual replacement.
+    const current = await kvGet('agent:batches');
+    const batches: any[] = current?.batches ?? [];
+    const pendingToday = batches.filter((b) => b?.agentType === 'art-scout' && !b.held && etDate(b.submittedAt) === day);
+    if (pendingToday.length > 0) {
+      return new Response(JSON.stringify({
+        success: true,
+        skipped: true,
+        reason: 'pending',
+        batchId: pendingToday[0].batchId,
+        batch: batchName,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...CORS },
+      });
+    }
+
+    if (await artistsBatchExists(batchName)) {
+      return new Response(JSON.stringify({
+        success: true,
+        skipped: true,
+        reason: 'already-landed',
+        batch: batchName,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...CORS },
+      });
+    }
+
+    const userMessage = `Scout up to 10 emerging contemporary artists for Bernard Studia. Every artist must have both a verified website URL and a verified Instagram handle — skip any artist missing either. You have at most ${ART_SCOUT_SEARCH_BUDGET} web searches. When you hit that budget, stop and emit the schema object for the artists you have already verified.${exclusionBlock}`;
 
     const batch = await submitBatch([
       {
-        custom_id: `art-scout-${etDate()}`,
+        custom_id: batchName,
         params: {
           model: MODEL,
           max_tokens: MAX_TOKENS,
           system: SYSTEM_PROMPT,
-          tools: [WEB_SEARCH_TOOL],
+          tools: [{ ...WEB_SEARCH_TOOL, max_uses: ART_SCOUT_SEARCH_BUDGET }],
+          output_config: ART_SCOUT_OUTPUT_CONFIG,
           messages: [{ role: 'user', content: userMessage }],
         },
       },
@@ -153,17 +210,31 @@ export default async function handler(req: Request) {
       });
     }
 
-    // Store batch ID for the poller
-    const current = await kvGet('agent:batches');
-    const batches: any[] = current?.batches ?? [];
-    batches.push({
+    // Re-read so a batch queued while names were loading is not overwritten.
+    const queued = await kvGet('agent:batches');
+    const next: any[] = queued?.batches ?? [];
+    if (next.some((b) => b?.agentType === 'art-scout' && !b.held && etDate(b.submittedAt) === day)) {
+      return new Response(JSON.stringify({
+        success: true,
+        skipped: true,
+        reason: 'pending',
+        batchId: next.find((b) => b?.agentType === 'art-scout' && !b.held && etDate(b.submittedAt) === day)?.batchId,
+        batch: batchName,
+        note: 'Another art-scout batch was queued while this one was submitting. This batch id was not stored.',
+        droppedBatchId: batch.id,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...CORS },
+      });
+    }
+    next.push({
       batchId: batch.id,
       agentType: 'art-scout',
       submittedAt: new Date().toISOString(),
     });
-    await kvSet('agent:batches', { batches });
+    await kvSet('agent:batches', { batches: next });
 
-    return new Response(JSON.stringify({ success: true, batchId: batch.id, excluded: existingNames.length }), {
+    return new Response(JSON.stringify({ success: true, batchId: batch.id, batch: batchName, excluded: existingNames.length }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...CORS },
     });
