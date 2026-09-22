@@ -25,12 +25,14 @@ on:
           - all
 
 jobs:
+  # Daily Art Scout moved to the Vercel cron /api/cron/art-scout at 12:00 UTC.
+  # Actions schedules have been idle since 2026-07-22; keep this job manual-only
+  # so re-enabling the workflow cannot submit a second batch the same day.
   art-scout:
     name: Art Scout (10 artists)
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
-      (github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'art-scout' || github.event.inputs.agent == 'all'))
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.agent == 'art-scout' || github.event.inputs.agent == 'all')
     steps:
       - name: Trigger Art Scout
         run: |

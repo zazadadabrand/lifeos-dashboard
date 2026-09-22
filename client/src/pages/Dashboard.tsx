@@ -589,7 +589,7 @@ const LANES: Lane[] = [
         role: "Artist Discovery",
         description: "Finds unsigned emerging artists globally, scores them 0-100 on taste fit, market pricing, upside potential, and show history",
         status: "active",
-        schedule: "Weekly (Mon 8 AM)",
+        schedule: "Daily 12:00 UTC",
         icon: "telescope",
       },
       {
@@ -8481,7 +8481,6 @@ function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNa
   const now = new Date();
   const etNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   const hour = etNow.getHours();
-  const dayOfWeek = etNow.getDay();
   const dayOfMonth = etNow.getDate();
   const month = etNow.getMonth();
 
@@ -8516,21 +8515,22 @@ function TLDRDigest({ activeCard, onNavigateToCard }: { activeCard: CardId; onNa
     lane: "Hub",
   });
 
-  // Art Advisory
-  const artStatus = dayOfWeek === 1
-    ? "Scout batch incoming — 5 artists to review"
-    : "2 active / 2 planned";
-  const daysUntilMonday = ((1 - dayOfWeek) + 7) % 7;
-  const artDetail = dayOfWeek === 1
-    ? "Taste Engine learning from last week's ratings"
-    : daysUntilMonday === 1
-    ? "Scout batch arrives tomorrow"
-    : `Next scout: Monday · Outreach + Sales planned`;
+  // Art Advisory — Vercel cron /api/cron/art-scout at 12:00 UTC.
+  const scoutAt = new Date();
+  scoutAt.setUTCHours(12, 0, 0, 0);
+  const scoutTimeEt = scoutAt.toLocaleTimeString("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const artDetail = now.getUTCHours() < 12
+    ? `Next scout: today ${scoutTimeEt} ET`
+    : `Next scout: tomorrow ${scoutTimeEt} ET`;
   lines.push({
     icon: "palette",
     label: "Art Advisory",
     color: COLORS.teal,
-    status: artStatus,
+    status: "Art Scout active · 10 artists/day",
     detail: artDetail,
     lane: "Art Advisory",
   });

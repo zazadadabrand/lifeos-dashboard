@@ -6,34 +6,190 @@ import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 const today = () => new Date().toISOString().split('T')[0];
 
-// Auto-push art-scout results directly into pipeline:snapshot
-async function pushArtists(artists: any[]): Promise<number> {
+// Art-scout batch ids are America/New_York dates so a run late in the ET
+// evening still lands as art-scout-YYYY-MM-DD for that evening.
+function etDate(iso?: string): string {
+  const parsed = iso ? new Date(iso) : new Date();
+  const when = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(when);
+}
+
+// Artists Pipeline (LifeOS base) — same table the Art Advisory workspace reads.
+const ARTISTS_BASE_ID = 'apppZ2gNZ9tjORpvp';
+const ARTISTS_TABLE_ID = 'tblHBC8yJQbejxqHg';
+const ARTIST_STATUSES = new Set([
+  'Scouted', 'Deep Dive', 'Shortlisted', 'In Conversation', 'Active',
+  'Declined', 'Brief Featured', 'In Network',
+]);
+
+function asUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith('@')) return undefined;
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed.replace(/^\/\//, '')}`;
+  try {
+    const url = new URL(withScheme);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    if (!url.hostname.includes('.')) return undefined;
+    if (url.pathname === '/' && !url.search && !url.hash) return url.origin;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function asScore(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : typeof value === 'string' ? parseFloat(value) : NaN;
+  if (!Number.isFinite(n)) return undefined;
+  return Math.round(n * 10) / 10;
+}
+
+async function airtableArtistNames(): Promise<Set<string>> {
+  const pat = process.env.AIRTABLE_PAT;
+  const names = new Set<string>();
+  if (!pat) return names;
+
+  let offset: string | undefined;
+  do {
+    const qp = new URLSearchParams({ pageSize: '100' });
+    qp.append('fields[]', 'Name');
+    if (offset) qp.set('offset', offset);
+    try {
+      const res = await fetch(`https://api.airtable.com/v0/${ARTISTS_BASE_ID}/${ARTISTS_TABLE_ID}?${qp}`, {
+        headers: { Authorization: `Bearer ${pat}` },
+      });
+      if (!res.ok) {
+        console.error('[batch-poller] airtableArtistNames failed', res.status);
+        break;
+      }
+      const data = await res.json();
+      for (const record of data.records ?? []) {
+        const name = String(record.fields?.Name ?? '').toLowerCase().trim();
+        if (name) names.add(name);
+      }
+      offset = data.offset;
+    } catch (e) {
+      console.error('[batch-poller] airtableArtistNames failed', e);
+      break;
+    }
+  } while (offset);
+
+  return names;
+}
+
+async function postArtistRecords(records: any[]): Promise<number> {
+  const pat = process.env.AIRTABLE_PAT;
+  if (!pat || records.length === 0) return 0;
+
+  try {
+    const res = await fetch(`https://api.airtable.com/v0/${ARTISTS_BASE_ID}/${ARTISTS_TABLE_ID}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pat}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ records, typecast: true }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.records?.length ?? records.length;
+    }
+    const errText = await res.text();
+    console.error('[batch-poller] airtableCreateArtists failed', res.status, errText.slice(0, 500));
+  } catch (e) {
+    console.error('[batch-poller] airtableCreateArtists failed', e);
+    return 0;
+  }
+
+  if (records.length === 1) return 0;
+  let created = 0;
+  for (const record of records) created += await postArtistRecords([record]);
+  return created;
+}
+
+// Mirror new art-scout rows into Artists Pipeline. Best-effort per record so
+// one bad URL does not drop the rest of the batch.
+async function airtableCreateArtists(artists: any[]): Promise<number> {
+  const pat = process.env.AIRTABLE_PAT;
+  if (!pat || artists.length === 0) {
+    if (!pat && artists.length > 0) {
+      console.error('[batch-poller] AIRTABLE_PAT missing; art-scout rows stayed in KV only');
+    }
+    return 0;
+  }
+
+  const records = artists.map((a: any) => {
+    const status = ARTIST_STATUSES.has(a.status) ? a.status : 'Scouted';
+    const email = typeof a.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email.trim())
+      ? a.email.trim()
+      : undefined;
+    const fields: Record<string, unknown> = {
+      'Name': a.name ?? '',
+      'Date Scouted': a.dateScouted || undefined,
+      'Batch': a.batch || '',
+      'Location': a.location || '',
+      'Medium': a.medium || '',
+      'Score': asScore(a.score),
+      'Price Range': a.priceRange || '',
+      'Why Interesting': a.whyInteresting || '',
+      'Shows Press': a.showsPress || '',
+      'Link': asUrl(a.link || a.website),
+      'Instagram': a.instagram || '',
+      'Website': asUrl(a.website),
+      'Email': email,
+      'Status': status,
+      'Ant Rating': a.antRating || '',
+    };
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined && value !== '') cleaned[key] = value;
+    }
+    if (!cleaned['Name']) return null;
+    cleaned['Status'] = status;
+    cleaned['Batch'] = a.batch || '';
+    return { fields: cleaned };
+  }).filter(Boolean);
+
+  let created = 0;
+  for (let i = 0; i < records.length; i += 10) {
+    created += await postArtistRecords(records.slice(i, i + 10));
+  }
+  return created;
+}
+
+// Auto-push art-scout results into pipeline:snapshot and Artists Pipeline.
+async function pushArtists(artists: any[], batchDay: string): Promise<{ added: number; airtable: number }> {
   const snapshot = await kvGet('pipeline:snapshot');
   const existing: any[] = snapshot?.artists ?? [];
-  const existingNames = new Set(existing.map((a: any) => a.name));
+  const airtableNames = await airtableArtistNames();
+  const existingNames = new Set<string>([
+    ...existing.map((a: any) => String(a.name ?? '').toLowerCase().trim()).filter(Boolean),
+    ...airtableNames,
+  ]);
 
   const newArtists = artists
-    .filter((a: any) => a.name && !existingNames.has(a.name))
+    .filter((a: any) => a.name && !existingNames.has(String(a.name).toLowerCase().trim()))
     .map((a: any) => ({
       sheetRow: 0,
-      dateScouted: today(),
-      batch: `art-scout-${today()}`,
       link: a.website ?? '',
       antRating: '',
       hasDeepDive: false,
       deepDive: null,
       ...a,
-      status: a.status ?? 'Scouted',
+      dateScouted: batchDay,
+      batch: `art-scout-${batchDay}`,
+      status: ARTIST_STATUSES.has(a.status) ? a.status : 'Scouted',
     }));
 
-  if (newArtists.length === 0) return 0;
+  if (newArtists.length === 0) return { added: 0, airtable: 0 };
 
   await kvSet('pipeline:snapshot', {
     artists: [...existing, ...newArtists],
     snapshotAt: new Date().toISOString(),
   });
 
-  return newArtists.length;
+  const airtable = await airtableCreateArtists(newArtists);
+  return { added: newArtists.length, airtable };
 }
 
 // Auto-push deep-dive enrichment results back into pipeline:snapshot
@@ -373,8 +529,8 @@ export default async function handler(req: Request) {
         if (parsed) {
           let added = 0;
           if (agentType === 'art-scout') {
-            added = await pushArtists(parsed.artists ?? []);
-            log.push(`art-scout: +${added} artists`);
+            const result = await pushArtists(parsed.artists ?? [], etDate(submittedAt));
+            log.push(`art-scout: +${result.added} artists (${result.airtable} in Airtable)`);
           } else if (agentType === 'deep-dive') {
             // Deep dive batches have multiple results (one per artist)
             // Each result line is a separate artist's enrichment
