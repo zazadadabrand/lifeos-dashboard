@@ -71,21 +71,58 @@ describe('planArtScout', () => {
     },
   };
 
-  it('finalizes a pause_turn batch that never emitted JSON', () => {
+  it('holds a pause_turn batch that never emitted JSON and keeps the notes', () => {
     const plan = planArtScout(pauseTurn);
-    assert.equal(plan.action, 'finalize');
-    if (plan.action !== 'finalize') return;
+    assert.equal(plan.action, 'hold');
+    if (plan.action !== 'hold') return;
     assert.equal(plan.stopReason, 'pause_turn');
-    assert.match(plan.notes, /Aaron Feltman/);
-    assert.match(plan.notes, /Benji Stiles/);
+    assert.match(plan.artifact.notes, /Aaron Feltman/);
+    assert.match(plan.artifact.excerpt, /Benji Stiles/);
   });
 
-  it('does not finalize twice', () => {
-    const plan = planArtScout(pauseTurn, 'finalize');
-    assert.equal(plan.action, 'drop');
+  it('holds an empty result instead of dropping it', () => {
+    const plan = planArtScout(undefined);
+    assert.equal(plan.action, 'hold');
+    if (plan.action !== 'hold') return;
+    assert.equal(plan.stopReason, 'empty');
   });
 
-  it('lands truncated JSON instead of finalizing', () => {
+  it('lands a submit_artists tool call even when the text is prose', () => {
+    const item = {
+      result: {
+        type: 'succeeded',
+        message: {
+          stop_reason: 'tool_use',
+          content: [
+            { type: 'text', text: 'I can confirm: Benji Stiles is represented by Foltz Fine Art — RED FLAG.' },
+            { type: 'tool_use', name: 'submit_artists', input: { artists: [ARTIST] } },
+          ],
+        },
+      },
+    };
+    const plan = planArtScout(item);
+    assert.equal(plan.action, 'land');
+    if (plan.action !== 'land') return;
+    assert.equal(plan.artists[0].name, 'Ada Lott');
+  });
+
+  it('lands an explicit empty artists array from the schema', () => {
+    const item = {
+      result: {
+        type: 'succeeded',
+        message: {
+          stop_reason: 'end_turn',
+          content: [{ type: 'text', text: '{"artists":[]}' }],
+        },
+      },
+    };
+    const plan = planArtScout(item);
+    assert.equal(plan.action, 'land');
+    if (plan.action !== 'land') return;
+    assert.equal(plan.artists.length, 0);
+  });
+
+  it('lands truncated JSON instead of holding', () => {
     const full = JSON.stringify({ artists: [ARTIST, SECOND] });
     const cut = full.slice(0, full.indexOf('"Bea Moss"') + 5);
     const item = {

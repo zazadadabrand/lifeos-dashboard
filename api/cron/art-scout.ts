@@ -2,7 +2,7 @@ export const config = { runtime: 'edge' };
 
 import { kvGet, kvSet } from '../lib/kv';
 import { submitBatch, WEB_SEARCH_TOOL } from '../lib/anthropic-batch';
-import { ART_SCOUT_MAX_TOKENS, ART_SCOUT_MODEL, ART_SCOUT_SEARCH_BUDGET } from '../lib/art-scout-land';
+import { ART_SCOUT_MAX_TOKENS, ART_SCOUT_MODEL, ART_SCOUT_OUTPUT_CONFIG, ART_SCOUT_SEARCH_BUDGET } from '../lib/art-scout-land';
 import { isCronAuthorized, unauthorizedResponse, CORS } from '../lib/cron-auth';
 
 const MODEL = ART_SCOUT_MODEL;
@@ -117,8 +117,7 @@ HARD RULES:
 3. Do NOT suggest artists already listed in the pipeline (provided in user message).
 4. Artists may be of any background — prioritize underrepresented voices broadly, but taste fit and pre-discovery status come first.
 5. All artists must be actively producing work in 2024–2026 — verify via recent posts or exhibition listings.
-6. Return ONLY valid JSON. No prose before or after. The final message must be the JSON object, not a research diary.
-7. SEARCH BUDGET: you have at most 30 web searches. When the budget is spent, stop searching immediately and return JSON for every artist you have fully verified. Fewer than 10 is success. Ending the turn on prose is failure.
+6. Your final message is grammar-constrained JSON matching the request schema: {"artists":[...]}. Research notes are not a result. When the search budget is spent, stop searching and emit that object for every artist you have fully verified. Fewer than 10 is success. An empty artists array is success when nobody is fully verified.
 
 RESPONSE FORMAT (return exactly this JSON structure, no markdown fences):
 {
@@ -158,11 +157,11 @@ export default async function handler(req: Request) {
     const day = etDate();
     const batchName = `art-scout-${day}`;
 
-    // One curation per ET day. A paused batch still in the queue (including
-    // its no-search finalize) counts, so a manual re-run cannot double-curate.
+    // One in-flight curation per ET day. A held prose batch is not a curation:
+    // it landed zero rows and must not block a manual replacement.
     const current = await kvGet('agent:batches');
     const batches: any[] = current?.batches ?? [];
-    const pendingToday = batches.filter((b) => b?.agentType === 'art-scout' && etDate(b.submittedAt) === day);
+    const pendingToday = batches.filter((b) => b?.agentType === 'art-scout' && !b.held && etDate(b.submittedAt) === day);
     if (pendingToday.length > 0) {
       return new Response(JSON.stringify({
         success: true,
@@ -188,7 +187,7 @@ export default async function handler(req: Request) {
       });
     }
 
-    const userMessage = `Scout up to 10 emerging contemporary artists for Bernard Studia. Every artist must have both a verified website URL and a verified Instagram handle — skip any artist missing either. You have at most ${ART_SCOUT_SEARCH_BUDGET} web searches. When you hit that budget, return JSON for the artists you have already verified.${exclusionBlock}\n\nReturn the artists as JSON.`;
+    const userMessage = `Scout up to 10 emerging contemporary artists for Bernard Studia. Every artist must have both a verified website URL and a verified Instagram handle — skip any artist missing either. You have at most ${ART_SCOUT_SEARCH_BUDGET} web searches. When you hit that budget, stop and emit the schema object for the artists you have already verified.${exclusionBlock}`;
 
     const batch = await submitBatch([
       {
@@ -198,6 +197,7 @@ export default async function handler(req: Request) {
           max_tokens: MAX_TOKENS,
           system: SYSTEM_PROMPT,
           tools: [{ ...WEB_SEARCH_TOOL, max_uses: ART_SCOUT_SEARCH_BUDGET }],
+          output_config: ART_SCOUT_OUTPUT_CONFIG,
           messages: [{ role: 'user', content: userMessage }],
         },
       },
@@ -213,12 +213,12 @@ export default async function handler(req: Request) {
     // Re-read so a batch queued while names were loading is not overwritten.
     const queued = await kvGet('agent:batches');
     const next: any[] = queued?.batches ?? [];
-    if (next.some((b) => b?.agentType === 'art-scout' && etDate(b.submittedAt) === day)) {
+    if (next.some((b) => b?.agentType === 'art-scout' && !b.held && etDate(b.submittedAt) === day)) {
       return new Response(JSON.stringify({
         success: true,
         skipped: true,
         reason: 'pending',
-        batchId: next.find((b) => b?.agentType === 'art-scout')?.batchId,
+        batchId: next.find((b) => b?.agentType === 'art-scout' && !b.held && etDate(b.submittedAt) === day)?.batchId,
         batch: batchName,
         note: 'Another art-scout batch was queued while this one was submitting. This batch id was not stored.',
         droppedBatchId: batch.id,

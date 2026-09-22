@@ -34,6 +34,8 @@ export interface BatchRequest {
     system?: string;
     messages: { role: 'user' | 'assistant'; content: string }[];
     tools?: any[];
+    tool_choice?: any;
+    output_config?: any;
   };
 }
 

@@ -1,54 +1,79 @@
-// Art Scout land decisions. The batch API pauses a long web_search turn with
-// stop_reason "pause_turn" and no final JSON (server tools guide). Parsing
-// that prose fails; dropping the batch is how 2026-09-21 landed zero rows.
-// A paused turn is finalized from the research notes already in the result,
-// without another search.
+// Art Scout land decisions.
+//
+// The 2026-09-21 batch ended stop_reason pause_turn: web_search notes, no
+// artist JSON. parseJSON returned null and the poller dequeued it.
+// Partial JSON is salvaged and landed. Prose or an empty body is held on
+// the queue with the notes attached. Nothing here submits another scout.
 
 import { parseJSON } from './anthropic-batch';
 
 export const ART_SCOUT_MODEL = 'claude-sonnet-4-6';
 export const ART_SCOUT_MAX_TOKENS = 16000;
-/** Stay under the batch server-tool iteration cap so the model can still emit JSON. */
+/** Stay under the batch server-tool iteration cap so the schema can still be emitted. */
 export const ART_SCOUT_SEARCH_BUDGET = 30;
 
-export const ART_SCOUT_FINALIZE_SYSTEM = `You turn Art Scout research notes into the final artist list for Bernard Studia.
+const ARTIST_PROPERTIES = {
+  name: { type: 'string' },
+  location: { type: 'string' },
+  medium: { type: 'string' },
+  score: { type: 'number' },
+  priceRange: { type: 'string' },
+  whyInteresting: { type: 'string' },
+  showsPress: { type: 'string' },
+  instagram: { type: 'string' },
+  website: { type: 'string' },
+  status: { type: 'string', enum: ['Scouted'] },
+} as const;
 
-Return ONLY valid JSON. No markdown fences. No prose before or after.
+const ARTIST_REQUIRED = Object.keys(ARTIST_PROPERTIES);
 
-Include an artist ONLY when the notes explicitly confirm both a website and an Instagram handle AND do not mark them as a red flag (gallery representation, auction record, or major-press validation). Skip everyone else. Do not invent URLs, handles, or names that are not in the notes. Fewer than 10 artists is success. An empty list is success when nobody was fully verified.
+/** Grammar-constrained final message. Web search still runs; the last text block must match this. */
+export const ART_SCOUT_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    artists: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: ARTIST_PROPERTIES,
+        required: ARTIST_REQUIRED,
+      },
+    },
+  },
+  required: ['artists'],
+};
 
-Schema:
-{
-  "artists": [
-    {
-      "name": "Full Name",
-      "location": "City, Country",
-      "medium": "medium",
-      "score": 0,
-      "priceRange": "$X–$Y",
-      "whyInteresting": "2-3 sentences grounded in the notes",
-      "showsPress": "exhibitions and press from the notes",
-      "instagram": "@handle",
-      "website": "domain.com",
-      "status": "Scouted"
-    }
-  ]
-}`;
+export const ART_SCOUT_OUTPUT_CONFIG = {
+  format: {
+    type: 'json_schema',
+    schema: ART_SCOUT_OUTPUT_SCHEMA,
+  },
+};
 
-export interface ArtScoutFinalizeRequest {
-  custom_id: string;
-  params: {
-    model: string;
-    max_tokens: number;
-    system: string;
-    messages: { role: 'user'; content: string }[];
-  };
+/**
+ * Strict tool alternative. The poller lands this if a batch ends on tool_use
+ * instead of schema text. Not sent by default: json_schema already forces the
+ * final text, and a client tool can stop the turn before that text exists.
+ */
+export const SUBMIT_ARTISTS_TOOL = {
+  name: 'submit_artists',
+  description: 'Submit the curated artist list. This tool call is the batch result. Prose is not landed.',
+  strict: true,
+  input_schema: ART_SCOUT_OUTPUT_SCHEMA,
+};
+
+export interface ArtScoutArtifact {
+  stopReason: string;
+  reason: string;
+  notes: string;
+  excerpt: string;
 }
 
 export type ArtScoutPlan =
   | { action: 'land'; artists: any[] }
-  | { action: 'finalize'; notes: string; stopReason: string }
-  | { action: 'drop'; reason: string };
+  | { action: 'hold'; reason: string; stopReason: string; artifact: ArtScoutArtifact };
 
 export function textBlocks(resultItem: any): string[] {
   const content = resultItem?.result?.message?.content;
@@ -79,55 +104,77 @@ export function artistsFromParsed(parsed: any): any[] {
   });
 }
 
-/** Try every text block, last first, then the joined notes. */
-export function parseArtScoutPayload(resultItem: any): any | null {
-  const blocks = textBlocks(resultItem);
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    const parsed = parseJSON(blocks[i]);
-    if (artistsFromParsed(parsed).length) return parsed;
+function payloadFromValue(parsed: any): { ok: true; artists: any[] } | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (Array.isArray(parsed)) {
+    const artists = artistsFromParsed(parsed);
+    if (!artists.length) return null;
+    return { ok: true, artists };
   }
-  if (blocks.length > 1) {
-    const joined = parseJSON(blocks.join('\n'));
-    if (artistsFromParsed(joined).length) return joined;
+  if (Array.isArray(parsed.artists)) {
+    const artists = artistsFromParsed(parsed);
+    // A non-empty list that salvages to nobody is incomplete. Hold it.
+    // An explicit empty array is a finished schema result.
+    if (!artists.length && parsed.artists.length > 0) return null;
+    return { ok: true, artists };
   }
   return null;
 }
 
-export function planArtScout(resultItem: any, phase?: string): ArtScoutPlan {
-  if (resultItem?.result?.type !== 'succeeded') {
-    const failType = resultItem?.result?.type ?? 'unknown';
-    return { action: 'drop', reason: `result type=${failType}` };
+/** Schema text, salvaged partial JSON, or a submit_artists tool_use input. */
+export function artistPayload(resultItem: any): { ok: true; artists: any[] } | { ok: false } {
+  const content = resultItem?.result?.message?.content;
+  if (Array.isArray(content)) {
+    for (let i = content.length - 1; i >= 0; i--) {
+      const block = content[i];
+      if (block?.type !== 'tool_use' || block.name !== 'submit_artists') continue;
+      const input = typeof block.input === 'string' ? parseJSON(block.input) : block.input;
+      const payload = payloadFromValue(input);
+      if (payload) return payload;
+    }
   }
 
-  const artists = artistsFromParsed(parseArtScoutPayload(resultItem));
-  if (artists.length) return { action: 'land', artists };
-
-  const stopReason = String(resultItem?.result?.message?.stop_reason ?? 'unknown');
-  if (phase === 'finalize') {
-    return { action: 'drop', reason: `finalize produced no artists (stop_reason=${stopReason})` };
+  const blocks = textBlocks(resultItem);
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const payload = payloadFromValue(parseJSON(blocks[i]));
+    if (payload) return payload;
   }
-
-  const notes = researchNotes(resultItem).trim();
-  if (!notes) {
-    return { action: 'drop', reason: `JSON parse failed (stop_reason=${stopReason})` };
+  if (blocks.length > 1) {
+    const payload = payloadFromValue(parseJSON(blocks.join('\n')));
+    if (payload) return payload;
   }
-
-  // pause_turn is the batch web_search cap. max_tokens / end_turn with no
-  // JSON is the same failure: notes exist, the artist list does not.
-  return { action: 'finalize', notes, stopReason };
+  return { ok: false };
 }
 
-export function artScoutFinalizeRequest(notes: string, batchDay: string): ArtScoutFinalizeRequest {
+export function planArtScout(resultItem: any): ArtScoutPlan {
+  if (!resultItem) {
+    return hold('empty result', 'empty', '');
+  }
+
+  const resultType = resultItem?.result?.type;
+  const stopReason = String(resultItem?.result?.message?.stop_reason ?? resultType ?? 'unknown');
+  const notes = researchNotes(resultItem).trim();
+
+  if (resultType === 'succeeded') {
+    const payload = artistPayload(resultItem);
+    if (payload.ok) return { action: 'land', artists: payload.artists };
+    return hold(`no artist payload (stop_reason=${stopReason})`, stopReason, notes);
+  }
+
+  const failType = resultType ?? 'unknown';
+  return hold(`result type=${failType}`, stopReason, notes);
+}
+
+function hold(reason: string, stopReason: string, notes: string): ArtScoutPlan {
   return {
-    custom_id: `art-scout-finalize-${batchDay}`,
-    params: {
-      model: ART_SCOUT_MODEL,
-      max_tokens: 8000,
-      system: ART_SCOUT_FINALIZE_SYSTEM,
-      messages: [{
-        role: 'user',
-        content: `These are the research notes from an Art Scout turn that was paused before it returned JSON. Emit the artists array now.\n\n${notes}`,
-      }],
+    action: 'hold',
+    reason,
+    stopReason,
+    artifact: {
+      stopReason,
+      reason,
+      notes,
+      excerpt: notes.slice(0, 500),
     },
   };
 }
